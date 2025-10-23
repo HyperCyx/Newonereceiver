@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import WithdrawalModal from "./withdrawal-modal"
 import ReferralSection from "./referral-section" // Import the ReferralSection component
 import { useReferral } from "@/lib/referral-context"
 
@@ -28,68 +27,152 @@ interface TelegramUser {
 
 export default function MenuView({ onNavigate }: MenuViewProps) {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null)
-  const [userName, setUserName] = useState("(つ◉◡◉)つ Hyper Red")
-  const [userId, setUserId] = useState("1211362365")
-  const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false)
+  const [userName, setUserName] = useState("Guest")
+  const [userId, setUserId] = useState("")
   const [balance, setBalance] = useState("0.00")
+  const [accountCount, setAccountCount] = useState(0)
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const { saveUserWithReferral } = useReferral()
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const tg = (window as any).Telegram?.WebApp
-      if (tg) {
-        tg.ready()
-        const user = tg.initDataUnsafe?.user
-        if (user) {
-          setTelegramUser(user)
-          const displayName = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ""}`
-          setUserName(displayName)
-          setUserId(user.id.toString())
-          saveUserWithReferral(user.id.toString(), undefined, user)
-
-          const adminIds = ["123456789", "987654321"] // Replace with actual admin IDs
-          setIsAdmin(adminIds.includes(user.id.toString()))
+    let isMounted = true
+    
+    const fetchUserData = async () => {
+      if (isLoading) return // Prevent multiple simultaneous calls
+      
+      if (typeof window !== "undefined") {
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.ready()
+          const user = tg.initDataUnsafe?.user
+          if (user && isMounted) {
+            setIsLoading(true)
+            setTelegramUser(user)
+            const displayName = `${user.first_name} ${user.last_name || ""}`.trim()
+            setUserName(displayName)
+            setUserId(`ID: ${user.id}`)
+            
+            // Fetch real data from Supabase
+            try {
+              const { createClient } = await import('@/lib/supabase/client')
+              const supabase = createClient()
+              
+              // Check if user exists, if not create them
+              let { data: dbUser } = await supabase
+                .from('users')
+                .select('id, is_admin, referral_code, balance')
+                .eq('telegram_id', user.id)
+                .single()
+              
+              console.log('[MenuView] Fetched user data:', dbUser)
+              
+              // Create user if doesn't exist
+              if (!dbUser) {
+                // Get referral code from URL
+                const urlParams = new URLSearchParams(window.location.search)
+                const referralCode = urlParams.get('ref') || urlParams.get('start')
+                
+                // Call API to register user
+                const response = await fetch('/api/user/register', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    telegramId: user.id,
+                    username: user.username,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
+                    phoneNumber: user.phone_number,
+                    referralCode: referralCode
+                  })
+                })
+                
+                const result = await response.json()
+                
+                if (result.user) {
+                  dbUser = result.user
+                  console.log('[MenuView] User registered:', dbUser.id)
+                } else {
+                  console.error('[MenuView] Failed to register user:', result.error)
+                }
+              }
+              
+              if (dbUser && isMounted) {
+                setIsAdmin(dbUser.is_admin || false)
+                // Set balance from user table - ensure proper formatting
+                const balanceValue = Number(dbUser.balance || 0)
+                console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
+                setBalance(balanceValue.toFixed(2))
+                // Save to localStorage for referral context
+                await saveUserWithReferral(user.id.toString(), undefined, {
+                  ...user,
+                  referralCode: dbUser.referral_code
+                })
+              }
+              
+              // Get available accounts count
+              const { count } = await supabase
+                .from('accounts')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending')
+              
+              if (isMounted) {
+                setAccountCount(count || 0)
+              }
+            } catch (error) {
+              console.error('Error fetching user data:', error)
+            } finally {
+              if (isMounted) {
+                setIsLoading(false)
+              }
+            }
+          }
         }
       }
     }
-  }, [saveUserWithReferral])
+    
+    fetchUserData()
+    
+    return () => {
+      isMounted = false
+    }
+  }, []) // Empty dependency array - only run once on mount
 
   const menuItems: MenuItem[] = [
     {
       icon: "👤",
       title: userName,
       subtitle: userId,
-      color: "bg-blue-500",
+      color: "bg-blue-400",
     },
     {
       icon: "💰",
       title: "Withdraw Money",
       subtitle: balance + " USDT",
-      color: "bg-green-500",
+      color: "bg-emerald-500",
       action: "withdraw",
     },
     {
       icon: "📦",
       title: "Send Accounts",
-      subtitle: "111",
-      badge: "AVAILABLE",
-      color: "bg-blue-500",
+      subtitle: accountCount.toString(),
+      badge: accountCount > 0 ? "AVAILABLE" : undefined,
+      color: "bg-sky-500",
       action: "send",
     },
     {
       icon: "📋",
       title: "Orders",
       subtitle: "0",
-      color: "bg-red-500",
+      color: "bg-rose-500",
       action: "orders",
     },
     {
       icon: "📢",
       title: "Channel",
       subtitle: "Check our channel for latest updates",
-      color: "bg-orange-500",
+      color: "bg-amber-500",
       action: "channel",
     },
     ...(isAdmin
@@ -98,18 +181,11 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             icon: "🔗",
             title: "Referral Program",
             subtitle: "Manage referral links",
-            color: "bg-purple-500",
+            color: "bg-violet-500",
             action: "referral",
           },
         ]
       : []),
-    {
-      icon: "⚙️",
-      title: "Admin Dashboard",
-      subtitle: "Manage system",
-      color: "bg-indigo-500",
-      action: "admin",
-    },
   ]
 
   const handleMenuItemClick = (action?: string) => {
@@ -117,8 +193,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       onNavigate?.("dashboard")
     } else if (action === "withdraw") {
       onNavigate?.("withdrawal")
-    } else if (action === "admin") {
-      onNavigate?.("admin-login")
     } else if (action === "referral") {
       setShowReferral(true)
     }
@@ -126,37 +200,37 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
 
   return (
     <>
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-white">
         <div className="flex-1 overflow-y-auto">
           {menuItems.map((item, idx) => (
             <div
               key={idx}
               onClick={() => handleMenuItemClick(item.action)}
-              className="border-b border-gray-200 px-4 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
+              className="border-b border-gray-100 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors active:bg-gray-100"
             >
-              <div className="flex items-start gap-4">
+              <div className="flex items-center gap-3">
                 <div
-                  className={`${item.color} w-16 h-16 rounded-full flex items-center justify-center text-2xl flex-shrink-0`}
+                  className={`${item.color} w-11 h-11 rounded-full flex items-center justify-center text-base flex-shrink-0`}
                 >
                   {item.icon}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-800">{item.title}</h3>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <h3 className="font-medium text-gray-900 text-[15px]">{item.title}</h3>
                     {item.badge && (
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-semibold">
+                      <span className="bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
                         {item.badge}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-400">{item.subtitle}</p>
+                  <p className="text-[13px] text-gray-400">{item.subtitle}</p>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="border-t border-gray-200 px-4 py-4 text-center text-gray-400 text-sm">v0.11.0</div>
+        <div className="border-t border-gray-100 px-4 py-3 text-center text-gray-400 text-xs">v0.11.0</div>
       </div>
 
       {showReferral && (
@@ -172,8 +246,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
           </div>
         </div>
       )}
-
-      <WithdrawalModal isOpen={isWithdrawalOpen} onClose={() => setIsWithdrawalOpen(false)} balance={balance} />
     </>
   )
 }

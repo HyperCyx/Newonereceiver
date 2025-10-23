@@ -1,9 +1,13 @@
 -- Create users table
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  telegram_id BIGINT UNIQUE,
+  telegram_id BIGINT UNIQUE NOT NULL,
   telegram_username TEXT,
+  first_name TEXT,
+  last_name TEXT,
   phone_number TEXT,
+  balance DECIMAL(18, 8) DEFAULT 0.00,
+  referral_code TEXT UNIQUE,
   is_admin BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

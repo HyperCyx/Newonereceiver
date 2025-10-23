@@ -94,7 +94,7 @@ export function ReferralProvider({ children }: { children: React.ReactNode }) {
   }
 
   const saveUserWithReferral = (telegramId: string, referrerId?: string, userData?: any) => {
-    const referralCode = generateReferralCode(telegramId)
+    const referralCode = userData?.referralCode || generateReferralCode(telegramId)
 
     const newUser: ReferralUser = {
       telegramId,
@@ -108,31 +108,16 @@ export function ReferralProvider({ children }: { children: React.ReactNode }) {
       referralCount: 0,
     }
 
-    // Save current user
+    // Save current user to localStorage for quick access
     localStorage.setItem("referral_user", JSON.stringify(newUser))
     setCurrentUser(newUser)
-
-    // Add to users list
-    const allUsers = JSON.parse(localStorage.getItem("referral_users") || "[]")
-    allUsers.push(newUser)
-    localStorage.setItem("referral_users", JSON.stringify(allUsers))
-
-    // If has referrer, update referrer's count
-    if (referrerId) {
-      const updatedUsers = allUsers.map((u: ReferralUser) => {
-        if (u.telegramId === referrerId) {
-          return { ...u, referralCount: (u.referralCount || 0) + 1 }
-        }
-        return u
-      })
-      localStorage.setItem("referral_users", JSON.stringify(updatedUsers))
-    }
   }
 
   const getReferralLink = (): string => {
     if (!currentUser) return ""
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-    return `${baseUrl}?ref=${currentUser.referralCode}`
+    // Use bot link for referrals
+    const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'your_bot'
+    return `https://t.me/${botUsername}?start=${currentUser.referralCode}`
   }
 
   const getReferralStats = () => {

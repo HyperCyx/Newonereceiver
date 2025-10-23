@@ -1,17 +1,77 @@
 "use client"
 
-import { useState } from "react"
-import { useReferral } from "@/lib/referral-context"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function ReferralSection() {
-  const { referralLink, getReferralStats } = useReferral()
+  const [referralLink, setReferralLink] = useState("")
   const [copied, setCopied] = useState(false)
-  const stats = getReferralStats()
+  const [stats, setStats] = useState({ totalReferrals: 0, activeReferrals: 0 })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchReferralData = async () => {
+      try {
+        const supabase = createClient()
+        const tg = (window as any).Telegram?.WebApp
+        const user = tg?.initDataUnsafe?.user
+        
+        if (!user) return
+        
+        // Get user's referral code from database
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('id, referral_code')
+          .eq('telegram_id', user.id)
+          .single()
+        
+        if (dbUser?.referral_code) {
+          // Use bot link for referrals
+          const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'your_bot'
+          const link = `https://t.me/${botUsername}?start=${dbUser.referral_code}`
+          setReferralLink(link)
+          
+          // Get referral stats
+          const { count: totalCount } = await supabase
+            .from('referrals')
+            .select('*', { count: 'exact', head: true })
+            .eq('referrer_id', dbUser.id)
+          
+          setStats({
+            totalReferrals: totalCount || 0,
+            activeReferrals: totalCount || 0 // You can add date filtering for active referrals
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching referral data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchReferralData()
+  }, [])
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(referralLink)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+  
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+        <p className="text-center text-gray-400">Loading referral data...</p>
+      </div>
+    )
+  }
+  
+  if (!referralLink) {
+    return (
+      <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+        <p className="text-center text-gray-400">Unable to load referral link</p>
+      </div>
+    )
   }
 
   return (

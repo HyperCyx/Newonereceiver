@@ -25,17 +25,6 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
   return (
     <div className="flex flex-col h-screen bg-white">
-      {/* Header */}
-      <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <button onClick={onBack} className="text-gray-600">
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-lg font-semibold text-gray-800">Admin Access</h1>
-        <button className="text-gray-600">
-          <Menu size={24} />
-        </button>
-      </div>
-
       {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm">

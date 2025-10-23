@@ -71,20 +71,6 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
-      <div className="border-b border-gray-200 px-4 py-4">
-        <div className="flex items-center justify-between">
-          <button onClick={onBack} className="text-2xl text-gray-800">
-            ←
-          </button>
-          <h1 className="text-xl font-semibold text-gray-800">New one receiver</h1>
-          <div className="flex gap-2">
-            <button className="text-2xl text-gray-800">⌄</button>
-            <button className="text-2xl text-gray-800">⋮</button>
-          </div>
-        </div>
-      </div>
-
       {/* Login Form */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         {step === "phone" ? (

@@ -2,8 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 interface WithdrawalModalProps {
   isOpen: boolean
@@ -16,24 +17,151 @@ export default function WithdrawalModal({ isOpen, onClose, balance }: Withdrawal
   const [walletAddress, setWalletAddress] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
+  const [minWithdrawalAmount, setMinWithdrawalAmount] = useState(5.00)
+
+  // Fetch minimum withdrawal amount from settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        if (response.ok) {
+          const result = await response.json()
+          if (result.settings && result.settings.min_withdrawal_amount) {
+            setMinWithdrawalAmount(parseFloat(result.settings.min_withdrawal_amount))
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
+
+  // Auto-fill amount with full balance when modal opens
+  useEffect(() => {
+    console.log('[WithdrawalModal] Modal state changed:', { isOpen, balance })
+    if (isOpen) {
+      console.log('[WithdrawalModal] Setting amount to balance:', balance)
+      setAmount(balance)
+      setWalletAddress("")
+    } else {
+      setAmount("")
+      setWalletAddress("")
+    }
+  }, [isOpen, balance])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    const withdrawalAmount = parseFloat(amount)
+    const currentBalance = parseFloat(balance)
+    
+    console.log('[WithdrawalModal] Validating withdrawal:', { 
+      amount, 
+      withdrawalAmount, 
+      balance, 
+      currentBalance, 
+      minWithdrawalAmount 
+    })
+    
+    // Validate withdrawal amount
+    if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid withdrawal amount",
+        variant: "destructive",
+        duration: 2000,
+      })
+      return
+    }
+    
+    if (withdrawalAmount < minWithdrawalAmount) {
+      toast({
+        title: "Low Balance",
+        description: `Minimum withdrawal: ${minWithdrawalAmount.toFixed(2)} USDT`,
+        variant: "destructive",
+        duration: 2000,
+      })
+      return
+    }
+    
+    if (withdrawalAmount > currentBalance) {
+      toast({
+        title: "Insufficient Balance",
+        description: `Your balance is ${currentBalance.toFixed(2)} USDT`,
+        variant: "destructive",
+        duration: 2000,
+      })
+      return
+    }
+    
     setIsSubmitting(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      setSuccessMessage(`Withdrawal of ${amount} USDT initiated to ${walletAddress}`)
-      setAmount("")
-      setWalletAddress("")
-      setIsSubmitting(false)
+    try {
+      // Get Telegram user ID
+      const tg = (window as any).Telegram?.WebApp
+      const telegramUser = tg?.initDataUnsafe?.user
+      
+      if (!telegramUser) {
+        toast({
+          title: "Error",
+          description: "Unable to identify user",
+          variant: "destructive",
+          duration: 2000,
+        })
+        setIsSubmitting(false)
+        return
+      }
 
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage("")
-        onClose()
-      }, 3000)
-    }, 1000)
+      const response = await fetch('/api/withdrawal/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          telegramId: telegramUser.id,
+          amount: withdrawalAmount, 
+          walletAddress,
+          currency: 'USDT'
+        })
+      })
+
+      const result = await response.json()
+      
+      if (response.ok && result.success) {
+        toast({
+          title: "Withdrawal Submitted",
+          description: `${withdrawalAmount.toFixed(2)} USDT withdrawal pending`,
+          duration: 2000,
+        })
+        
+        setAmount("")
+        setWalletAddress("")
+        setIsSubmitting(false)
+        
+        // Close modal and refresh page after short delay
+        setTimeout(() => {
+          onClose()
+          window.location.reload()
+        }, 500)
+      } else {
+        toast({
+          title: "Withdrawal Failed",
+          description: result.error || "Please try again",
+          variant: "destructive",
+          duration: 2000,
+        })
+        setIsSubmitting(false)
+      }
+      
+    } catch (error) {
+      console.error('Withdrawal error:', error)
+      toast({
+        title: "Withdrawal Failed",
+        description: "Network error. Please try again",
+        variant: "destructive",
+        duration: 2000,
+      })
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -72,11 +200,13 @@ export default function WithdrawalModal({ isOpen, onClose, balance }: Withdrawal
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="Enter amount"
-              className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
+              className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:border-blue-600 transition-colors text-base"
               required
               step="0.01"
               min="0"
+              inputMode="decimal"
             />
+            <p className="text-xs text-gray-500 mt-1">Minimum withdrawal: {minWithdrawalAmount.toFixed(2)} USDT</p>
           </div>
 
           {/* Wallet Address Input */}
@@ -87,8 +217,9 @@ export default function WithdrawalModal({ isOpen, onClose, balance }: Withdrawal
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
               placeholder="Enter wallet address"
-              className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:border-blue-600 transition-colors"
+              className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:border-blue-600 transition-colors text-base"
               required
+              autoComplete="off"
             />
           </div>
 
