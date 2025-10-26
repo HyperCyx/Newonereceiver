@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Collections, getCollection } from '@/lib/mongodb/client'
-import { requireAdmin } from '@/lib/mongodb/auth'
+import { checkAdminByTelegramId } from '@/lib/mongodb/auth'
 
 // GET - Fetch all withdrawals
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
     const withdrawals = await getCollection(Collections.WITHDRAWALS)
     const users = await getCollection(Collections.USERS)
 
@@ -38,22 +35,53 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[AdminWithdrawals] GET error:', error)
-    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// POST - Approve or reject withdrawal
+// POST - Approve or reject withdrawal or fetch with auth
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
     const body = await request.json()
-    const { withdrawalId, action } = body
+    const { withdrawalId, action, telegramId } = body
 
+    // If telegramId is provided, check admin and return data
+    if (telegramId && !withdrawalId) {
+      const isAdmin = await checkAdminByTelegramId(telegramId)
+      
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+      }
+
+      const withdrawals = await getCollection(Collections.WITHDRAWALS)
+      const users = await getCollection(Collections.USERS)
+
+      const allWithdrawals = await withdrawals
+        .find({})
+        .sort({ created_at: -1 })
+        .toArray()
+
+      const withdrawalsWithUsers = await Promise.all(
+        allWithdrawals.map(async (withdrawal) => {
+          const user = await users.findOne({ _id: withdrawal.user_id })
+          return {
+            ...withdrawal,
+            users: user ? {
+              telegram_username: user.telegram_username,
+              first_name: user.first_name,
+              last_name: user.last_name
+            } : null
+          }
+        })
+      )
+
+      return NextResponse.json({
+        success: true,
+        withdrawals: withdrawalsWithUsers
+      })
+    }
+
+    // Handle withdrawal actions
     if (!withdrawalId || !action) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
@@ -68,7 +96,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'approve') {
-      // Update withdrawal status to confirmed
       await withdrawals.updateOne(
         { _id: withdrawalId },
         { 
@@ -86,7 +113,6 @@ export async function POST(request: NextRequest) {
       })
     } 
     else if (action === 'reject') {
-      // Update withdrawal status to rejected
       await withdrawals.updateOne(
         { _id: withdrawalId },
         { 
@@ -112,9 +138,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error: any) {
     console.error('[AdminWithdrawals] POST error:', error)
-    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

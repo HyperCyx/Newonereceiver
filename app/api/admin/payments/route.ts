@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Collections, getCollection } from '@/lib/mongodb/client'
-import { requireAdmin } from '@/lib/mongodb/auth'
+import { checkAdminByTelegramId } from '@/lib/mongodb/auth'
 
 // GET - Fetch all payment requests
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
     const paymentRequests = await getCollection(Collections.PAYMENT_REQUESTS)
     const users = await getCollection(Collections.USERS)
 
@@ -38,22 +35,53 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[AdminPayments] GET error:', error)
-    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// POST - Approve or reject payment request
+// POST - Approve or reject payment request or fetch with auth
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
     const body = await request.json()
-    const { paymentId, action } = body
+    const { paymentId, action, telegramId } = body
 
+    // If telegramId is provided, check admin and return data
+    if (telegramId && !paymentId) {
+      const isAdmin = await checkAdminByTelegramId(telegramId)
+      
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+      }
+
+      const paymentRequests = await getCollection(Collections.PAYMENT_REQUESTS)
+      const users = await getCollection(Collections.USERS)
+
+      const allPayments = await paymentRequests
+        .find({})
+        .sort({ created_at: -1 })
+        .toArray()
+
+      const paymentsWithUsers = await Promise.all(
+        allPayments.map(async (payment) => {
+          const user = await users.findOne({ _id: payment.user_id })
+          return {
+            ...payment,
+            users: user ? {
+              telegram_username: user.telegram_username,
+              first_name: user.first_name,
+              last_name: user.last_name
+            } : null
+          }
+        })
+      )
+
+      return NextResponse.json({
+        success: true,
+        payments: paymentsWithUsers
+      })
+    }
+
+    // Handle payment actions
     if (!paymentId || !action) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
@@ -68,7 +96,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'approve') {
-      // Update payment status to approved
       await paymentRequests.updateOne(
         { _id: paymentId },
         { 
@@ -91,7 +118,6 @@ export async function POST(request: NextRequest) {
       })
     } 
     else if (action === 'reject') {
-      // Update payment status to rejected
       await paymentRequests.updateOne(
         { _id: paymentId },
         { 
@@ -111,9 +137,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error: any) {
     console.error('[AdminPayments] POST error:', error)
-    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

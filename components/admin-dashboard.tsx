@@ -196,6 +196,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     fetchSettings()
   }, [activeTab])
 
+  // Get Telegram user ID
+  const getTelegramId = () => {
+    if (typeof window !== 'undefined') {
+      const tg = (window as any).Telegram?.WebApp
+      return tg?.initDataUnsafe?.user?.id
+    }
+    return null
+  }
+
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/settings')
@@ -235,28 +244,51 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       }
 
       // Fetch stats from API
-      const [usersResponse, withdrawalsResponse] = await Promise.all([
+      const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
         fetch('/api/admin/users'),
-        fetch('/api/admin/withdrawals')
+        fetch('/api/admin/withdrawals'),
+        fetch('/api/transactions/list')
       ])
 
       const usersCount = await usersResponse.json()
       const withdrawalsResult = await withdrawalsResponse.json()
+      const transactionsResult = await transactionsResponse.json()
 
       const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
+      const totalRevenue = transactionsResult.transactions?.reduce((sum: number, t: any) => 
+        t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
 
       setStats({
         totalUsers: usersCount.count || 0,
-        totalTransactions: 0,
+        totalTransactions: transactionsResult.transactions?.length || 0,
         totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
-        totalRevenue: 0,
+        totalRevenue,
         activeUsers: usersCount.count || 0,
         pendingWithdrawals
       })
 
-      // Transactions API not yet implemented, set empty for now
+      // Fetch transactions
       if (activeTab === 'transactions' || activeTab === 'overview' || activeTab === 'analytics') {
-        setTransactions([])
+        try {
+          const response = await fetch('/api/transactions/list')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success && result.transactions) {
+              const formattedTx: Transaction[] = result.transactions.map((tx: any) => ({
+                id: tx._id,
+                userId: tx.user_id,
+                userName: tx.users?.telegram_username || 'Unknown',
+                amount: Number(tx.amount).toFixed(2),
+                status: tx.status as "completed" | "pending" | "failed",
+                date: new Date(tx.created_at).toLocaleDateString()
+              }))
+              setTransactions(formattedTx)
+            }
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching transactions:', err)
+          setTransactions([])
+        }
       }
 
       // Fetch withdrawals with user info (only for analytics and overview)
@@ -297,7 +329,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const wdResult = await wdResponse.json()
             if (wdResult.withdrawals) {
               const formattedWd: Withdrawal[] = wdResult.withdrawals.map((wd: any) => ({
-                id: wd.id,
+                id: wd._id,
                 userId: wd.user_id,
                 userName: wd.users?.telegram_username || `${wd.users?.first_name || ''} ${wd.users?.last_name || ''}`.trim() || 'Unknown',
                 amount: Number(wd.amount).toFixed(2),
@@ -316,7 +348,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const result = await response.json()
             if (result.payments) {
               const formattedPr: PaymentRequest[] = result.payments.map((pr: any) => ({
-                id: pr.id,
+                id: pr._id,
                 userId: pr.user_id,
                 userName: pr.users?.telegram_username || `${pr.users?.first_name || ''} ${pr.users?.last_name || ''}`.trim() || 'Unknown',
                 amount: Number(pr.amount).toFixed(2),
