@@ -683,20 +683,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           Loading...
                         </td>
                       </tr>
                     ) : users.length === 0 ? (
-                      <tr>
+                      <tr key="no-users">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           No users found
                         </td>
                       </tr>
                     ) : (
                       users.map((user) => (
-                        <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={user._id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-800 font-mono">{user.telegram_id}</td>
                           <td className="px-4 py-3 text-sm text-gray-800">
                             {user.first_name} {user.last_name || ''}
@@ -742,13 +742,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-transactions">
                         <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                           Loading transactions...
                         </td>
                       </tr>
                     ) : transactions.length === 0 ? (
-                      <tr>
+                      <tr key="no-transactions">
                         <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                           No transactions found
                         </td>
@@ -992,20 +992,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-referrals">
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                           Loading referral codes...
                         </td>
                       </tr>
                     ) : referralCodes.length === 0 ? (
-                      <tr>
+                      <tr key="no-referrals">
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                           No referral codes found. Create one above!
                         </td>
                       </tr>
                     ) : (
                       referralCodes.slice(0, 20).map((code) => (
-                        <tr key={code.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={code._id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 font-medium">
                             {code.name || 'Unnamed'}
                           </td>
@@ -1119,13 +1119,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-requests">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           Loading requests...
                         </td>
                       </tr>
                     ) : [...withdrawals.map(w => ({...w, type: 'Withdrawal'})), ...paymentRequests.map(p => ({...p, type: 'Payment', date: p.requestDate}))].length === 0 ? (
-                      <tr>
+                      <tr key="no-requests">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           No requests found
                         </td>
@@ -1357,13 +1357,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-countries">
                         <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                           Loading countries...
                         </td>
                       </tr>
                     ) : countries.length === 0 ? (
-                      <tr>
+                      <tr key="no-countries">
                         <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                           No countries found. Add one above!
                         </td>
@@ -1376,7 +1376,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           : 0
                         
                         return (
-                          <tr key={country.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr key={country._id} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="px-4 py-3 text-sm font-medium text-gray-800">
                               {country.country_name}
                             </td>
@@ -1473,7 +1473,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({
                                         action: 'update',
-                                        countryId: country.id,
+                                        countryId: country._id,
                                         isActive: !country.is_active
                                       })
                                     })
@@ -1530,7 +1530,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           headers: { 'Content-Type': 'application/json' },
                                           body: JSON.stringify({
                                             action: 'delete',
-                                            countryId: country.id
+                                            countryId: country._id
                                           })
                                         })
                                         if (response.ok) {
