@@ -48,34 +48,34 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
       try {
         const supabase = createClient()
         
-        // Map tab to status
+        // Map tab to status for accounts table
         const statusMap = {
-          accepted: 'completed',
-          rejected: 'failed',
+          accepted: 'accepted',
+          rejected: 'rejected',
           pending: 'pending'
         }
         
-        const { data: txData } = await supabase
-          .from('transactions')
-          .select('id, amount, currency, status, created_at')
+        const { data: accountData } = await supabase
+          .from('accounts')
+          .select('id, phone_number, amount, status, created_at')
           .eq('status', statusMap[tab])
           .order('created_at', { ascending: false })
         
-        if (txData) {
-          const formattedTransactions: Transaction[] = txData.map(tx => ({
-            id: tx.id,
-            phone: '', // Phone number would come from related account
-            amount: Number(tx.amount).toFixed(2),
-            currency: tx.currency || 'USDT',
-            status: tx.status === 'completed' ? ['ACCEPTED', 'SUCCESS'] : 
-                   tx.status === 'failed' ? ['REJECTED', 'FAILED'] : ['PENDING'],
-            date: new Date(tx.created_at).toLocaleDateString('en-US', { 
+        if (accountData) {
+          const formattedTransactions: Transaction[] = accountData.map(acc => ({
+            id: acc.id,
+            phone: acc.phone_number || '',
+            amount: Number(acc.amount).toFixed(2),
+            currency: 'USDT',
+            status: acc.status === 'accepted' ? ['ACCEPTED', 'SUCCESS'] : 
+                   acc.status === 'rejected' ? ['REJECTED', 'FAILED'] : ['PENDING'],
+            date: new Date(acc.created_at).toLocaleDateString('en-US', { 
               month: '2-digit', 
               day: '2-digit',
               hour: '2-digit',
               minute: '2-digit'
             }),
-            fullDate: new Date(tx.created_at).toLocaleString('en-US', {
+            fullDate: new Date(acc.created_at).toLocaleString('en-US', {
               year: 'numeric',
               month: 'long',
               day: 'numeric',
@@ -88,7 +88,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           setTransactions(formattedTransactions)
         }
       } catch (error) {
-        console.error('Error fetching transactions:', error)
+        console.error('Error fetching accounts:', error)
         setTransactions([])
       }
       setLoading(false)
