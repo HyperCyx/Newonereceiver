@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ObjectId } from 'mongodb'
 import { checkAdminByTelegramId } from '@/lib/mongodb/auth'
 import { Collections, getCollection, generateId } from '@/lib/mongodb/client'
 
@@ -29,12 +30,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action, countryId, countryCode, countryName, maxCapacity, prizeAmount, isActive, telegramId } = body
 
+    console.log('[Countries API] POST request:', { action, countryId, telegramId })
+
     // Check if user is admin using Telegram ID
     if (!telegramId) {
+      console.log('[Countries API] No telegram ID provided')
       return NextResponse.json({ error: 'Telegram ID required' }, { status: 400 })
     }
 
     const isAdmin = await checkAdminByTelegramId(telegramId)
+    console.log('[Countries API] Admin check:', { telegramId, isAdmin })
+    
     if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
@@ -66,6 +72,19 @@ export async function POST(request: NextRequest) {
     } 
     else if (action === 'update') {
       // Update existing country
+      console.log('[Countries API] Update - countryId:', countryId, 'type:', typeof countryId)
+      
+      // Convert string ID to ObjectId if needed
+      let queryId: any = countryId
+      try {
+        if (typeof countryId === 'string' && ObjectId.isValid(countryId)) {
+          queryId = new ObjectId(countryId)
+          console.log('[Countries API] Converted to ObjectId')
+        }
+      } catch (e) {
+        console.log('[Countries API] Keeping as string')
+      }
+      
       const updateData: any = {
         updated_at: new Date()
       }
@@ -75,15 +94,23 @@ export async function POST(request: NextRequest) {
       if (prizeAmount !== undefined) updateData.prize_amount = prizeAmount
       if (isActive !== undefined) updateData.is_active = isActive
 
+      console.log('[Countries API] Update data:', updateData)
+
+      // Check if country exists first
+      const existing = await countryCapacity.findOne({ _id: queryId })
+      console.log('[Countries API] Existing country:', existing ? 'Found' : 'Not found', existing?._id)
+
+      if (!existing) {
+        return NextResponse.json({ error: 'Country not found', countryId }, { status: 404 })
+      }
+
       const result = await countryCapacity.findOneAndUpdate(
-        { _id: countryId },
+        { _id: queryId },
         { $set: updateData },
         { returnDocument: 'after' }
       )
 
-      if (!result) {
-        return NextResponse.json({ error: 'Country not found' }, { status: 404 })
-      }
+      console.log('[Countries API] Update result:', result ? 'Success' : 'Failed')
 
       return NextResponse.json({ 
         success: true, 
@@ -93,7 +120,28 @@ export async function POST(request: NextRequest) {
     }
     else if (action === 'delete') {
       // Delete country
-      await countryCapacity.deleteOne({ _id: countryId })
+      console.log('[Countries API] Delete - countryId:', countryId)
+      
+      // Convert string ID to ObjectId if needed
+      let queryId: any = countryId
+      try {
+        if (typeof countryId === 'string' && ObjectId.isValid(countryId)) {
+          queryId = new ObjectId(countryId)
+        }
+      } catch (e) {
+        // Keep as string if conversion fails
+      }
+      
+      // Check if exists first
+      const existing = await countryCapacity.findOne({ _id: queryId })
+      console.log('[Countries API] Country exists:', existing ? 'Yes' : 'No')
+      
+      if (!existing) {
+        return NextResponse.json({ error: 'Country not found', countryId }, { status: 404 })
+      }
+
+      const deleteResult = await countryCapacity.deleteOne({ _id: queryId })
+      console.log('[Countries API] Delete result:', deleteResult.deletedCount, 'deleted')
 
       return NextResponse.json({ 
         success: true,
@@ -102,15 +150,34 @@ export async function POST(request: NextRequest) {
     }
     else if (action === 'reset_capacity') {
       // Reset used capacity to 0
+      console.log('[Countries API] Reset - countryId:', countryId, 'type:', typeof countryId)
+      
+      // Convert string ID to ObjectId if needed
+      let queryId: any = countryId
+      try {
+        if (typeof countryId === 'string' && ObjectId.isValid(countryId)) {
+          queryId = new ObjectId(countryId)
+          console.log('[Countries API] Converted to ObjectId')
+        }
+      } catch (e) {
+        console.log('[Countries API] Keeping as string')
+      }
+      
+      // Check if exists first
+      const existing = await countryCapacity.findOne({ _id: queryId })
+      console.log('[Countries API] Query result:', existing ? `Found: ${existing._id}` : 'Not found')
+      
+      if (!existing) {
+        return NextResponse.json({ error: 'Country not found', countryId }, { status: 404 })
+      }
+
       const result = await countryCapacity.findOneAndUpdate(
-        { _id: countryId },
+        { _id: queryId },
         { $set: { used_capacity: 0, updated_at: new Date() } },
         { returnDocument: 'after' }
       )
 
-      if (!result) {
-        return NextResponse.json({ error: 'Country not found' }, { status: 404 })
-      }
+      console.log('[Countries API] Reset result:', result ? 'Success' : 'Failed')
 
       return NextResponse.json({ 
         success: true, 
