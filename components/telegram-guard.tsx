@@ -65,54 +65,76 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
     checkAccess()
   }, [])
 
-  // Show loading initially
+  // Show beautiful loading animation
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-pulse">
-          <div className="w-16 h-16 border-4 border-gray-700 border-t-white rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          {/* Beautiful loader */}
+          <div className="relative w-24 h-24 mx-auto mb-6">
+            <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="absolute inset-2 border-4 border-blue-300 border-t-transparent rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1s' }}></div>
+          </div>
+          
+          {/* Loading text with pulse animation */}
+          <div className="space-y-2">
+            <p className="text-lg font-semibold text-gray-700 animate-pulse">Loading...</p>
+            <div className="flex justify-center space-x-1">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  // If not in Telegram, show black screen with message
+  // If not in Telegram, show clean instructions
   if (!isTelegram) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+      <div className="min-h-screen bg-white flex items-center justify-center p-6">
         <div className="max-w-md text-center">
+          {/* Telegram Logo/Icon */}
           <div className="mb-8">
-            <svg className="w-24 h-24 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <h1 className="text-3xl font-bold mb-3">Access Restricted</h1>
-            <p className="text-gray-400 text-lg mb-6">
-              This application can only be accessed through Telegram Mini App.
-            </p>
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+              <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+              </svg>
+            </div>
           </div>
 
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-white">How to Access:</h2>
-            <ol className="text-left space-y-3 text-gray-300">
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 text-sm font-bold">1</span>
-                <span>Open Telegram app on your device</span>
-              </li>
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 text-sm font-bold">2</span>
-                <span>Search for our bot or use the provided link</span>
-              </li>
-              <li className="flex items-start">
-                <span className="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0 text-sm font-bold">3</span>
-                <span>Click "Start" to launch the Mini App</span>
-              </li>
-            </ol>
-          </div>
-
-          <div className="bg-blue-900/30 border border-blue-800 rounded-lg p-4">
-            <p className="text-sm text-blue-300">
-              <strong>Note:</strong> For security and functionality reasons, this application requires Telegram's secure authentication and can only run within the Telegram ecosystem.
-            </p>
+          {/* Instructions */}
+          <h2 className="text-2xl font-bold text-gray-800 mb-8">How to Access:</h2>
+          
+          <div className="space-y-6 mb-8">
+            <div className="flex items-start text-left">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-lg mr-4 shadow-md">
+                1
+              </div>
+              <div className="flex-1 pt-1">
+                <p className="text-gray-700 text-lg">Open Telegram app on your device</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start text-left">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-lg mr-4 shadow-md">
+                2
+              </div>
+              <div className="flex-1 pt-1">
+                <p className="text-gray-700 text-lg">Search for our bot or use the provided link</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start text-left">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-lg mr-4 shadow-md">
+                3
+              </div>
+              <div className="flex-1 pt-1">
+                <p className="text-gray-700 text-lg">Click "Start" to launch the Mini App</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
