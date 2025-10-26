@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Collections, getCollection } from '@/lib/mongodb/client'
-import { requireAdmin, getAuthUser } from '@/lib/mongodb/auth'
+import { checkAdminByTelegramId } from '@/lib/mongodb/auth'
 
 // GET - Get settings
 export async function GET(request: NextRequest) {
@@ -21,14 +21,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Update settings
+// POST - Update settings (admin only, no password required)
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
     const body = await request.json()
-    const { settingKey, settingValue } = body
+    const { settingKey, settingValue, telegramId } = body
+
+    // Check if user is admin using Telegram ID (no password needed)
+    if (!telegramId) {
+      return NextResponse.json({ error: 'Telegram ID required' }, { status: 400 })
+    }
+
+    const isAdmin = await checkAdminByTelegramId(telegramId)
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized - Admin access only' }, { status: 403 })
+    }
 
     if (!settingKey || !settingValue) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -58,9 +65,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[Settings] POST error:', error)
-    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

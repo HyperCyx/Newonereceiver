@@ -463,7 +463,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           settingKey: 'min_withdrawal_amount',
-          settingValue: minAmount.toFixed(2)
+          settingValue: minAmount.toFixed(2),
+          telegramId: adminTelegramId
         })
       })
 
