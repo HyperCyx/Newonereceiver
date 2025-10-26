@@ -1432,7 +1432,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                             <td className="px-4 py-3 text-sm">
                               <button
                                 onClick={async () => {
+                                  console.log('[Toggle] Country ID:', country._id)
+                                  console.log('[Toggle] Admin Telegram ID:', adminTelegramId)
+                                  console.log('[Toggle] Current status:', country.is_active)
+                                  
+                                  if (!adminTelegramId) {
+                                    alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                    return
+                                  }
+                                  
                                   try {
+                                    console.log('[Toggle] Sending toggle request...')
                                     const response = await fetch('/api/admin/countries', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
@@ -1443,13 +1453,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         telegramId: adminTelegramId
                                       })
                                     })
+                                    
+                                    const result = await response.json()
+                                    console.log('[Toggle] Response:', response.status, result)
+                                    
                                     if (response.ok) {
+                                      alert(`✅ ${country.country_name} is now ${!country.is_active ? 'Active' : 'Inactive'}`)
                                       await fetchAllData()
-                                      alert(`${country.country_name} is now ${!country.is_active ? 'Active' : 'Inactive'}`)
+                                    } else {
+                                      console.error('[Toggle] Failed:', result)
+                                      alert(`❌ Failed to update: ${result.error || 'Unknown error'}`)
                                     }
                                   } catch (err) {
-                                    console.error('Error toggling status:', err)
-                                    alert('Failed to update status')
+                                    console.error('[Toggle] Error:', err)
+                                    alert(`❌ Error toggling status: ${err}`)
                                   }
                                 }}
                                 className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
@@ -1468,29 +1485,49 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                   <>
                                     <button
                                       onClick={async () => {
+                                        console.log('[Save] Country ID:', country._id)
+                                        console.log('[Save] Admin Telegram ID:', adminTelegramId)
+                                        console.log('[Save] Edit values:', editValues)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
+                                        if (!editValues) {
+                                          alert('❌ Error: No changes to save')
+                                          return
+                                        }
+                                        
                                         try {
+                                          console.log('[Save] Sending update request...')
                                           const response = await fetch('/api/admin/countries', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
                                               action: 'update',
                                               countryId: country._id,
-                                              maxCapacity: editValues?.capacity,
-                                              prizeAmount: editValues?.prize,
+                                              maxCapacity: editValues.capacity,
+                                              prizeAmount: editValues.prize,
                                               telegramId: adminTelegramId
                                             })
                                           })
+                                          
+                                          const result = await response.json()
+                                          console.log('[Save] Response:', response.status, result)
+                                          
                                           if (response.ok) {
                                             setEditingCountry(null)
                                             setEditValues(undefined)
+                                            alert(`✅ ${country.country_name} updated successfully!`)
                                             await fetchAllData()
-                                            alert(`${country.country_name} updated successfully!`)
                                           } else {
-                                            alert('Failed to update country')
+                                            console.error('[Save] Failed:', result)
+                                            alert(`❌ Failed to update: ${result.error || 'Unknown error'}`)
                                           }
                                         } catch (err) {
-                                          console.error('Error updating:', err)
-                                          alert('Error updating country')
+                                          console.error('[Save] Error:', err)
+                                          alert(`❌ Error updating country: ${err}`)
                                         }
                                       }}
                                       className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-xs"
@@ -1523,8 +1560,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     </button>
                                     <button
                                       onClick={async () => {
+                                        console.log('[Reset] Country ID:', country._id)
+                                        console.log('[Reset] Admin Telegram ID:', adminTelegramId)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
                                         if (confirm(`Reset used capacity for ${country.country_name}?`)) {
                                           try {
+                                            console.log('[Reset] Sending reset request...')
                                             const response = await fetch('/api/admin/countries', {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
@@ -1534,12 +1580,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                                 telegramId: adminTelegramId
                                               })
                                             })
+                                            
+                                            const result = await response.json()
+                                            console.log('[Reset] Response:', response.status, result)
+                                            
                                             if (response.ok) {
+                                              alert(`✅ ${country.country_name} capacity reset to 0!`)
                                               await fetchAllData()
-                                              alert(`${country.country_name} capacity reset to 0!`)
+                                            } else {
+                                              console.error('[Reset] Failed:', result)
+                                              alert(`❌ Failed to reset: ${result.error || 'Unknown error'}`)
                                             }
                                           } catch (err) {
-                                            console.error('Error resetting:', err)
+                                            console.error('[Reset] Error:', err)
+                                            alert(`❌ Error resetting capacity: ${err}`)
                                           }
                                         }
                                       }}
@@ -1550,8 +1604,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     </button>
                                     <button
                                       onClick={async () => {
+                                        console.log('[Delete] Country ID:', country._id)
+                                        console.log('[Delete] Admin Telegram ID:', adminTelegramId)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
                                         if (confirm(`⚠️ DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
                                           try {
+                                            console.log('[Delete] Sending delete request...')
                                             const response = await fetch('/api/admin/countries', {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
@@ -1561,15 +1624,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                                 telegramId: adminTelegramId
                                               })
                                             })
+                                            
+                                            const result = await response.json()
+                                            console.log('[Delete] Response:', response.status, result)
+                                            
                                             if (response.ok) {
+                                              alert(`✅ ${country.country_name} deleted successfully!`)
                                               await fetchAllData()
-                                              alert(`${country.country_name} deleted successfully!`)
                                             } else {
-                                              alert('Failed to delete country')
+                                              console.error('[Delete] Failed:', result)
+                                              alert(`❌ Failed to delete: ${result.error || 'Unknown error'}`)
                                             }
                                           } catch (err) {
-                                            console.error('Error deleting:', err)
-                                            alert('Error deleting country')
+                                            console.error('[Delete] Error:', err)
+                                            alert(`❌ Error deleting country: ${err}`)
                                           }
                                         }
                                       }}
