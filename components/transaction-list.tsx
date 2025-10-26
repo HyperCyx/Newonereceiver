@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { X } from "lucide-react"
 
 interface Transaction {
   id: string
@@ -10,6 +11,7 @@ interface Transaction {
   currency: string
   status: string[]
   date: string
+  fullDate: string
   percentage?: string
 }
 
@@ -38,6 +40,7 @@ interface TransactionListProps {
 export default function TransactionList({ tab, searchQuery, onLoginClick }: TransactionListProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -71,6 +74,15 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
               day: '2-digit',
               hour: '2-digit',
               minute: '2-digit'
+            }),
+            fullDate: new Date(tx.created_at).toLocaleString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true
             })
           }))
           setTransactions(formattedTransactions)
@@ -102,7 +114,11 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
       ) : (
         <div className="flex-1 overflow-y-auto pb-20">
           {filteredTransactions.map((transaction) => (
-            <div key={transaction.id} className="border-b border-gray-100 px-4 py-3 hover:bg-gray-50 active:bg-gray-100">
+            <div 
+              key={transaction.id} 
+              className="border-b border-gray-100 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 cursor-pointer"
+              onClick={() => setSelectedTransaction(transaction)}
+            >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                   <p className="font-medium text-[15px] text-gray-900">{transaction.phone}</p>
@@ -136,6 +152,69 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           Login
         </button>
       </div>
+
+      {/* Transaction Details Modal */}
+      {selectedTransaction && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedTransaction(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-md w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedTransaction(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={24} />
+            </button>
+
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Transaction Details</h2>
+
+            <div className="space-y-4">
+              {/* Transaction ID */}
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Transaction ID</p>
+                <p className="text-base font-mono text-gray-900 break-all">{selectedTransaction.id}</p>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Amount</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  ${selectedTransaction.amount} <span className="text-base font-normal text-gray-600">{selectedTransaction.currency}</span>
+                </p>
+              </div>
+
+              {/* Date & Time */}
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Date & Time</p>
+                <p className="text-base text-gray-900">{selectedTransaction.fullDate}</p>
+              </div>
+
+              {/* Status */}
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Status</p>
+                <div className="flex gap-2 flex-wrap">
+                  {selectedTransaction.status.map((status, idx) => (
+                    <span key={idx} className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(status)}`}>
+                      {status}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedTransaction(null)}
+              className="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 rounded-full transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

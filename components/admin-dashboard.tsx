@@ -13,6 +13,7 @@ import {
   Link2,
   Check,
   X,
+  DollarSign,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
@@ -43,6 +44,7 @@ interface Withdrawal {
   userId: string
   userName?: string
   amount: string
+  walletAddress?: string
   status: "confirmed" | "pending" | "rejected"
   date: string
 }
@@ -70,17 +72,21 @@ interface User {
   created_at: string
 }
 
-interface ReferralUser {
+interface ReferralCode {
   id: string
-  telegram_username: string
-  totalReferrals: number
-  activeReferrals: number
+  code: string
+  name?: string
+  is_active: boolean
+  created_by?: string
+  max_uses?: number
+  used_count: number
   created_at: string
+  expires_at?: string
 }
 
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "users" | "transactions" | "withdrawals" | "analytics" | "referrals" | "payments" | "settings"
+    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "settings"
   >("overview")
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -96,7 +102,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
-  const [referralUsers, setReferralUsers] = useState<ReferralUser[]>([])
+  const [referralCodes, setReferralCodes] = useState<ReferralCode[]>([])
   const [loading, setLoading] = useState(true)
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [savingSettings, setSavingSettings] = useState(false)
@@ -268,91 +274,101 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         setTransactions(formattedTx)
       }
 
-      // Fetch withdrawals with user info
-      if (activeTab === 'withdrawals' || activeTab === 'overview' || activeTab === 'analytics') {
-        const { data: wdData } = await supabase
-          .from('withdrawals')
-          .select(`
-            id, 
-            user_id, 
-            amount, 
-            status, 
-            created_at, 
-            currency,
-            users!inner(telegram_username)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(50)
-
-        const formattedWd: Withdrawal[] = (wdData || []).map((wd: any) => ({
-          id: wd.id,
-          userId: wd.user_id,
-          userName: wd.users?.telegram_username || 'Unknown',
-          amount: Number(wd.amount).toFixed(2),
-          status: wd.status as "confirmed" | "pending" | "rejected",
-          date: new Date(wd.created_at).toLocaleDateString()
-        }))
-        
-        setWithdrawals(formattedWd)
+      // Fetch withdrawals with user info (only for analytics and overview)
+      if (activeTab === 'overview' || activeTab === 'analytics') {
+        try {
+          const response = await fetch('/api/admin/withdrawals')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.withdrawals) {
+              const formattedWd: Withdrawal[] = result.withdrawals.map((wd: any) => ({
+                id: wd.id,
+                userId: wd.user_id,
+                userName: wd.users?.telegram_username || `${wd.users?.first_name || ''} ${wd.users?.last_name || ''}`.trim() || 'Unknown',
+                amount: Number(wd.amount).toFixed(2),
+                walletAddress: wd.wallet_address || 'N/A',
+                status: wd.status as "confirmed" | "pending" | "rejected",
+                date: new Date(wd.created_at).toLocaleDateString()
+              }))
+              setWithdrawals(formattedWd)
+              console.log('[AdminDashboard] Loaded', formattedWd.length, 'withdrawals')
+            }
+          } else {
+            console.error('[AdminDashboard] Failed to fetch withdrawals:', response.status)
+            setWithdrawals([])
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching withdrawals:', err)
+          setWithdrawals([])
+        }
       }
 
       // Fetch payment requests with user info
       if (activeTab === 'payments') {
-        const { data: prData } = await supabase
-          .from('payment_requests')
-          .select(`
-            id, 
-            user_id, 
-            amount, 
-            wallet_address, 
-            status, 
-            created_at,
-            updated_at,
-            users!inner(telegram_username)
-          `)
-          .order('created_at', { ascending: false })
+        try {
+          // Fetch withdrawals
+          const wdResponse = await fetch('/api/admin/withdrawals')
+          if (wdResponse.ok) {
+            const wdResult = await wdResponse.json()
+            if (wdResult.withdrawals) {
+              const formattedWd: Withdrawal[] = wdResult.withdrawals.map((wd: any) => ({
+                id: wd.id,
+                userId: wd.user_id,
+                userName: wd.users?.telegram_username || `${wd.users?.first_name || ''} ${wd.users?.last_name || ''}`.trim() || 'Unknown',
+                amount: Number(wd.amount).toFixed(2),
+                walletAddress: wd.wallet_address || 'N/A',
+                status: wd.status as "confirmed" | "pending" | "rejected",
+                date: new Date(wd.created_at).toLocaleDateString()
+              }))
+              setWithdrawals(formattedWd)
+              console.log('[AdminDashboard] Loaded', formattedWd.length, 'withdrawals')
+            }
+          }
 
-        const formattedPr: PaymentRequest[] = (prData || []).map((pr: any) => ({
-          id: pr.id,
-          userId: pr.user_id,
-          userName: pr.users?.telegram_username || 'Unknown',
-          amount: Number(pr.amount).toFixed(2),
-          walletAddress: pr.wallet_address,
-          status: pr.status as "pending" | "approved" | "rejected",
-          requestDate: new Date(pr.created_at).toLocaleDateString(),
-          processedDate: pr.status !== 'pending' && pr.updated_at !== pr.created_at 
-            ? new Date(pr.updated_at).toLocaleDateString() 
-            : undefined
-        }))
-        
-        setPaymentRequests(formattedPr)
+          // Fetch payment requests
+          const response = await fetch('/api/admin/payments')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.payments) {
+              const formattedPr: PaymentRequest[] = result.payments.map((pr: any) => ({
+                id: pr.id,
+                userId: pr.user_id,
+                userName: pr.users?.telegram_username || `${pr.users?.first_name || ''} ${pr.users?.last_name || ''}`.trim() || 'Unknown',
+                amount: Number(pr.amount).toFixed(2),
+                walletAddress: pr.wallet_address,
+                status: pr.status as "pending" | "approved" | "rejected",
+                requestDate: new Date(pr.created_at).toLocaleDateString(),
+                processedDate: pr.status !== 'pending' && pr.updated_at !== pr.created_at 
+                  ? new Date(pr.updated_at).toLocaleDateString() 
+                  : undefined
+              }))
+              setPaymentRequests(formattedPr)
+              console.log('[AdminDashboard] Loaded', formattedPr.length, 'payment requests')
+            }
+          } else {
+            console.error('[AdminDashboard] Failed to fetch payment requests:', response.status)
+            setPaymentRequests([])
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching payment requests:', err)
+          setPaymentRequests([])
+        }
       }
 
-      // Fetch referrals
+      // Fetch referral codes
       if (activeTab === 'referrals') {
-        const { data: refData } = await supabase
-          .from('users')
-          .select('id, telegram_username, created_at')
-          .order('created_at', { ascending: false })
-
-        const refUsers: ReferralUser[] = []
-        
-        for (const user of refData || []) {
-          const { count: totalCount } = await supabase
-            .from('referrals')
-            .select('*', { count: 'exact', head: true })
-            .eq('referrer_id', user.id)
-
-          refUsers.push({
-            id: user.id,
-            telegram_username: user.telegram_username || 'Unknown',
-            totalReferrals: totalCount || 0,
-            activeReferrals: totalCount || 0,
-            created_at: user.created_at
-          })
+        try {
+          const response = await fetch('/api/referral-codes')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success && result.codes) {
+              setReferralCodes(result.codes)
+            }
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching referral codes:', err)
+          setReferralCodes([])
         }
-        
-        setReferralUsers(refUsers)
       }
 
     } catch (error) {
@@ -363,13 +379,22 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }
 
   const handleApprovePayment = async (id: string) => {
-    const supabase = createClient()
-    await supabase
-      .from('payment_requests')
-      .update({ status: 'approved' })
-      .eq('id', id)
-    
-    fetchAllData()
+    try {
+      const response = await fetch('/api/admin/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId: id, action: 'approve' })
+      })
+      
+      if (response.ok) {
+        console.log('[AdminDashboard] Payment approved successfully')
+        fetchAllData()
+      } else {
+        console.error('[AdminDashboard] Failed to approve payment')
+      }
+    } catch (error) {
+      console.error('[AdminDashboard] Error approving payment:', error)
+    }
   }
 
   const handleSaveSettings = async () => {
@@ -450,20 +475,67 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }
 
   const handleRejectPayment = async (id: string) => {
-    const supabase = createClient()
-    await supabase
-      .from('payment_requests')
-      .update({ status: 'rejected' })
-      .eq('id', id)
-    
-    fetchAllData()
+    try {
+      const response = await fetch('/api/admin/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId: id, action: 'reject' })
+      })
+      
+      if (response.ok) {
+        console.log('[AdminDashboard] Payment rejected successfully')
+        fetchAllData()
+      } else {
+        console.error('[AdminDashboard] Failed to reject payment')
+      }
+    } catch (error) {
+      console.error('[AdminDashboard] Error rejecting payment:', error)
+    }
+  }
+
+  const handleApproveWithdrawal = async (id: string) => {
+    try {
+      const response = await fetch('/api/admin/withdrawals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id, action: 'approve' })
+      })
+      
+      if (response.ok) {
+        console.log('[AdminDashboard] Withdrawal approved successfully')
+        fetchAllData()
+      } else {
+        console.error('[AdminDashboard] Failed to approve withdrawal')
+      }
+    } catch (error) {
+      console.error('[AdminDashboard] Error approving withdrawal:', error)
+    }
+  }
+
+  const handleRejectWithdrawal = async (id: string) => {
+    try {
+      const response = await fetch('/api/admin/withdrawals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id, action: 'reject' })
+      })
+      
+      if (response.ok) {
+        console.log('[AdminDashboard] Withdrawal rejected successfully')
+        fetchAllData()
+      } else {
+        console.error('[AdminDashboard] Failed to reject withdrawal')
+      }
+    } catch (error) {
+      console.error('[AdminDashboard] Error rejecting withdrawal:', error)
+    }
   }
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 flex overflow-x-auto sticky top-0 z-10">
-        {(["overview", "users", "transactions", "withdrawals", "analytics", "referrals", "payments", "settings"] as const).map(
+        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "settings"] as const).map(
           (tab) => (
             <button
               key={tab}
@@ -677,60 +749,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         )}
 
-        {activeTab === "withdrawals" && (
-          <div className="p-4">
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Amount</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          Loading withdrawals...
-                        </td>
-                      </tr>
-                    ) : withdrawals.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          No withdrawals found
-                        </td>
-                      </tr>
-                    ) : (
-                      withdrawals.map((wd) => (
-                        <tr key={wd.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800">{wd.userName || wd.userId}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-800">${wd.amount}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-semibold ${
-                              wd.status === "confirmed"
-                                ? "bg-green-100 text-green-700"
-                                : wd.status === "pending"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {wd.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{wd.date}</td>
-                      </tr>
-                    ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
 
         {activeTab === "analytics" && (
           <div className="p-4 space-y-4">
@@ -870,7 +888,54 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         )}
 
         {activeTab === "referrals" && (
-          <div className="p-4">
+          <div className="p-4 space-y-4">
+            {/* Create Referral Code Section */}
+            <div className="bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg p-4 md:p-6 text-white">
+              <h3 className="font-bold text-base md:text-lg mb-2">Create Master Referral Code</h3>
+              <p className="text-xs md:text-sm text-purple-100 mb-3 md:mb-4">Generate a standalone referral code that can be used independently</p>
+              <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+                <input
+                  type="text"
+                  placeholder="Enter code name (optional)"
+                  className="flex-1 px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="referral-name-input"
+                />
+                <button
+                  onClick={async () => {
+                    const input = document.getElementById('referral-name-input') as HTMLInputElement
+                    const codeName = input.value || 'MASTER'
+                    
+                    try {
+                      const response = await fetch('/api/referral-codes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ codeName })
+                      })
+                      
+                      const result = await response.json()
+                      
+                      if (!response.ok) {
+                        alert('Error: ' + (result.error || 'Failed to create referral code'))
+                        return
+                      }
+                      
+                      if (result.success) {
+                        alert(`Referral code created successfully!\n\nCode: ${result.code}\n\nLink: ${result.link}\n\nUsers MUST register using this link.`)
+                        input.value = ''
+                        fetchAllData()
+                      }
+                    } catch (err) {
+                      console.error('Error:', err)
+                      alert('Error creating referral code')
+                    }
+                  }}
+                  className="px-4 md:px-6 py-2 md:py-2.5 bg-white text-purple-600 rounded-lg text-sm md:text-base font-semibold hover:bg-gray-100 transition-colors w-full sm:w-auto"
+                >
+                  Generate Code
+                </button>
+              </div>
+            </div>
+
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-4 py-4 border-b border-gray-200">
                 <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
@@ -880,51 +945,79 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <p className="text-sm text-gray-600">Manage all referral links and track referral performance</p>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[640px]">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total Referrals</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Active (30d)</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Join Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Action</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Code Name</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Referral Code</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Used Count</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Max Uses</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Created</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Bot Link</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                          Loading referral data...
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                          Loading referral codes...
                         </td>
                       </tr>
-                    ) : referralUsers.length === 0 ? (
+                    ) : referralCodes.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                          No referral users found
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                          No referral codes found. Create one above!
                         </td>
                       </tr>
                     ) : (
-                      referralUsers.slice(0, 20).map((user) => (
-                        <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-800 font-medium">{user.telegram_username}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-semibold">
-                            {user.totalReferrals}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
-                            {user.activeReferrals}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <button className="text-blue-500 hover:text-blue-700 font-semibold text-sm">View Link</button>
-                        </td>
-                      </tr>
-                    ))
+                      referralCodes.slice(0, 20).map((code) => (
+                        <tr key={code.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 font-medium">
+                            {code.name || 'Unnamed'}
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
+                            <code className="bg-gray-100 px-1.5 md:px-2 py-0.5 md:py-1 rounded text-[10px] md:text-xs font-mono text-purple-600">
+                              {code.code}
+                            </code>
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
+                            <span className="bg-purple-100 text-purple-700 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-sm font-semibold">
+                              {code.used_count}
+                            </span>
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-600">
+                            {code.max_uses || '∞'}
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
+                            {code.is_active ? (
+                              <span className="bg-green-100 text-green-700 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-sm font-semibold">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="bg-gray-100 text-gray-700 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-sm font-semibold">
+                                Inactive
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-600">
+                            {new Date(code.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
+                            <button
+                              onClick={() => {
+                                const link = `https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || 'WhatsAppNumberRedBot'}?start=${code.code}`
+                                navigator.clipboard.writeText(link)
+                                alert('Bot link copied to clipboard!')
+                              }}
+                              className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                            >
+                              <Link2 size={14} />
+                              Copy
+                            </button>
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
@@ -935,31 +1028,35 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 text-sm">Total Referral Links</span>
+                  <span className="text-gray-600 text-sm">Total Referral Codes</span>
                   <Link2 size={20} className="text-purple-500" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{referralUsers.length}</p>
-                <p className="text-xs text-gray-500 mt-1">Active referral programs</p>
+                <p className="text-2xl font-bold text-gray-800">{referralCodes.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Active: {referralCodes.filter(c => c.is_active).length}</p>
               </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 text-sm">Total Referred Users</span>
+                  <span className="text-gray-600 text-sm">Total Users Registered</span>
                   <Users size={20} className="text-blue-500" />
                 </div>
                 <p className="text-2xl font-bold text-gray-800">
-                  {referralUsers.reduce((sum, u) => sum + u.totalReferrals, 0)}
+                  {referralCodes.reduce((sum, c) => sum + c.used_count, 0)}
                 </p>
-                <p className="text-xs text-green-600 mt-1">+28 this week</p>
+                <p className="text-xs text-gray-500 mt-1">Via referral codes</p>
               </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 text-sm">Referral Revenue</span>
+                  <span className="text-gray-600 text-sm">Avg. Usage Rate</span>
                   <TrendingUp size={20} className="text-green-500" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">$8,450</p>
-                <p className="text-xs text-green-600 mt-1">+15% this month</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  {referralCodes.length > 0 
+                    ? (referralCodes.reduce((sum, c) => sum + c.used_count, 0) / referralCodes.length).toFixed(1)
+                    : '0'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Users per code</p>
               </div>
             </div>
           </div>
@@ -973,7 +1070,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <Wallet size={20} className="text-green-500" />
                   Payment Requests Management
                 </h3>
-                <p className="text-sm text-gray-600">Review and process payment withdrawal requests from users</p>
+                <p className="text-sm text-gray-600">Review and process all withdrawal and payment requests from users</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -983,120 +1080,134 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Amount</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Wallet Address</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Request Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Action</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                          Loading payment requests...
+                          Loading requests...
                         </td>
                       </tr>
-                    ) : paymentRequests.length === 0 ? (
+                    ) : [...withdrawals.map(w => ({...w, type: 'Withdrawal'})), ...paymentRequests.map(p => ({...p, type: 'Payment', date: p.requestDate}))].length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                          No payment requests found
+                          No requests found
                         </td>
                       </tr>
                     ) : (
-                      paymentRequests.map((request) => (
-                        <tr key={request.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm">
-                          <div>
-                            <p className="font-medium text-gray-800">{request.userName}</p>
-                            <p className="text-xs text-gray-500">{request.userId}</p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-800">${request.amount}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
-                          {request.walletAddress.substring(0, 10)}...
-                          {request.walletAddress.substring(request.walletAddress.length - 8)}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              request.status === "pending"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : request.status === "approved"
+                      [...withdrawals.map(w => ({...w, type: 'Withdrawal'})), ...paymentRequests.map(p => ({...p, type: 'Payment', date: p.requestDate}))]
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((request: any) => (
+                        <tr key={`${request.type}-${request.id}`} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-800">{request.userName || request.userId}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-800">${request.amount}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
+                            {request.walletAddress && request.walletAddress !== 'N/A' ? (
+                              <span title={request.walletAddress}>
+                                {request.walletAddress.length > 20 
+                                  ? `${request.walletAddress.substring(0, 10)}...${request.walletAddress.substring(request.walletAddress.length - 10)}`
+                                  : request.walletAddress}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-semibold ${
+                                (request.status === "confirmed" || request.status === "approved")
                                   ? "bg-green-100 text-green-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{request.requestDate}</td>
-                        <td className="px-4 py-3 text-sm">
-                          {request.status === "pending" ? (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleApprovePayment(request.id)}
-                                className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors"
-                              >
-                                <Check size={14} />
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleRejectPayment(request.id)}
-                                className="flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold transition-colors"
-                              >
-                                <X size={14} />
-                                Reject
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-500">
-                              {request.status === "approved" ? "✓ Approved" : "✗ Rejected"} on {request.processedDate}
+                                  : request.status === "pending"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {request.status}
                             </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{request.date}</td>
+                          <td className="px-4 py-3 text-sm">
+                            {request.status === 'pending' && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => request.type === 'Withdrawal' ? handleApproveWithdrawal(request.id) : handleApprovePayment(request.id)}
+                                  className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors"
+                                >
+                                  <Check size={14} className="inline mr-1" />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => request.type === 'Withdrawal' ? handleRejectWithdrawal(request.id) : handleRejectPayment(request.id)}
+                                  className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
+                                >
+                                  <X size={14} className="inline mr-1" />
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                            {request.status !== 'pending' && (
+                              <span className="text-xs text-gray-400">No actions</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Payment Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            {/* Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 text-sm">Pending Requests</span>
+                  <span className="text-gray-600 text-sm">Total Pending</span>
                   <Wallet size={20} className="text-yellow-500" />
                 </div>
                 <p className="text-2xl font-bold text-gray-800">
-                  {paymentRequests.filter((r) => r.status === "pending").length}
+                  {withdrawals.filter((r) => r.status === "pending").length + paymentRequests.filter((r) => r.status === "pending").length}
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">Awaiting approval</p>
               </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 text-sm">Approved Requests</span>
-                  <Check size={20} className="text-green-500" />
+                  <span className="text-gray-600 text-sm">Withdrawals</span>
+                  <TrendingUp size={20} className="text-blue-500" />
                 </div>
                 <p className="text-2xl font-bold text-gray-800">
-                  {paymentRequests.filter((r) => r.status === "approved").length}
+                  {withdrawals.length}
                 </p>
-                <p className="text-xs text-green-600 mt-1">Total approved</p>
+                <p className="text-xs text-blue-600 mt-1">{withdrawals.filter(w => w.status === 'pending').length} pending</p>
               </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 text-sm">Total Pending Amount</span>
-                  <TrendingUp size={20} className="text-blue-500" />
+                  <span className="text-gray-600 text-sm">Payment Requests</span>
+                  <Check size={20} className="text-purple-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {paymentRequests.length}
+                </p>
+                <p className="text-xs text-purple-600 mt-1">{paymentRequests.filter(p => p.status === 'pending').length} pending</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Pending Amount</span>
+                  <DollarSign size={20} className="text-green-500" />
                 </div>
                 <p className="text-2xl font-bold text-gray-800">
                   $
-                  {paymentRequests
-                    .filter((r) => r.status === "pending")
-                    .reduce((sum, r) => sum + Number.parseFloat(r.amount), 0)
-                    .toFixed(2)}
+                  {(
+                    withdrawals.filter((r) => r.status === "pending").reduce((sum, r) => sum + Number.parseFloat(r.amount), 0) +
+                    paymentRequests.filter((r) => r.status === "pending").reduce((sum, r) => sum + Number.parseFloat(r.amount), 0)
+                  ).toFixed(2)}
                 </p>
-                <p className="text-xs text-blue-600 mt-1">Pending payout</p>
+                <p className="text-xs text-green-600 mt-1">Total to process</p>
               </div>
             </div>
           </div>

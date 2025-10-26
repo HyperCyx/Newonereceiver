@@ -124,9 +124,12 @@ export default function WithdrawalModal({ isOpen, onClose, balance }: Withdrawal
         })
       })
 
+      console.log('[WithdrawalModal] API response status:', response.status)
       const result = await response.json()
+      console.log('[WithdrawalModal] API response data:', result)
       
       if (response.ok && result.success) {
+        console.log('[WithdrawalModal] Withdrawal created successfully:', result.withdrawal)
         toast({
           title: "Withdrawal Submitted",
           description: `${withdrawalAmount.toFixed(2)} USDT withdrawal pending`,
@@ -140,9 +143,11 @@ export default function WithdrawalModal({ isOpen, onClose, balance }: Withdrawal
         // Close modal and refresh page after short delay
         setTimeout(() => {
           onClose()
+          console.log('[WithdrawalModal] Reloading page to show new withdrawal')
           window.location.reload()
-        }, 500)
+        }, 1000)
       } else {
+        console.error('[WithdrawalModal] Withdrawal failed:', result)
         toast({
           title: "Withdrawal Failed",
           description: result.error || "Please try again",

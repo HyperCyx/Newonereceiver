@@ -17,7 +17,12 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*
+
+
+# Telegram session files - NEVER COMMIT THESE
+telegram_sessions/
+*.session
+*.session-journal
 
 # vercel
 .vercel
