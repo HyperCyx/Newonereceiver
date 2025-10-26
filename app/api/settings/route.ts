@@ -1,98 +1,66 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { Collections, getCollection } from '@/lib/mongodb/client'
+import { requireAdmin, getAuthUser } from '@/lib/mongodb/auth'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-export async function GET() {
+// GET - Get settings
+export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const settings = await getCollection(Collections.SETTINGS)
     
-    const { data: settings, error } = await supabase
-      .from('system_settings')
-      .select('*')
-      .order('setting_key')
-    
-    if (error) {
-      console.error('[Settings API] Error fetching settings:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    
-    // Convert to key-value object
-    const settingsObj = settings.reduce((acc: any, setting: any) => {
-      acc[setting.setting_key] = setting.setting_value
-      return acc
-    }, {})
-    
-    return NextResponse.json({ settings: settingsObj })
+    const minWithdrawal = await settings.findOne({ setting_key: 'min_withdrawal_amount' })
+
+    return NextResponse.json({
+      success: true,
+      settings: {
+        min_withdrawal_amount: minWithdrawal?.setting_value || '5.00'
+      }
+    })
   } catch (error) {
-    console.error('[Settings API] Unexpected error:', error)
+    console.error('[Settings] GET error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
+// POST - Update settings
+export async function POST(request: NextRequest) {
   try {
+    // Check if user is admin
+    await requireAdmin()
+
     const body = await request.json()
-    const { settingKey, settingValue, userId } = body
-    
-    console.log('[Settings API] POST request:', { settingKey, settingValue, userId })
-    
-    if (!settingKey || settingValue === undefined) {
-      return NextResponse.json(
-        { error: 'Setting key and value are required' },
-        { status: 400 }
-      )
+    const { settingKey, settingValue } = body
+
+    if (!settingKey || !settingValue) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    // Verify user is admin (optional - if userId provided)
-    if (userId) {
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .select('is_admin')
-        .eq('id', userId)
-        .single()
-      
-      console.log('[Settings API] User check:', { user, userError })
-      
-      if (userError || !user?.is_admin) {
-        console.warn('[Settings API] User verification failed, but continuing anyway')
-        // Don't block the operation, just log the warning
-      }
-    } else {
-      console.log('[Settings API] No userId provided, skipping admin verification')
+
+    const settings = await getCollection(Collections.SETTINGS)
+
+    // Update or create setting
+    await settings.updateOne(
+      { setting_key: settingKey },
+      { 
+        $set: {
+          setting_key: settingKey,
+          setting_value: settingValue,
+          updated_at: new Date()
+        },
+        $setOnInsert: {
+          created_at: new Date()
+        }
+      },
+      { upsert: true }
+    )
+
+    return NextResponse.json({
+      success: true,
+      message: 'Setting updated successfully'
+    })
+  } catch (error: any) {
+    console.error('[Settings] POST error:', error)
+    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
     }
-    
-    // Update or insert setting
-    const updateData = {
-      setting_key: settingKey,
-      setting_value: settingValue.toString(),
-      updated_by: userId,
-      updated_at: new Date().toISOString()
-    }
-    
-    console.log('[Settings API] Upserting data:', updateData)
-    
-    const { data, error } = await supabase
-      .from('system_settings')
-      .upsert(updateData, {
-        onConflict: 'setting_key'
-      })
-      .select()
-      .single()
-    
-    if (error) {
-      console.error('[Settings API] Error updating setting:', error)
-      return NextResponse.json({ error: error.message, details: error }, { status: 500 })
-    }
-    
-    console.log('[Settings API] Successfully updated setting:', data)
-    
-    return NextResponse.json({ success: true, setting: data })
-  } catch (error) {
-    console.error('[Settings API] Unexpected error:', error)
-    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

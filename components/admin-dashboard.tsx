@@ -15,7 +15,6 @@ import {
   X,
   DollarSign,
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 
 interface AdminDashboardProps {
   onNavigate: (view: string) => void
@@ -235,56 +234,29 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }
       }
 
-      // For other data, use client with RLS
-      const supabase = createClient()
-
-      // Fetch stats
-      const [usersCount, transactionsData, withdrawalsData] = await Promise.all([
-        fetch('/api/admin/users').then(r => r.json()),
-        supabase.from('transactions').select('amount, status'),
-        supabase.from('withdrawals').select('*', { count: 'exact' })
+      // Fetch stats from API
+      const [usersResponse, withdrawalsResponse] = await Promise.all([
+        fetch('/api/admin/users'),
+        fetch('/api/admin/withdrawals')
       ])
 
-      const totalRevenue = transactionsData.data?.reduce((sum, t) => 
-        t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
+      const usersCount = await usersResponse.json()
+      const withdrawalsResult = await withdrawalsResponse.json()
 
-      const pendingWithdrawals = withdrawalsData.data?.filter(w => w.status === 'pending').length || 0
+      const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
 
       setStats({
         totalUsers: usersCount.count || 0,
-        totalTransactions: transactionsData.data?.length || 0,
-        totalWithdrawals: withdrawalsData.count || 0,
-        totalRevenue,
+        totalTransactions: 0,
+        totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
+        totalRevenue: 0,
         activeUsers: usersCount.count || 0,
         pendingWithdrawals
       })
 
-      // Fetch transactions with user info
+      // Transactions API not yet implemented, set empty for now
       if (activeTab === 'transactions' || activeTab === 'overview' || activeTab === 'analytics') {
-        const { data: txData } = await supabase
-          .from('transactions')
-          .select(`
-            id, 
-            user_id, 
-            amount, 
-            status, 
-            created_at, 
-            currency,
-            users!inner(telegram_username)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(50)
-
-        const formattedTx: Transaction[] = (txData || []).map((tx: any) => ({
-          id: tx.id,
-          userId: tx.user_id,
-          userName: tx.users?.telegram_username || 'Unknown',
-          amount: Number(tx.amount).toFixed(2),
-          status: tx.status as "completed" | "pending" | "failed",
-          date: new Date(tx.created_at).toLocaleDateString()
-        }))
-        
-        setTransactions(formattedTx)
+        setTransactions([])
       }
 
       // Fetch withdrawals with user info (only for analytics and overview)

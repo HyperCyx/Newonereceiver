@@ -1,90 +1,120 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { Collections, getCollection } from '@/lib/mongodb/client'
+import { requireAdmin } from '@/lib/mongodb/auth'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-export async function GET() {
+// GET - Fetch all withdrawals
+export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    console.log('[AdminWithdrawals] Fetching all withdrawals...')
-    
-    // Fetch all withdrawals with user information
-    const { data: withdrawals, error } = await supabase
-      .from('withdrawals')
-      .select(`
-        id,
-        user_id,
-        amount,
-        currency,
-        wallet_address,
-        status,
-        created_at,
-        updated_at,
-        users!inner(telegram_username, telegram_id, first_name, last_name)
-      `)
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      console.error('[AdminWithdrawals] Error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    
-    console.log('[AdminWithdrawals] Found', withdrawals?.length || 0, 'withdrawals')
-    
-    return NextResponse.json({ 
+    // Check if user is admin
+    await requireAdmin()
+
+    const withdrawals = await getCollection(Collections.WITHDRAWALS)
+    const users = await getCollection(Collections.USERS)
+
+    // Fetch all withdrawals
+    const allWithdrawals = await withdrawals
+      .find({})
+      .sort({ created_at: -1 })
+      .toArray()
+
+    // Populate user data
+    const withdrawalsWithUsers = await Promise.all(
+      allWithdrawals.map(async (withdrawal) => {
+        const user = await users.findOne({ _id: withdrawal.user_id })
+        return {
+          ...withdrawal,
+          users: user ? {
+            telegram_username: user.telegram_username,
+            first_name: user.first_name,
+            last_name: user.last_name
+          } : null
+        }
+      })
+    )
+
+    return NextResponse.json({
       success: true,
-      withdrawals: withdrawals || []
+      withdrawals: withdrawalsWithUsers
     })
-  } catch (error) {
-    console.error('[AdminWithdrawals] Unexpected error:', error)
+  } catch (error: any) {
+    console.error('[AdminWithdrawals] GET error:', error)
+    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
+// POST - Approve or reject withdrawal
+export async function POST(request: NextRequest) {
   try {
+    // Check if user is admin
+    await requireAdmin()
+
     const body = await request.json()
     const { withdrawalId, action } = body
-    
+
     if (!withdrawalId || !action) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
-    
-    if (!['approve', 'reject'].includes(action)) {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+
+    const withdrawals = await getCollection(Collections.WITHDRAWALS)
+    const users = await getCollection(Collections.USERS)
+
+    const withdrawal = await withdrawals.findOne({ _id: withdrawalId })
+
+    if (!withdrawal) {
+      return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 })
     }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    const newStatus = action === 'approve' ? 'confirmed' : 'rejected'
-    
-    console.log('[AdminWithdrawals] Updating withdrawal', withdrawalId, 'to', newStatus)
-    
-    const { data, error } = await supabase
-      .from('withdrawals')
-      .update({ 
-        status: newStatus,
-        updated_at: new Date().toISOString()
+
+    if (action === 'approve') {
+      // Update withdrawal status to confirmed
+      await withdrawals.updateOne(
+        { _id: withdrawalId },
+        { 
+          $set: { 
+            status: 'confirmed',
+            confirmed_at: new Date(),
+            updated_at: new Date()
+          } 
+        }
+      )
+
+      return NextResponse.json({
+        success: true,
+        message: 'Withdrawal approved successfully'
       })
-      .eq('id', withdrawalId)
-      .select()
-      .single()
-    
-    if (error) {
-      console.error('[AdminWithdrawals] Update error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    } 
+    else if (action === 'reject') {
+      // Update withdrawal status to rejected
+      await withdrawals.updateOne(
+        { _id: withdrawalId },
+        { 
+          $set: { 
+            status: 'rejected',
+            updated_at: new Date()
+          } 
+        }
+      )
+
+      // Return the amount back to user's balance
+      await users.updateOne(
+        { _id: withdrawal.user_id },
+        { $inc: { balance: withdrawal.amount } }
+      )
+
+      return NextResponse.json({
+        success: true,
+        message: 'Withdrawal rejected and amount returned to user'
+      })
     }
-    
-    console.log('[AdminWithdrawals] Successfully updated withdrawal')
-    
-    return NextResponse.json({ 
-      success: true,
-      withdrawal: data
-    })
-  } catch (error) {
-    console.error('[AdminWithdrawals] Unexpected error:', error)
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  } catch (error: any) {
+    console.error('[AdminWithdrawals] POST error:', error)
+    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

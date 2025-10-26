@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { Collections, getCollection } from '@/lib/mongodb/client'
+import { getAuthUser } from '@/lib/mongodb/auth'
 
 // GET - Get available countries with capacity info (public access)
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-
     // Fetch all active countries
-    const { data: countries, error } = await supabase
-      .from('country_capacity')
-      .select('id, country_code, country_name, max_capacity, used_capacity, prize_amount, is_active')
-      .eq('is_active', true)
-      .order('country_name', { ascending: true })
-
-    if (error) {
-      console.error('[Countries Public API] Error fetching countries:', error)
-      return NextResponse.json({ error: 'Failed to fetch countries' }, { status: 500 })
-    }
+    const countryCapacity = await getCollection(Collections.COUNTRY_CAPACITY)
+    const countries = await countryCapacity
+      .find({ is_active: true })
+      .sort({ country_name: 1 })
+      .toArray()
 
     // Calculate available capacity for each country
-    const countriesWithAvailability = (countries || []).map(country => ({
+    const countriesWithAvailability = countries.map(country => ({
       ...country,
       available_capacity: country.max_capacity - country.used_capacity,
       has_capacity: (country.max_capacity - country.used_capacity) > 0
@@ -38,7 +32,6 @@ export async function GET(request: NextRequest) {
 // POST - Check and reserve capacity for a country
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const body = await request.json()
     const { countryCode, action } = body
 
@@ -46,16 +39,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Country code is required' }, { status: 400 })
     }
 
+    const countryCapacity = await getCollection(Collections.COUNTRY_CAPACITY)
+
     if (action === 'check') {
       // Check if country has capacity
-      const { data: country, error } = await supabase
-        .from('country_capacity')
-        .select('*')
-        .eq('country_code', countryCode)
-        .eq('is_active', true)
-        .single()
+      const country = await countryCapacity.findOne({
+        country_code: countryCode,
+        is_active: true
+      })
 
-      if (error || !country) {
+      if (!country) {
         return NextResponse.json({ 
           success: false,
           hasCapacity: false,
@@ -79,22 +72,19 @@ export async function POST(request: NextRequest) {
     } 
     else if (action === 'reserve') {
       // Increment used_capacity when an account is purchased
-      // This should be called from the registration/purchase process
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getAuthUser()
       
       if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
       // Get current country data
-      const { data: country, error: fetchError } = await supabase
-        .from('country_capacity')
-        .select('*')
-        .eq('country_code', countryCode)
-        .eq('is_active', true)
-        .single()
+      const country = await countryCapacity.findOne({
+        country_code: countryCode,
+        is_active: true
+      })
 
-      if (fetchError || !country) {
+      if (!country) {
         return NextResponse.json({ 
           success: false,
           error: 'Country not found or not available'
@@ -111,18 +101,16 @@ export async function POST(request: NextRequest) {
       }
 
       // Increment used capacity
-      const { data: updatedCountry, error: updateError } = await supabase
-        .from('country_capacity')
-        .update({ 
-          used_capacity: country.used_capacity + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', country.id)
-        .select()
-        .single()
+      const updatedCountry = await countryCapacity.findOneAndUpdate(
+        { _id: country._id },
+        { 
+          $inc: { used_capacity: 1 },
+          $set: { updated_at: new Date() }
+        },
+        { returnDocument: 'after' }
+      )
 
-      if (updateError) {
-        console.error('[Countries Public API] Error reserving capacity:', updateError)
+      if (!updatedCountry) {
         return NextResponse.json({ 
           success: false,
           error: 'Failed to reserve capacity'
