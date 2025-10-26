@@ -84,9 +84,21 @@ interface ReferralCode {
   expires_at?: string
 }
 
+interface Country {
+  id: string
+  country_code: string
+  country_name: string
+  max_capacity: number
+  used_capacity: number
+  prize_amount: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "settings"
+    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "settings"
   >("overview")
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -103,6 +115,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
   const [referralCodes, setReferralCodes] = useState<ReferralCode[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
   const [loading, setLoading] = useState(true)
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [savingSettings, setSavingSettings] = useState(false)
@@ -371,6 +384,22 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }
       }
 
+      // Fetch countries
+      if (activeTab === 'countries') {
+        try {
+          const response = await fetch('/api/admin/countries')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success && result.countries) {
+              setCountries(result.countries)
+            }
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching countries:', err)
+          setCountries([])
+        }
+      }
+
     } catch (error) {
       console.error('Error fetching admin data:', error)
     }
@@ -535,7 +564,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 flex overflow-x-auto sticky top-0 z-10">
-        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "settings"] as const).map(
+        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
           (tab) => (
             <button
               key={tab}
@@ -1208,6 +1237,363 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   ).toFixed(2)}
                 </p>
                 <p className="text-xs text-green-600 mt-1">Total to process</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "countries" && (
+          <div className="p-4 space-y-4">
+            {/* Add New Country Section */}
+            <div className="bg-gradient-to-r from-green-500 to-teal-500 rounded-lg p-4 md:p-6 text-white">
+              <h3 className="font-bold text-base md:text-lg mb-2">Add New Country</h3>
+              <p className="text-xs md:text-sm text-green-100 mb-3 md:mb-4">Configure country-specific account purchase settings</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="Country Code (e.g., US)"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-code-input"
+                />
+                <input
+                  type="text"
+                  placeholder="Country Name"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-name-input"
+                />
+                <input
+                  type="number"
+                  placeholder="Max Capacity"
+                  min="0"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-capacity-input"
+                />
+                <input
+                  type="number"
+                  placeholder="Prize Amount (USDT)"
+                  step="0.01"
+                  min="0"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-prize-input"
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  const codeInput = document.getElementById('country-code-input') as HTMLInputElement
+                  const nameInput = document.getElementById('country-name-input') as HTMLInputElement
+                  const capacityInput = document.getElementById('country-capacity-input') as HTMLInputElement
+                  const prizeInput = document.getElementById('country-prize-input') as HTMLInputElement
+                  
+                  if (!codeInput.value || !nameInput.value) {
+                    alert('Please enter country code and name')
+                    return
+                  }
+                  
+                  try {
+                    const response = await fetch('/api/admin/countries', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        action: 'create',
+                        countryCode: codeInput.value.toUpperCase(),
+                        countryName: nameInput.value,
+                        maxCapacity: parseInt(capacityInput.value) || 0,
+                        prizeAmount: parseFloat(prizeInput.value) || 0
+                      })
+                    })
+                    
+                    const result = await response.json()
+                    
+                    if (!response.ok) {
+                      alert('Error: ' + (result.error || 'Failed to create country'))
+                      return
+                    }
+                    
+                    if (result.success) {
+                      alert(`Country ${result.country.country_name} created successfully!`)
+                      codeInput.value = ''
+                      nameInput.value = ''
+                      capacityInput.value = ''
+                      prizeInput.value = ''
+                      fetchAllData()
+                    }
+                  } catch (err) {
+                    console.error('Error:', err)
+                    alert('Error creating country')
+                  }
+                }}
+                className="mt-3 w-full px-4 md:px-6 py-2 md:py-2.5 bg-white text-green-600 rounded-lg text-sm md:text-base font-semibold hover:bg-gray-100 transition-colors"
+              >
+                Add Country
+              </button>
+            </div>
+
+            {/* Countries Table */}
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 px-4 py-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+                  <BarChart3 size={20} className="text-green-500" />
+                  Country Capacity Management
+                </h3>
+                <p className="text-sm text-gray-600">Manage which countries can purchase accounts and set capacity limits</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px]">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Code</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Capacity</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Used</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Available</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                          Loading countries...
+                        </td>
+                      </tr>
+                    ) : countries.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                          No countries found. Add one above!
+                        </td>
+                      </tr>
+                    ) : (
+                      countries.map((country) => {
+                        const available = country.max_capacity - country.used_capacity
+                        const usagePercent = country.max_capacity > 0 
+                          ? (country.used_capacity / country.max_capacity) * 100 
+                          : 0
+                        
+                        return (
+                          <tr key={country.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-800">
+                              {country.country_name}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-700">
+                                {country.country_code}
+                              </code>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-800">
+                              <input
+                                type="number"
+                                defaultValue={country.max_capacity}
+                                min="0"
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                                onBlur={async (e) => {
+                                  const newValue = parseInt(e.target.value) || 0
+                                  if (newValue !== country.max_capacity) {
+                                    try {
+                                      const response = await fetch('/api/admin/countries', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          action: 'update',
+                                          countryId: country.id,
+                                          maxCapacity: newValue
+                                        })
+                                      })
+                                      if (response.ok) {
+                                        fetchAllData()
+                                      }
+                                    } catch (err) {
+                                      console.error('Error updating capacity:', err)
+                                    }
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                {country.used_capacity}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  available > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {available}
+                                </span>
+                                <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full ${usagePercent >= 100 ? 'bg-red-500' : usagePercent >= 80 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                    style={{ width: `${Math.min(usagePercent, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <input
+                                type="number"
+                                defaultValue={country.prize_amount}
+                                step="0.01"
+                                min="0"
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                                onBlur={async (e) => {
+                                  const newValue = parseFloat(e.target.value) || 0
+                                  if (newValue !== country.prize_amount) {
+                                    try {
+                                      const response = await fetch('/api/admin/countries', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          action: 'update',
+                                          countryId: country.id,
+                                          prizeAmount: newValue
+                                        })
+                                      })
+                                      if (response.ok) {
+                                        fetchAllData()
+                                      }
+                                    } catch (err) {
+                                      console.error('Error updating prize:', err)
+                                    }
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const response = await fetch('/api/admin/countries', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        action: 'update',
+                                        countryId: country.id,
+                                        isActive: !country.is_active
+                                      })
+                                    })
+                                    if (response.ok) {
+                                      fetchAllData()
+                                    }
+                                  } catch (err) {
+                                    console.error('Error toggling status:', err)
+                                  }
+                                }}
+                                className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
+                                  country.is_active 
+                                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                              >
+                                {country.is_active ? 'Active' : 'Inactive'}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Reset used capacity for ${country.country_name}?`)) {
+                                      try {
+                                        const response = await fetch('/api/admin/countries', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            action: 'reset_capacity',
+                                            countryId: country.id
+                                          })
+                                        })
+                                        if (response.ok) {
+                                          alert('Capacity reset successfully')
+                                          fetchAllData()
+                                        }
+                                      } catch (err) {
+                                        console.error('Error resetting capacity:', err)
+                                      }
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:text-blue-700 font-medium text-xs"
+                                  title="Reset used capacity to 0"
+                                >
+                                  Reset
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Delete ${country.country_name}?`)) {
+                                      try {
+                                        const response = await fetch('/api/admin/countries', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            action: 'delete',
+                                            countryId: country.id
+                                          })
+                                        })
+                                        if (response.ok) {
+                                          fetchAllData()
+                                        }
+                                      } catch (err) {
+                                        console.error('Error deleting country:', err)
+                                      }
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-700 font-medium text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Country Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Countries</span>
+                  <BarChart3 size={20} className="text-green-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">{countries.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Active: {countries.filter(c => c.is_active).length}</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Capacity</span>
+                  <TrendingUp size={20} className="text-blue-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {countries.reduce((sum, c) => sum + c.max_capacity, 0)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Across all countries</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Accounts Sold</span>
+                  <Users size={20} className="text-purple-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {countries.reduce((sum, c) => sum + c.used_capacity, 0)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Total purchased</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Available Now</span>
+                  <Check size={20} className="text-green-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {countries.reduce((sum, c) => sum + (c.max_capacity - c.used_capacity), 0)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Ready to purchase</p>
               </div>
             </div>
           </div>
