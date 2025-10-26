@@ -121,6 +121,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
   const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
+  const [editingCountry, setEditingCountry] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState<{capacity: number, prize: number}>()
 
   // Get Telegram ID on mount
   useEffect(() => {
@@ -1340,12 +1342,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     <tr>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Code</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Capacity</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Max Capacity</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Used</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Available</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize (USDT)</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1368,6 +1370,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           ? (country.used_capacity / country.max_capacity) * 100 
                           : 0
                         
+                        const isEditing = editingCountry === country._id
+                        
                         return (
                           <tr key={country._id} className="border-b border-gray-100 hover:bg-gray-50">
                             <td className="px-4 py-3 text-sm font-medium text-gray-800">
@@ -1379,34 +1383,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               </code>
                             </td>
                             <td className="px-4 py-3 text-sm font-semibold text-gray-800">
-                              <input
-                                type="number"
-                                defaultValue={country.max_capacity}
-                                min="0"
-                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                                onBlur={async (e) => {
-                                  const newValue = parseInt(e.target.value) || 0
-                                  if (newValue !== country.max_capacity) {
-                                    try {
-                                      const response = await fetch('/api/admin/countries', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          action: 'update',
-                                          countryId: country._id,
-                                          maxCapacity: newValue,
-                                          telegramId: adminTelegramId
-                                        })
-                                      })
-                                      if (response.ok) {
-                                        fetchAllData()
-                                      }
-                                    } catch (err) {
-                                      console.error('Error updating capacity:', err)
-                                    }
-                                  }
-                                }}
-                              />
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues?.capacity ?? country.max_capacity}
+                                  onChange={(e) => setEditValues(prev => ({...prev!, capacity: parseInt(e.target.value) || 0}))}
+                                  min="0"
+                                  className="w-20 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
+                                />
+                              ) : (
+                                <span>{country.max_capacity}</span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
@@ -1429,35 +1416,18 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              <input
-                                type="number"
-                                defaultValue={country.prize_amount}
-                                step="0.01"
-                                min="0"
-                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                                onBlur={async (e) => {
-                                  const newValue = parseFloat(e.target.value) || 0
-                                  if (newValue !== country.prize_amount) {
-                                    try {
-                                      const response = await fetch('/api/admin/countries', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          action: 'update',
-                                          countryId: country._id,
-                                          prizeAmount: newValue,
-                                          telegramId: adminTelegramId
-                                        })
-                                      })
-                                      if (response.ok) {
-                                        fetchAllData()
-                                      }
-                                    } catch (err) {
-                                      console.error('Error updating prize:', err)
-                                    }
-                                  }
-                                }}
-                              />
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues?.prize ?? country.prize_amount}
+                                  onChange={(e) => setEditValues(prev => ({...prev!, prize: parseFloat(e.target.value) || 0}))}
+                                  step="0.01"
+                                  min="0"
+                                  className="w-20 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
+                                />
+                              ) : (
+                                <span className="font-semibold">${country.prize_amount.toFixed(2)}</span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <button
@@ -1474,10 +1444,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       })
                                     })
                                     if (response.ok) {
-                                      fetchAllData()
+                                      await fetchAllData()
+                                      alert(`${country.country_name} is now ${!country.is_active ? 'Active' : 'Inactive'}`)
                                     }
                                   } catch (err) {
                                     console.error('Error toggling status:', err)
+                                    alert('Failed to update status')
                                   }
                                 }}
                                 className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
@@ -1485,64 +1457,128 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     ? 'bg-green-100 text-green-700 hover:bg-green-200' 
                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
+                                disabled={isEditing}
                               >
                                 {country.is_active ? 'Active' : 'Inactive'}
                               </button>
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={async () => {
-                                    if (confirm(`Reset used capacity for ${country.country_name}?`)) {
-                                      try {
-                                        const response = await fetch('/api/admin/countries', {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            action: 'reset_capacity',
-                                            countryId: country._id,
-                                            telegramId: adminTelegramId
+                              <div className="flex gap-2 justify-center flex-wrap">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const response = await fetch('/api/admin/countries', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              action: 'update',
+                                              countryId: country._id,
+                                              maxCapacity: editValues?.capacity,
+                                              prizeAmount: editValues?.prize,
+                                              telegramId: adminTelegramId
+                                            })
                                           })
-                                        })
-                                        if (response.ok) {
-                                          alert('Capacity reset successfully')
-                                          fetchAllData()
+                                          if (response.ok) {
+                                            setEditingCountry(null)
+                                            setEditValues(undefined)
+                                            await fetchAllData()
+                                            alert(`${country.country_name} updated successfully!`)
+                                          } else {
+                                            alert('Failed to update country')
+                                          }
+                                        } catch (err) {
+                                          console.error('Error updating:', err)
+                                          alert('Error updating country')
                                         }
-                                      } catch (err) {
-                                        console.error('Error resetting capacity:', err)
-                                      }
-                                    }
-                                  }}
-                                  className="text-blue-600 hover:text-blue-700 font-medium text-xs"
-                                  title="Reset used capacity to 0"
-                                >
-                                  Reset
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    if (confirm(`Delete ${country.country_name}?`)) {
-                                      try {
-                                        const response = await fetch('/api/admin/countries', {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            action: 'delete',
-                                            countryId: country._id,
-                                            telegramId: adminTelegramId
-                                          })
+                                      }}
+                                      className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-xs"
+                                    >
+                                      💾 Save
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingCountry(null)
+                                        setEditValues(undefined)
+                                      }}
+                                      className="px-3 py-1.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 font-medium text-xs"
+                                    >
+                                      ✕ Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setEditingCountry(country._id)
+                                        setEditValues({
+                                          capacity: country.max_capacity,
+                                          prize: country.prize_amount
                                         })
-                                        if (response.ok) {
-                                          fetchAllData()
+                                      }}
+                                      className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"
+                                    >
+                                      ✏️ Edit
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm(`Reset used capacity for ${country.country_name}?`)) {
+                                          try {
+                                            const response = await fetch('/api/admin/countries', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                action: 'reset_capacity',
+                                                countryId: country._id,
+                                                telegramId: adminTelegramId
+                                              })
+                                            })
+                                            if (response.ok) {
+                                              await fetchAllData()
+                                              alert(`${country.country_name} capacity reset to 0!`)
+                                            }
+                                          } catch (err) {
+                                            console.error('Error resetting:', err)
+                                          }
                                         }
-                                      } catch (err) {
-                                        console.error('Error deleting country:', err)
-                                      }
-                                    }
-                                  }}
-                                  className="text-red-600 hover:text-red-700 font-medium text-xs"
-                                >
-                                  Delete
-                                </button>
+                                      }}
+                                      className="px-3 py-1.5 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium text-xs"
+                                      title="Reset used capacity to 0"
+                                    >
+                                      🔄 Reset
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm(`⚠️ DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
+                                          try {
+                                            const response = await fetch('/api/admin/countries', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                action: 'delete',
+                                                countryId: country._id,
+                                                telegramId: adminTelegramId
+                                              })
+                                            })
+                                            if (response.ok) {
+                                              await fetchAllData()
+                                              alert(`${country.country_name} deleted successfully!`)
+                                            } else {
+                                              alert('Failed to delete country')
+                                            }
+                                          } catch (err) {
+                                            console.error('Error deleting:', err)
+                                            alert('Error deleting country')
+                                          }
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-xs"
+                                    >
+                                      🗑️ Delete
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
