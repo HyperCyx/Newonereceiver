@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/mongodb/auth'
+import { checkAdminByTelegramId } from '@/lib/mongodb/auth'
 import { Collections, getCollection, generateId } from '@/lib/mongodb/client'
 
 // GET - List all countries with capacity info
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
-    // Fetch all countries
+    // For GET, allow access (public endpoint for users to see countries)
+    // Admin check will be done on POST/DELETE operations
     const countryCapacity = await getCollection(Collections.COUNTRY_CAPACITY)
     const countries = await countryCapacity
       .find({})
@@ -21,9 +19,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[Countries API] GET error:', error)
-    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -31,11 +26,18 @@ export async function GET(request: NextRequest) {
 // POST - Create or update country capacity
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is admin
-    await requireAdmin()
-
     const body = await request.json()
-    const { action, countryId, countryCode, countryName, maxCapacity, prizeAmount, isActive } = body
+    const { action, countryId, countryCode, countryName, maxCapacity, prizeAmount, isActive, telegramId } = body
+
+    // Check if user is admin using Telegram ID
+    if (!telegramId) {
+      return NextResponse.json({ error: 'Telegram ID required' }, { status: 400 })
+    }
+
+    const isAdmin = await checkAdminByTelegramId(telegramId)
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
 
     const countryCapacity = await getCollection(Collections.COUNTRY_CAPACITY)
 

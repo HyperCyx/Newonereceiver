@@ -120,6 +120,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
+  const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
+
+  // Get Telegram ID on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tg = (window as any).Telegram?.WebApp
+      if (tg && tg.initDataUnsafe?.user) {
+        setAdminTelegramId(tg.initDataUnsafe.user.id)
+      }
+    }
+  }, [])
 
   // Computed analytics data
   const dailyRevenue = (() => {
@@ -445,34 +456,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      const supabase = createClient()
-      
-      // Try to get admin user - if not found, create settings without user verification
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id, is_admin, telegram_id')
-        .eq('is_admin', true)
-        .limit(1)
-
-      console.log('[AdminDashboard] Admin user lookup:', { users, usersError })
-
-      let userId = null
-      if (users && users.length > 0 && !usersError) {
-        userId = users[0].id
-        console.log('[AdminDashboard] Found admin user:', userId)
-      } else {
-        console.warn('[AdminDashboard] No admin user found, proceeding without user ID')
-      }
-
-      console.log('[AdminDashboard] Saving setting with admin user:', userId)
+      console.log('[AdminDashboard] Saving minimum withdrawal amount:', minAmount)
 
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           settingKey: 'min_withdrawal_amount',
-          settingValue: minAmount.toFixed(2),
-          userId: userId
+          settingValue: minAmount.toFixed(2)
         })
       })
 
@@ -1302,7 +1293,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         countryCode: codeInput.value.toUpperCase(),
                         countryName: nameInput.value,
                         maxCapacity: parseInt(capacityInput.value) || 0,
-                        prizeAmount: parseFloat(prizeInput.value) || 0
+                        prizeAmount: parseFloat(prizeInput.value) || 0,
+                        telegramId: adminTelegramId
                       })
                     })
                     
@@ -1400,8 +1392,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
                                           action: 'update',
-                                          countryId: country.id,
-                                          maxCapacity: newValue
+                                          countryId: country._id,
+                                          maxCapacity: newValue,
+                                          telegramId: adminTelegramId
                                         })
                                       })
                                       if (response.ok) {
@@ -1450,8 +1443,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
                                           action: 'update',
-                                          countryId: country.id,
-                                          prizeAmount: newValue
+                                          countryId: country._id,
+                                          prizeAmount: newValue,
+                                          telegramId: adminTelegramId
                                         })
                                       })
                                       if (response.ok) {
@@ -1474,7 +1468,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       body: JSON.stringify({
                                         action: 'update',
                                         countryId: country._id,
-                                        isActive: !country.is_active
+                                        isActive: !country.is_active,
+                                        telegramId: adminTelegramId
                                       })
                                     })
                                     if (response.ok) {
@@ -1504,7 +1499,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           headers: { 'Content-Type': 'application/json' },
                                           body: JSON.stringify({
                                             action: 'reset_capacity',
-                                            countryId: country.id
+                                            countryId: country._id,
+                                            telegramId: adminTelegramId
                                           })
                                         })
                                         if (response.ok) {
@@ -1530,7 +1526,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           headers: { 'Content-Type': 'application/json' },
                                           body: JSON.stringify({
                                             action: 'delete',
-                                            countryId: country._id
+                                            countryId: country._id,
+                                            telegramId: adminTelegramId
                                           })
                                         })
                                         if (response.ok) {
