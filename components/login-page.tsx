@@ -64,6 +64,10 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setError("")
 
     try {
+      // Get Telegram user ID
+      const tg = (window as any).Telegram?.WebApp
+      const telegramUser = tg?.initDataUnsafe?.user
+      
       // Verify OTP and create session
       const response = await fetch('/api/telegram/auth/verify-otp', {
         method: 'POST',
@@ -72,7 +76,8 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
           phoneNumber,
           phoneCodeHash,
           otpCode: otp,
-          sessionString: initialSessionString // Pass the session from sendOTP
+          sessionString: initialSessionString, // Pass the session from sendOTP
+          telegramId: telegramUser?.id // Pass telegram ID to create account record
         })
       })
 
@@ -107,13 +112,18 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setError("")
 
     try {
+      // Get Telegram user ID
+      const tg = (window as any).Telegram?.WebApp
+      const telegramUser = tg?.initDataUnsafe?.user
+      
       const response = await fetch('/api/telegram/auth/verify-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phoneNumber,
           sessionString,
-          password: password2FA
+          password: password2FA,
+          telegramId: telegramUser?.id // Pass telegram ID to create account record
         })
       })
 
