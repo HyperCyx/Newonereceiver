@@ -1,44 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/mongodb/auth'
+import { Collections, getCollection } from '@/lib/mongodb/client'
 
 // GET - List all countries with capacity info
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-
     // Check if user is admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (userError || !userData?.is_admin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
+    await requireAdmin()
 
     // Fetch all countries
-    const { data: countries, error } = await supabase
-      .from('country_capacity')
-      .select('*')
-      .order('country_name', { ascending: true })
-
-    if (error) {
-      console.error('[Countries API] Error fetching countries:', error)
-      return NextResponse.json({ error: 'Failed to fetch countries' }, { status: 500 })
-    }
+    const countryCapacity = await getCollection(Collections.COUNTRY_CAPACITY)
+    const countries = await countryCapacity
+      .find({})
+      .sort({ country_name: 1 })
+      .toArray()
 
     return NextResponse.json({ 
       success: true, 
       countries: countries || [] 
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Countries API] GET error:', error)
+    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
