@@ -1,8 +1,8 @@
 ========================================
-🌐 YOUR PUBLIC URL
+🌐 YOUR PUBLIC URL (Vercel)
 ========================================
 
-https://villiform-parker-perfunctorily.ngrok-free.dev
+https://workspace-7xufa5ty1-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -24,5 +24,21 @@ https://villiform-parker-perfunctorily.ngrok-free.dev
 
 ✅ This URL works ONLY in Telegram!
    (Browser will show instructions screen)
+
+========================================
+
+🚀 DEPLOYMENT INFO:
+   Platform: Vercel
+   Status: Live
+   Type: Preview
+   
+📊 Production URL:
+   Run: vercel --prod --token YOUR_TOKEN
+   Or: pnpm deploy:prod
+
+========================================
+
+💡 This URL is permanent and doesn't expire!
+   No more ngrok tunnels needed.
 
 ========================================
