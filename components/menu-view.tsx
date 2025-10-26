@@ -179,6 +179,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     ...(isAdmin
       ? [
           {
+            icon: "⚙️",
+            title: "Admin Dashboard",
+            subtitle: "Manage system settings",
+            color: "bg-gradient-to-r from-purple-500 to-pink-500",
+            action: "admin-dashboard",
+          },
+          {
             icon: "🔗",
             title: "Referral Program",
             subtitle: "Manage referral links",
@@ -194,6 +201,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       onNavigate?.("dashboard")
     } else if (action === "withdraw") {
       onNavigate?.("withdrawal")
+    } else if (action === "admin-dashboard") {
+      onNavigate?.("admin-login")
     } else if (action === "referral") {
       setShowReferral(true)
     }

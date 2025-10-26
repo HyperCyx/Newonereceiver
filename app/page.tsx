@@ -87,8 +87,13 @@ export default function Home() {
   ) : currentView === "login" ? (
     <LoginPage onLogin={() => handleNavigate("menu")} onBack={() => handleNavigate("dashboard")} />
   ) : currentView === "admin-login" ? (
-    <AdminLogin onLogin={() => handleNavigate("admin-dashboard")} onBack={() => handleNavigate("menu")} />
-  ) : (
+    <AdminLogin onLogin={() => handleNavigate("admin-dashboard")} onBack={() => {
+      setIsAdminMode(false)
+      handleNavigate("menu")
+    }} />
+  ) : currentView === "admin-dashboard" ? (
     <AdminDashboard onNavigate={handleNavigate} />
+  ) : (
+    <MenuView onNavigate={(view) => handleNavigate(view)} />
   )
 }
