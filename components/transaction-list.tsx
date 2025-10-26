@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { X } from "lucide-react"
 
 interface Transaction {
@@ -13,12 +12,6 @@ interface Transaction {
   date: string
   fullDate: string
   percentage?: string
-}
-
-const emptyTransactions = {
-  accepted: [] as Transaction[],
-  rejected: [] as Transaction[],
-  pending: [] as Transaction[],
 }
 
 const getStatusColor = (status: string) => {
@@ -46,8 +39,6 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
     const fetchTransactions = async () => {
       setLoading(true)
       try {
-        const supabase = createClient()
-        
         // Map tab to status for accounts table
         const statusMap = {
           accepted: 'accepted',
@@ -55,37 +46,41 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           pending: 'pending'
         }
         
-        const { data: accountData } = await supabase
-          .from('accounts')
-          .select('id, phone_number, amount, status, created_at')
-          .eq('status', statusMap[tab])
-          .order('created_at', { ascending: false })
+        const response = await fetch('/api/accounts/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: statusMap[tab] })
+        })
         
-        if (accountData) {
-          const formattedTransactions: Transaction[] = accountData.map(acc => ({
-            id: acc.id,
-            phone: acc.phone_number || '',
-            amount: Number(acc.amount).toFixed(2),
-            currency: 'USDT',
-            status: acc.status === 'accepted' ? ['ACCEPTED', 'SUCCESS'] : 
-                   acc.status === 'rejected' ? ['REJECTED', 'FAILED'] : ['PENDING'],
-            date: new Date(acc.created_at).toLocaleDateString('en-US', { 
-              month: '2-digit', 
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit'
-            }),
-            fullDate: new Date(acc.created_at).toLocaleString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: true
-            })
-          }))
-          setTransactions(formattedTransactions)
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (data.success && data.accounts) {
+            const formattedTransactions: Transaction[] = data.accounts.map((acc: any) => ({
+              id: acc._id,
+              phone: acc.phone_number || '',
+              amount: Number(acc.amount).toFixed(2),
+              currency: 'USDT',
+              status: acc.status === 'accepted' ? ['ACCEPTED', 'SUCCESS'] : 
+                     acc.status === 'rejected' ? ['REJECTED', 'FAILED'] : ['PENDING'],
+              date: new Date(acc.created_at).toLocaleDateString('en-US', { 
+                month: '2-digit', 
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              }),
+              fullDate: new Date(acc.created_at).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              })
+            }))
+            setTransactions(formattedTransactions)
+          }
         }
       } catch (error) {
         console.error('Error fetching accounts:', error)
