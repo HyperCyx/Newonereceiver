@@ -1,66 +1,52 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { Collections, getCollection } from '@/lib/mongodb/client'
+import { requireAdmin } from '@/lib/mongodb/auth'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-export async function POST(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { codeName } = body
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    // Generate unique referral code
-    const name = codeName || 'MASTER'
-    const code = `${name.toUpperCase().replace(/[^A-Z0-9]/g, '')}${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`
-    
-    console.log('[AdminReferrals] Creating referral code:', code)
-    
-    // Check if code already exists
-    const { data: existingCode } = await supabase
-      .from('users')
-      .select('referral_code')
-      .eq('referral_code', code)
-      .single()
-    
-    if (existingCode) {
-      return NextResponse.json({ error: 'Code already exists' }, { status: 400 })
-    }
-    
-    // Create a system user for this referral code
-    const randomTelegramId = Math.floor(Math.random() * 1000000000)
-    
-    const { data: newUser, error: insertError } = await supabase
-      .from('users')
-      .insert({
-        telegram_id: randomTelegramId,
-        telegram_username: `referral_${code}`,
-        referral_code: code,
-        is_admin: false,
-        balance: 0,
-        email: `${code.toLowerCase()}@referral.system`
+    // Check if user is admin
+    await requireAdmin()
+
+    const referrals = await getCollection(Collections.REFERRALS)
+    const users = await getCollection(Collections.USERS)
+
+    // Fetch all referrals
+    const allReferrals = await referrals
+      .find({})
+      .sort({ created_at: -1 })
+      .toArray()
+
+    // Populate user data
+    const referralsWithUsers = await Promise.all(
+      allReferrals.map(async (referral) => {
+        const referrer = await users.findOne({ _id: referral.referrer_id })
+        const referred = await users.findOne({ _id: referral.referred_user_id })
+        
+        return {
+          ...referral,
+          referrer: referrer ? {
+            telegram_username: referrer.telegram_username,
+            first_name: referrer.first_name,
+            last_name: referrer.last_name
+          } : null,
+          referred_user: referred ? {
+            telegram_username: referred.telegram_username,
+            first_name: referred.first_name,
+            last_name: referred.last_name
+          } : null
+        }
       })
-      .select()
-      .single()
-    
-    if (insertError) {
-      console.error('[AdminReferrals] Insert error:', insertError)
-      return NextResponse.json({ error: insertError.message }, { status: 500 })
-    }
-    
-    console.log('[AdminReferrals] Referral code created successfully')
-    
-    const botLink = `https://t.me/WhatsAppNumberRedBot?start=${code}`
-    
+    )
+
     return NextResponse.json({
       success: true,
-      code,
-      link: botLink,
-      user: newUser
+      referrals: referralsWithUsers
     })
-  } catch (error) {
-    console.error('[AdminReferrals] Unexpected error:', error)
+  } catch (error: any) {
+    console.error('[AdminReferrals] GET error:', error)
+    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { ChevronLeft } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import WithdrawalModal from "./withdrawal-modal"
 import { toast } from "@/hooks/use-toast"
 
@@ -29,7 +28,6 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
   const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    // Wait for Telegram WebApp to be ready
     const initData = async () => {
       const tg = (window as any).Telegram?.WebApp
       if (tg) {
@@ -57,7 +55,6 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
 
   const fetchWithdrawals = async () => {
     try {
-      // Get current user's Telegram ID
       const tg = (window as any).Telegram?.WebApp
       const telegramUser = tg?.initDataUnsafe?.user
       
@@ -68,42 +65,42 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
         return
       }
 
-      console.log('[WithdrawalHistory] Fetching withdrawals for telegram_id:', telegramUser.id)
+      console.log('[WithdrawalHistory] Fetching data for telegram_id:', telegramUser.id)
 
-      // Fetch withdrawals using API (bypasses RLS)
-      const response = await fetch('/api/withdrawal/list', {
+      // Get user data and withdrawals
+      const userResponse = await fetch('/api/user/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          telegramId: telegramUser.id
-        })
+        body: JSON.stringify({ telegramId: telegramUser.id })
       })
       
-      if (!response.ok) {
-        console.error('[WithdrawalHistory] API request failed:', response.status)
+      if (!userResponse.ok) {
+        console.error('[WithdrawalHistory] User request failed:', userResponse.status)
         setBalance("0.00")
         setLoading(false)
         return
       }
       
-      const data = await response.json()
-      console.log('[WithdrawalHistory] API response:', data)
+      const userData = await userResponse.json()
+      console.log('[WithdrawalHistory] User response:', userData)
       
-      if (data.success) {
+      if (userData.success && userData.user) {
         // Set balance
-        const userBalance = Number(data.balance || 0)
+        const userBalance = Number(userData.user.balance || 0)
         setBalance(userBalance.toFixed(2))
+        setUserId(userData.user._id)
         console.log('[WithdrawalHistory] Balance:', userBalance.toFixed(2))
+      }
+
+      // Get withdrawals
+      const withdrawalsResponse = await fetch('/api/withdrawal/list')
+      
+      if (withdrawalsResponse.ok) {
+        const withdrawalsData = await withdrawalsResponse.json()
         
-        // Set user ID
-        if (data.userId) {
-          setUserId(data.userId)
-        }
-        
-        // Format and set withdrawals
-        if (data.withdrawals && data.withdrawals.length > 0) {
-          const formattedWithdrawals: Withdrawal[] = data.withdrawals.map((w: any) => ({
-            id: w.id,
+        if (withdrawalsData.success && withdrawalsData.withdrawals) {
+          const formattedWithdrawals: Withdrawal[] = withdrawalsData.withdrawals.map((w: any) => ({
+            id: w._id,
             amount: `${Number(w.amount).toFixed(2)} ${w.currency || 'USDT'}`,
             currency: w.currency || 'USDT',
             status: w.status,
@@ -116,9 +113,6 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
           }))
           console.log('[WithdrawalHistory] Formatted', formattedWithdrawals.length, 'withdrawals')
           setWithdrawals(formattedWithdrawals)
-        } else {
-          console.log('[WithdrawalHistory] No withdrawals found')
-          setWithdrawals([])
         }
       }
     } catch (error) {
@@ -200,7 +194,6 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
         <button 
           onClick={async () => {
             console.log('[WithdrawalHistory] Button clicked. Current balance:', balance)
-            // Refresh balance before opening modal
             await fetchWithdrawals()
             console.log('[WithdrawalHistory] After refresh, balance:', balance)
             setIsWithdrawalOpen(true)

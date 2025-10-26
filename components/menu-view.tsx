@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import ReferralSection from "./referral-section" // Import the ReferralSection component
+import ReferralSection from "./referral-section"
 import { useReferral } from "@/lib/referral-context"
 
 interface MenuViewProps {
@@ -40,7 +40,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     let isMounted = true
     
     const fetchUserData = async () => {
-      if (isLoading) return // Prevent multiple simultaneous calls
+      if (isLoading) return
       
       if (typeof window !== "undefined") {
         const tg = (window as any).Telegram?.WebApp
@@ -54,28 +54,26 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             setUserName(displayName)
             setUserId(`ID: ${user.id}`)
             
-            // Fetch real data from Supabase
             try {
-              const { createClient } = await import('@/lib/supabase/client')
-              const supabase = createClient()
+              // Fetch user data via API
+              const response = await fetch('/api/user/me', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telegramId: user.id })
+              })
               
-              // Check if user exists, if not create them
-              let { data: dbUser } = await supabase
-                .from('users')
-                .select('id, is_admin, referral_code, balance')
-                .eq('telegram_id', user.id)
-                .single()
+              let dbUser = null
               
-              console.log('[MenuView] Fetched user data:', dbUser)
-              
-              // Create user if doesn't exist
-              if (!dbUser) {
-                // Get referral code from URL
+              if (response.ok) {
+                const result = await response.json()
+                dbUser = result.user
+                console.log('[MenuView] Fetched user data:', dbUser)
+              } else {
+                // User doesn't exist, create them
                 const urlParams = new URLSearchParams(window.location.search)
                 const referralCode = urlParams.get('ref') || urlParams.get('start')
                 
-                // Call API to register user
-                const response = await fetch('/api/user/register', {
+                const registerResponse = await fetch('/api/user/register', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -88,11 +86,11 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   })
                 })
                 
-                const result = await response.json()
+                const result = await registerResponse.json()
                 
                 if (result.user) {
                   dbUser = result.user
-                  console.log('[MenuView] User registered:', dbUser.id)
+                  console.log('[MenuView] User registered:', dbUser._id)
                 } else {
                   console.error('[MenuView] Failed to register user:', result.error)
                 }
@@ -100,25 +98,28 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               
               if (dbUser && isMounted) {
                 setIsAdmin(dbUser.is_admin || false)
-                // Set balance from user table - ensure proper formatting
                 const balanceValue = Number(dbUser.balance || 0)
                 console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
                 setBalance(balanceValue.toFixed(2))
-                // Save to localStorage for referral context
+                
                 await saveUserWithReferral(user.id.toString(), undefined, {
                   ...user,
                   referralCode: dbUser.referral_code
                 })
               }
               
-              // Get available accounts count
-              const { count } = await supabase
-                .from('accounts')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'pending')
+              // Get accounts count via API
+              const accountsResponse = await fetch('/api/accounts/count', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'pending' })
+              })
               
-              if (isMounted) {
-                setAccountCount(count || 0)
+              if (accountsResponse.ok) {
+                const accountsResult = await accountsResponse.json()
+                if (isMounted) {
+                  setAccountCount(accountsResult.count || 0)
+                }
               }
             } catch (error) {
               console.error('Error fetching user data:', error)
@@ -137,7 +138,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     return () => {
       isMounted = false
     }
-  }, []) // Empty dependency array - only run once on mount
+  }, [])
 
   const menuItems: MenuItem[] = [
     {
@@ -178,6 +179,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     ...(isAdmin
       ? [
           {
+            icon: "⚙️",
+            title: "Admin Dashboard",
+            subtitle: "Manage system settings",
+            color: "bg-gradient-to-r from-purple-500 to-pink-500",
+            action: "admin-dashboard",
+          },
+          {
             icon: "🔗",
             title: "Referral Program",
             subtitle: "Manage referral links",
@@ -193,6 +201,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       onNavigate?.("dashboard")
     } else if (action === "withdraw") {
       onNavigate?.("withdrawal")
+    } else if (action === "admin-dashboard") {
+      onNavigate?.("admin-login")
     } else if (action === "referral") {
       setShowReferral(true)
     }

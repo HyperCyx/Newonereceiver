@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import TelegramGuard from "@/components/telegram-guard"
 import MenuView from "@/components/menu-view"
 import DashboardPage from "@/components/dashboard-page"
 import WithdrawalHistory from "@/components/withdrawal-history"
@@ -76,19 +77,28 @@ export default function Home() {
     setCurrentView(view)
   }
 
-  return currentView === "menu" ? (
-    <MenuView onNavigate={(view) => handleNavigate(view)} />
-  ) : currentView === "dashboard" ? (
-    <DashboardPage onNavigate={(view) => handleNavigate(view)} />
-  ) : currentView === "withdrawal" ? (
-    <WithdrawalHistory onNavigate={handleNavigate} />
-  ) : currentView === "withdrawal-details" ? (
-    <WithdrawalDetails withdrawalId={selectedWithdrawalId} onNavigate={handleNavigate} />
-  ) : currentView === "login" ? (
-    <LoginPage onLogin={() => handleNavigate("menu")} onBack={() => handleNavigate("dashboard")} />
-  ) : currentView === "admin-login" ? (
-    <AdminLogin onLogin={() => handleNavigate("admin-dashboard")} onBack={() => handleNavigate("menu")} />
-  ) : (
-    <AdminDashboard onNavigate={handleNavigate} />
+  return (
+    <TelegramGuard>
+      {currentView === "menu" ? (
+        <MenuView onNavigate={(view) => handleNavigate(view)} />
+      ) : currentView === "dashboard" ? (
+        <DashboardPage onNavigate={(view) => handleNavigate(view)} />
+      ) : currentView === "withdrawal" ? (
+        <WithdrawalHistory onNavigate={handleNavigate} />
+      ) : currentView === "withdrawal-details" ? (
+        <WithdrawalDetails withdrawalId={selectedWithdrawalId} onNavigate={handleNavigate} />
+      ) : currentView === "login" ? (
+        <LoginPage onLogin={() => handleNavigate("menu")} onBack={() => handleNavigate("dashboard")} />
+      ) : currentView === "admin-login" ? (
+        <AdminLogin onLogin={() => handleNavigate("admin-dashboard")} onBack={() => {
+          setIsAdminMode(false)
+          handleNavigate("menu")
+        }} />
+      ) : currentView === "admin-dashboard" ? (
+        <AdminDashboard onNavigate={handleNavigate} />
+      ) : (
+        <MenuView onNavigate={(view) => handleNavigate(view)} />
+      )}
+    </TelegramGuard>
   )
 }

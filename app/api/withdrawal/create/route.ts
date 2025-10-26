@@ -1,105 +1,79 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { Collections, getCollection, generateId } from '@/lib/mongodb/client'
+import { requireAuth } from '@/lib/mongodb/auth'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth()
     const body = await request.json()
-    const { telegramId, amount, walletAddress, currency = 'USDT' } = body
-    
-    if (!telegramId || !amount || !walletAddress) {
+    const { amount, walletAddress } = body
+
+    if (!amount || !walletAddress) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Amount and wallet address are required' },
         { status: 400 }
       )
     }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    // Get user from database
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id, balance')
-      .eq('telegram_id', telegramId)
-      .single()
-    
-    if (userError || !user) {
-      console.error('[Withdrawal API] User not found:', userError)
+
+    const users = await getCollection(Collections.USERS)
+    const settings = await getCollection(Collections.SETTINGS)
+    const withdrawals = await getCollection(Collections.WITHDRAWALS)
+
+    // Get user's current balance
+    const userData = await users.findOne({ _id: user._id })
+    if (!userData) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
-    
-    // Check if user has sufficient balance
-    const currentBalance = Number(user.balance || 0)
-    const withdrawalAmount = Number(amount)
-    
-    if (currentBalance < withdrawalAmount) {
+
+    // Get minimum withdrawal amount
+    const minWithdrawalSetting = await settings.findOne({ setting_key: 'min_withdrawal_amount' })
+    const minWithdrawalAmount = parseFloat(minWithdrawalSetting?.setting_value || '5.00')
+
+    // Validate amount
+    if (amount < minWithdrawalAmount) {
+      return NextResponse.json(
+        { error: `Minimum withdrawal amount is ${minWithdrawalAmount} USDT` },
+        { status: 400 }
+      )
+    }
+
+    if (amount > userData.balance) {
       return NextResponse.json(
         { error: 'Insufficient balance' },
         { status: 400 }
       )
     }
-    
+
     // Create withdrawal request
-    const { data: withdrawal, error: withdrawalError } = await supabase
-      .from('withdrawals')
-      .insert({
-        user_id: user.id,
-        amount: withdrawalAmount,
-        currency: currency,
-        wallet_address: walletAddress,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-    
-    if (withdrawalError) {
-      console.error('[Withdrawal API] Error creating withdrawal:', withdrawalError)
-      return NextResponse.json(
-        { error: 'Failed to create withdrawal request', details: withdrawalError.message },
-        { status: 500 }
-      )
+    const withdrawal = {
+      _id: generateId(),
+      user_id: user._id,
+      amount: amount,
+      currency: 'USDT',
+      wallet_address: walletAddress,
+      status: 'pending',
+      created_at: new Date(),
+      updated_at: new Date()
     }
-    
-    // Deduct balance from user account
-    const newBalance = currentBalance - withdrawalAmount
-    const { error: balanceError } = await supabase
-      .from('users')
-      .update({ balance: newBalance })
-      .eq('id', user.id)
-    
-    if (balanceError) {
-      console.error('[Withdrawal API] Error updating balance:', balanceError)
-      // Rollback withdrawal if balance update fails
-      await supabase
-        .from('withdrawals')
-        .delete()
-        .eq('id', withdrawal.id)
-      
-      return NextResponse.json(
-        { error: 'Failed to update balance' },
-        { status: 500 }
-      )
-    }
-    
-    console.log('[Withdrawal API] Withdrawal created successfully:', withdrawal.id)
-    
+
+    await withdrawals.insertOne(withdrawal)
+
+    // Deduct amount from user's balance
+    await users.updateOne(
+      { _id: user._id },
+      { $inc: { balance: -amount } }
+    )
+
     return NextResponse.json({
       success: true,
-      withdrawal: {
-        id: withdrawal.id,
-        amount: withdrawalAmount,
-        status: 'pending',
-        newBalance: newBalance
-      }
+      withdrawal: withdrawal,
+      message: 'Withdrawal request created successfully'
     })
-  } catch (error) {
-    console.error('[Withdrawal API] Unexpected error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error', details: String(error) },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    console.error('[WithdrawalCreate] Error:', error)
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

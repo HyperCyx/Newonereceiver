@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
 
 export default function ReferralSection() {
   const [referralLink, setReferralLink] = useState("")
@@ -13,7 +12,6 @@ export default function ReferralSection() {
   useEffect(() => {
     const fetchReferralData = async () => {
       try {
-        const supabase = createClient()
         const tg = (window as any).Telegram?.WebApp
         const user = tg?.initDataUnsafe?.user
         
@@ -22,35 +20,31 @@ export default function ReferralSection() {
           return
         }
         
-        // Get user's referral code from database
-        const { data: dbUser, error } = await supabase
-          .from('users')
-          .select('id, referral_code')
-          .eq('telegram_id', user.id)
-          .single()
+        // Get user data via API
+        const response = await fetch('/api/user/me', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegramId: user.id })
+        })
         
-        if (error) {
-          console.error('[ReferralSection] Error fetching user:', error)
+        if (!response.ok) {
+          console.error('[ReferralSection] Failed to fetch user')
           setLoading(false)
           return
         }
         
-        if (dbUser?.referral_code) {
+        const result = await response.json()
+        
+        if (result.user?.referral_code) {
           setHasReferralCode(true)
-          // Use bot link for referrals
-          const botUsername = '@WhatsAppNumberRedBot'
-          const link = `https://t.me/${botUsername.replace('@', '')}?start=${dbUser.referral_code}`
+          const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'WhatsAppNumberRedBot'
+          const link = `https://t.me/${botUsername}?start=${result.user.referral_code}`
           setReferralLink(link)
           
           // Get referral stats
-          const { count: totalCount } = await supabase
-            .from('referrals')
-            .select('*', { count: 'exact', head: true })
-            .eq('referrer_id', dbUser.id)
-          
           setStats({
-            totalReferrals: totalCount || 0,
-            activeReferrals: totalCount || 0
+            totalReferrals: result.referralCount || 0,
+            activeReferrals: result.referralCount || 0
           })
         } else {
           setHasReferralCode(false)

@@ -15,7 +15,6 @@ import {
   X,
   DollarSign,
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 
 interface AdminDashboardProps {
   onNavigate: (view: string) => void
@@ -84,9 +83,21 @@ interface ReferralCode {
   expires_at?: string
 }
 
+interface Country {
+  id: string
+  country_code: string
+  country_name: string
+  max_capacity: number
+  used_capacity: number
+  prize_amount: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "settings"
+    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "settings"
   >("overview")
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -103,11 +114,25 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
   const [referralCodes, setReferralCodes] = useState<ReferralCode[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
   const [loading, setLoading] = useState(true)
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
+  const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
+  const [editingCountry, setEditingCountry] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState<{capacity: number, prize: number}>()
+
+  // Get Telegram ID on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tg = (window as any).Telegram?.WebApp
+      if (tg && tg.initDataUnsafe?.user) {
+        setAdminTelegramId(tg.initDataUnsafe.user.id)
+      }
+    }
+  }, [])
 
   // Computed analytics data
   const dailyRevenue = (() => {
@@ -184,6 +209,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     fetchSettings()
   }, [activeTab])
 
+  // Get Telegram user ID
+  const getTelegramId = () => {
+    if (typeof window !== 'undefined') {
+      const tg = (window as any).Telegram?.WebApp
+      return tg?.initDataUnsafe?.user?.id
+    }
+    return null
+  }
+
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/settings')
@@ -222,56 +256,52 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }
       }
 
-      // For other data, use client with RLS
-      const supabase = createClient()
-
-      // Fetch stats
-      const [usersCount, transactionsData, withdrawalsData] = await Promise.all([
-        fetch('/api/admin/users').then(r => r.json()),
-        supabase.from('transactions').select('amount, status'),
-        supabase.from('withdrawals').select('*', { count: 'exact' })
+      // Fetch stats from API
+      const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
+        fetch('/api/admin/users'),
+        fetch('/api/admin/withdrawals'),
+        fetch('/api/transactions/list')
       ])
 
-      const totalRevenue = transactionsData.data?.reduce((sum, t) => 
-        t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
+      const usersCount = await usersResponse.json()
+      const withdrawalsResult = await withdrawalsResponse.json()
+      const transactionsResult = await transactionsResponse.json()
 
-      const pendingWithdrawals = withdrawalsData.data?.filter(w => w.status === 'pending').length || 0
+      const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
+      const totalRevenue = transactionsResult.transactions?.reduce((sum: number, t: any) => 
+        t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
 
       setStats({
         totalUsers: usersCount.count || 0,
-        totalTransactions: transactionsData.data?.length || 0,
-        totalWithdrawals: withdrawalsData.count || 0,
+        totalTransactions: transactionsResult.transactions?.length || 0,
+        totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
         totalRevenue,
         activeUsers: usersCount.count || 0,
         pendingWithdrawals
       })
 
-      // Fetch transactions with user info
+      // Fetch transactions
       if (activeTab === 'transactions' || activeTab === 'overview' || activeTab === 'analytics') {
-        const { data: txData } = await supabase
-          .from('transactions')
-          .select(`
-            id, 
-            user_id, 
-            amount, 
-            status, 
-            created_at, 
-            currency,
-            users!inner(telegram_username)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(50)
-
-        const formattedTx: Transaction[] = (txData || []).map((tx: any) => ({
-          id: tx.id,
-          userId: tx.user_id,
-          userName: tx.users?.telegram_username || 'Unknown',
-          amount: Number(tx.amount).toFixed(2),
-          status: tx.status as "completed" | "pending" | "failed",
-          date: new Date(tx.created_at).toLocaleDateString()
-        }))
-        
-        setTransactions(formattedTx)
+        try {
+          const response = await fetch('/api/transactions/list')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success && result.transactions) {
+              const formattedTx: Transaction[] = result.transactions.map((tx: any) => ({
+                id: tx._id,
+                userId: tx.user_id,
+                userName: tx.users?.telegram_username || 'Unknown',
+                amount: Number(tx.amount).toFixed(2),
+                status: tx.status as "completed" | "pending" | "failed",
+                date: new Date(tx.created_at).toLocaleDateString()
+              }))
+              setTransactions(formattedTx)
+            }
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching transactions:', err)
+          setTransactions([])
+        }
       }
 
       // Fetch withdrawals with user info (only for analytics and overview)
@@ -312,7 +342,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const wdResult = await wdResponse.json()
             if (wdResult.withdrawals) {
               const formattedWd: Withdrawal[] = wdResult.withdrawals.map((wd: any) => ({
-                id: wd.id,
+                id: wd._id,
                 userId: wd.user_id,
                 userName: wd.users?.telegram_username || `${wd.users?.first_name || ''} ${wd.users?.last_name || ''}`.trim() || 'Unknown',
                 amount: Number(wd.amount).toFixed(2),
@@ -331,7 +361,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const result = await response.json()
             if (result.payments) {
               const formattedPr: PaymentRequest[] = result.payments.map((pr: any) => ({
-                id: pr.id,
+                id: pr._id,
                 userId: pr.user_id,
                 userName: pr.users?.telegram_username || `${pr.users?.first_name || ''} ${pr.users?.last_name || ''}`.trim() || 'Unknown',
                 amount: Number(pr.amount).toFixed(2),
@@ -368,6 +398,22 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         } catch (err) {
           console.error('[AdminDashboard] Error fetching referral codes:', err)
           setReferralCodes([])
+        }
+      }
+
+      // Fetch countries
+      if (activeTab === 'countries') {
+        try {
+          const response = await fetch('/api/admin/countries')
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success && result.countries) {
+              setCountries(result.countries)
+            }
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching countries:', err)
+          setCountries([])
         }
       }
 
@@ -412,26 +458,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      const supabase = createClient()
-      
-      // Try to get admin user - if not found, create settings without user verification
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id, is_admin, telegram_id')
-        .eq('is_admin', true)
-        .limit(1)
-
-      console.log('[AdminDashboard] Admin user lookup:', { users, usersError })
-
-      let userId = null
-      if (users && users.length > 0 && !usersError) {
-        userId = users[0].id
-        console.log('[AdminDashboard] Found admin user:', userId)
-      } else {
-        console.warn('[AdminDashboard] No admin user found, proceeding without user ID')
-      }
-
-      console.log('[AdminDashboard] Saving setting with admin user:', userId)
+      console.log('[AdminDashboard] Saving minimum withdrawal amount:', minAmount)
 
       const response = await fetch('/api/settings', {
         method: 'POST',
@@ -439,7 +466,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         body: JSON.stringify({
           settingKey: 'min_withdrawal_amount',
           settingValue: minAmount.toFixed(2),
-          userId: userId
+          telegramId: adminTelegramId
         })
       })
 
@@ -535,7 +562,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 flex overflow-x-auto sticky top-0 z-10">
-        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "settings"] as const).map(
+        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
           (tab) => (
             <button
               key={tab}
@@ -650,20 +677,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           Loading...
                         </td>
                       </tr>
                     ) : users.length === 0 ? (
-                      <tr>
+                      <tr key="no-users">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           No users found
                         </td>
                       </tr>
                     ) : (
                       users.map((user) => (
-                        <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={user._id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-800 font-mono">{user.telegram_id}</td>
                           <td className="px-4 py-3 text-sm text-gray-800">
                             {user.first_name} {user.last_name || ''}
@@ -709,13 +736,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-transactions">
                         <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                           Loading transactions...
                         </td>
                       </tr>
                     ) : transactions.length === 0 ? (
-                      <tr>
+                      <tr key="no-transactions">
                         <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                           No transactions found
                         </td>
@@ -959,20 +986,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-referrals">
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                           Loading referral codes...
                         </td>
                       </tr>
                     ) : referralCodes.length === 0 ? (
-                      <tr>
+                      <tr key="no-referrals">
                         <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                           No referral codes found. Create one above!
                         </td>
                       </tr>
                     ) : (
                       referralCodes.slice(0, 20).map((code) => (
-                        <tr key={code.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={code._id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-800 font-medium">
                             {code.name || 'Unnamed'}
                           </td>
@@ -1086,13 +1113,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr>
+                      <tr key="loading-requests">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           Loading requests...
                         </td>
                       </tr>
                     ) : [...withdrawals.map(w => ({...w, type: 'Withdrawal'})), ...paymentRequests.map(p => ({...p, type: 'Payment', date: p.requestDate}))].length === 0 ? (
-                      <tr>
+                      <tr key="no-requests">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                           No requests found
                         </td>
@@ -1208,6 +1235,471 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   ).toFixed(2)}
                 </p>
                 <p className="text-xs text-green-600 mt-1">Total to process</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "countries" && (
+          <div className="p-4 space-y-4">
+            {/* Add New Country Section */}
+            <div className="bg-gradient-to-r from-green-500 to-teal-500 rounded-lg p-4 md:p-6 text-white">
+              <h3 className="font-bold text-base md:text-lg mb-2">Add New Country</h3>
+              <p className="text-xs md:text-sm text-green-100 mb-3 md:mb-4">Configure country-specific account purchase settings</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="Country Code (e.g., US)"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-code-input"
+                />
+                <input
+                  type="text"
+                  placeholder="Country Name"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-name-input"
+                />
+                <input
+                  type="number"
+                  placeholder="Max Capacity"
+                  min="0"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-capacity-input"
+                />
+                <input
+                  type="number"
+                  placeholder="Prize Amount (USDT)"
+                  step="0.01"
+                  min="0"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-prize-input"
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  const codeInput = document.getElementById('country-code-input') as HTMLInputElement
+                  const nameInput = document.getElementById('country-name-input') as HTMLInputElement
+                  const capacityInput = document.getElementById('country-capacity-input') as HTMLInputElement
+                  const prizeInput = document.getElementById('country-prize-input') as HTMLInputElement
+                  
+                  if (!codeInput.value || !nameInput.value) {
+                    alert('Please enter country code and name')
+                    return
+                  }
+                  
+                  try {
+                    const response = await fetch('/api/admin/countries', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        action: 'create',
+                        countryCode: codeInput.value.toUpperCase(),
+                        countryName: nameInput.value,
+                        maxCapacity: parseInt(capacityInput.value) || 0,
+                        prizeAmount: parseFloat(prizeInput.value) || 0,
+                        telegramId: adminTelegramId
+                      })
+                    })
+                    
+                    const result = await response.json()
+                    
+                    if (!response.ok) {
+                      alert('Error: ' + (result.error || 'Failed to create country'))
+                      return
+                    }
+                    
+                    if (result.success) {
+                      alert(`Country ${result.country.country_name} created successfully!`)
+                      codeInput.value = ''
+                      nameInput.value = ''
+                      capacityInput.value = ''
+                      prizeInput.value = ''
+                      fetchAllData()
+                    }
+                  } catch (err) {
+                    console.error('Error:', err)
+                    alert('Error creating country')
+                  }
+                }}
+                className="mt-3 w-full px-4 md:px-6 py-2 md:py-2.5 bg-white text-green-600 rounded-lg text-sm md:text-base font-semibold hover:bg-gray-100 transition-colors"
+              >
+                Add Country
+              </button>
+            </div>
+
+            {/* Countries Table */}
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 px-4 py-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+                  <BarChart3 size={20} className="text-green-500" />
+                  Country Capacity Management
+                </h3>
+                <p className="text-sm text-gray-600">Manage which countries can purchase accounts and set capacity limits</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px]">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Code</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Max Capacity</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Used</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Available</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize (USDT)</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr key="loading-countries">
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                          Loading countries...
+                        </td>
+                      </tr>
+                    ) : countries.length === 0 ? (
+                      <tr key="no-countries">
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                          No countries found. Add one above!
+                        </td>
+                      </tr>
+                    ) : (
+                      countries.map((country) => {
+                        const available = country.max_capacity - country.used_capacity
+                        const usagePercent = country.max_capacity > 0 
+                          ? (country.used_capacity / country.max_capacity) * 100 
+                          : 0
+                        
+                        const isEditing = editingCountry === country._id
+                        
+                        return (
+                          <tr key={country._id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-800">
+                              {country.country_name}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-700">
+                                {country.country_code}
+                              </code>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-800">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues?.capacity ?? country.max_capacity}
+                                  onChange={(e) => setEditValues(prev => ({...prev!, capacity: parseInt(e.target.value) || 0}))}
+                                  min="0"
+                                  className="w-20 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
+                                />
+                              ) : (
+                                <span>{country.max_capacity}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                {country.used_capacity}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  available > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {available}
+                                </span>
+                                <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full ${usagePercent >= 100 ? 'bg-red-500' : usagePercent >= 80 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                    style={{ width: `${Math.min(usagePercent, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues?.prize ?? country.prize_amount}
+                                  onChange={(e) => setEditValues(prev => ({...prev!, prize: parseFloat(e.target.value) || 0}))}
+                                  step="0.01"
+                                  min="0"
+                                  className="w-20 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
+                                />
+                              ) : (
+                                <span className="font-semibold">${country.prize_amount.toFixed(2)}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <button
+                                onClick={async () => {
+                                  console.log('[Toggle] Country ID:', country._id)
+                                  console.log('[Toggle] Admin Telegram ID:', adminTelegramId)
+                                  console.log('[Toggle] Current status:', country.is_active)
+                                  
+                                  if (!adminTelegramId) {
+                                    alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                    return
+                                  }
+                                  
+                                  try {
+                                    console.log('[Toggle] Sending toggle request...')
+                                    const response = await fetch('/api/admin/countries', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        action: 'update',
+                                        countryId: country._id,
+                                        isActive: !country.is_active,
+                                        telegramId: adminTelegramId
+                                      })
+                                    })
+                                    
+                                    const result = await response.json()
+                                    console.log('[Toggle] Response:', response.status, result)
+                                    
+                                    if (response.ok) {
+                                      alert(`✅ ${country.country_name} is now ${!country.is_active ? 'Active' : 'Inactive'}`)
+                                      await fetchAllData()
+                                    } else {
+                                      console.error('[Toggle] Failed:', result)
+                                      alert(`❌ Failed to update: ${result.error || 'Unknown error'}`)
+                                    }
+                                  } catch (err) {
+                                    console.error('[Toggle] Error:', err)
+                                    alert(`❌ Error toggling status: ${err}`)
+                                  }
+                                }}
+                                className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
+                                  country.is_active 
+                                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                                disabled={isEditing}
+                              >
+                                {country.is_active ? 'Active' : 'Inactive'}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <div className="flex gap-2 justify-center flex-wrap">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      onClick={async () => {
+                                        console.log('[Save] Country ID:', country._id)
+                                        console.log('[Save] Admin Telegram ID:', adminTelegramId)
+                                        console.log('[Save] Edit values:', editValues)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
+                                        if (!editValues) {
+                                          alert('❌ Error: No changes to save')
+                                          return
+                                        }
+                                        
+                                        try {
+                                          console.log('[Save] Sending update request...')
+                                          const response = await fetch('/api/admin/countries', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              action: 'update',
+                                              countryId: country._id,
+                                              maxCapacity: editValues.capacity,
+                                              prizeAmount: editValues.prize,
+                                              telegramId: adminTelegramId
+                                            })
+                                          })
+                                          
+                                          const result = await response.json()
+                                          console.log('[Save] Response:', response.status, result)
+                                          
+                                          if (response.ok) {
+                                            setEditingCountry(null)
+                                            setEditValues(undefined)
+                                            alert(`✅ ${country.country_name} updated successfully!`)
+                                            await fetchAllData()
+                                          } else {
+                                            console.error('[Save] Failed:', result)
+                                            alert(`❌ Failed to update: ${result.error || 'Unknown error'}`)
+                                          }
+                                        } catch (err) {
+                                          console.error('[Save] Error:', err)
+                                          alert(`❌ Error updating country: ${err}`)
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-xs"
+                                    >
+                                      💾 Save
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingCountry(null)
+                                        setEditValues(undefined)
+                                      }}
+                                      className="px-3 py-1.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 font-medium text-xs"
+                                    >
+                                      ✕ Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setEditingCountry(country._id)
+                                        setEditValues({
+                                          capacity: country.max_capacity,
+                                          prize: country.prize_amount
+                                        })
+                                      }}
+                                      className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"
+                                    >
+                                      ✏️ Edit
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        console.log('[Reset] Country ID:', country._id)
+                                        console.log('[Reset] Admin Telegram ID:', adminTelegramId)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
+                                        if (confirm(`Reset used capacity for ${country.country_name}?`)) {
+                                          try {
+                                            console.log('[Reset] Sending reset request...')
+                                            const response = await fetch('/api/admin/countries', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                action: 'reset_capacity',
+                                                countryId: country._id,
+                                                telegramId: adminTelegramId
+                                              })
+                                            })
+                                            
+                                            const result = await response.json()
+                                            console.log('[Reset] Response:', response.status, result)
+                                            
+                                            if (response.ok) {
+                                              alert(`✅ ${country.country_name} capacity reset to 0!`)
+                                              await fetchAllData()
+                                            } else {
+                                              console.error('[Reset] Failed:', result)
+                                              alert(`❌ Failed to reset: ${result.error || 'Unknown error'}`)
+                                            }
+                                          } catch (err) {
+                                            console.error('[Reset] Error:', err)
+                                            alert(`❌ Error resetting capacity: ${err}`)
+                                          }
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium text-xs"
+                                      title="Reset used capacity to 0"
+                                    >
+                                      🔄 Reset
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        console.log('[Delete] Country ID:', country._id)
+                                        console.log('[Delete] Admin Telegram ID:', adminTelegramId)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
+                                        if (confirm(`⚠️ DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
+                                          try {
+                                            console.log('[Delete] Sending delete request...')
+                                            const response = await fetch('/api/admin/countries', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                action: 'delete',
+                                                countryId: country._id,
+                                                telegramId: adminTelegramId
+                                              })
+                                            })
+                                            
+                                            const result = await response.json()
+                                            console.log('[Delete] Response:', response.status, result)
+                                            
+                                            if (response.ok) {
+                                              alert(`✅ ${country.country_name} deleted successfully!`)
+                                              await fetchAllData()
+                                            } else {
+                                              console.error('[Delete] Failed:', result)
+                                              alert(`❌ Failed to delete: ${result.error || 'Unknown error'}`)
+                                            }
+                                          } catch (err) {
+                                            console.error('[Delete] Error:', err)
+                                            alert(`❌ Error deleting country: ${err}`)
+                                          }
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-xs"
+                                    >
+                                      🗑️ Delete
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Country Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Countries</span>
+                  <BarChart3 size={20} className="text-green-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">{countries.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Active: {countries.filter(c => c.is_active).length}</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Capacity</span>
+                  <TrendingUp size={20} className="text-blue-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {countries.reduce((sum, c) => sum + c.max_capacity, 0)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Across all countries</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Accounts Sold</span>
+                  <Users size={20} className="text-purple-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {countries.reduce((sum, c) => sum + c.used_capacity, 0)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Total purchased</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Available Now</span>
+                  <Check size={20} className="text-green-500" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {countries.reduce((sum, c) => sum + (c.max_capacity - c.used_capacity), 0)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Ready to purchase</p>
               </div>
             </div>
           </div>
