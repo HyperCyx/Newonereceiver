@@ -57,25 +57,46 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             
             try {
               // Fetch user data via API
-              console.log('[MenuView] Fetching user data for Telegram ID:', user.id)
+              console.log('[MenuView] ========================================')
+              console.log('[MenuView] STARTING USER DATA FETCH')
+              console.log('[MenuView] Telegram ID:', user.id)
+              console.log('[MenuView] Username:', user.username)
+              console.log('[MenuView] First Name:', user.first_name)
+              console.log('[MenuView] ========================================')
+              
               const response = await fetch('/api/user/me', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telegramId: user.id })
               })
               
+              console.log('[MenuView] API Response Status:', response.status, response.statusText)
+              
               let dbUser = null
               
               if (response.ok) {
                 const result = await response.json()
                 dbUser = result.user
-                console.log('[MenuView] User found in database:', dbUser)
+                console.log('[MenuView] ✅ USER FOUND IN DATABASE')
+                console.log('[MenuView] User ID:', dbUser._id)
+                console.log('[MenuView] Telegram ID:', dbUser.telegram_id)
+                console.log('[MenuView] Username:', dbUser.telegram_username)
+                console.log('[MenuView] Is Admin:', dbUser.is_admin)
+                console.log('[MenuView] Balance:', dbUser.balance)
               } else {
                 // User doesn't exist, create them
-                console.log('[MenuView] User not found in database, creating new user...')
+                console.log('[MenuView] ========================================')
+                console.log('[MenuView] ⚠️ USER NOT FOUND - REGISTERING NEW USER')
+                console.log('[MenuView] ========================================')
                 
                 const urlParams = new URLSearchParams(window.location.search)
                 const referralCode = urlParams.get('ref') || urlParams.get('start')
+                
+                console.log('[MenuView] Registration Data:')
+                console.log('[MenuView]   - Telegram ID:', user.id)
+                console.log('[MenuView]   - Username:', user.username || `user_${user.id}`)
+                console.log('[MenuView]   - First Name:', user.first_name || 'User')
+                console.log('[MenuView]   - Referral Code:', referralCode || 'None')
                 
                 try {
                   const registerResponse = await fetch('/api/user/register', {
@@ -91,6 +112,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                     })
                   })
                   
+                  console.log('[MenuView] Registration Response Status:', registerResponse.status, registerResponse.statusText)
+                  
                   if (!registerResponse.ok) {
                     const errorText = await registerResponse.text()
                     console.error('[MenuView] Registration failed:', errorText)
@@ -99,9 +122,17 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   
                   const result = await registerResponse.json()
                   
-                  if (result.user) {
+                  console.log('[MenuView] Registration Result:', result)
+                  
+                  if (result.success && result.user) {
                     dbUser = result.user
-                    console.log('[MenuView] User registered successfully:', dbUser._id)
+                    console.log('[MenuView] ========================================')
+                    console.log('[MenuView] ✅ USER REGISTERED SUCCESSFULLY')
+                    console.log('[MenuView] User ID:', dbUser._id)
+                    console.log('[MenuView] Telegram ID:', dbUser.telegram_id)
+                    console.log('[MenuView] Is Admin:', dbUser.is_admin)
+                    console.log('[MenuView] Balance:', dbUser.balance)
+                    console.log('[MenuView] ========================================')
                   } else {
                     console.error('[MenuView] Registration returned no user:', result)
                     throw new Error(result.error || 'Failed to create user account')
