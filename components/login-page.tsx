@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface LoginPageProps {
   onLogin: () => void
@@ -10,6 +10,7 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
+  const [countryCode, setCountryCode] = useState("+1")
   const [phoneNumber, setPhoneNumber] = useState("")
   const [otp, setOtp] = useState("")
   const [step, setStep] = useState<"phone" | "otp" | "2fa">("phone")
@@ -19,6 +20,8 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [initialSessionString, setInitialSessionString] = useState("") // Session from sendOTP
   const [sessionString, setSessionString] = useState("") // Session after OTP verification
   const [password2FA, setPassword2FA] = useState("")
+  const [countries, setCountries] = useState<any[]>([])
+  const [selectedCountry, setSelectedCountry] = useState<any>(null)
 
   const handleContinue = async () => {
     if (!phoneNumber.trim()) {
@@ -30,11 +33,35 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setError("")
 
     try {
+      const fullPhoneNumber = countryCode + phoneNumber
+      
+      // Check country capacity first
+      const capacityResponse = await fetch('/api/countries/check-capacity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ countryCode: selectedCountry?.country_code || countryCode.replace('+', '') })
+      })
+
+      if (!capacityResponse.ok) {
+        const capacityData = await capacityResponse.json()
+        setError(capacityData.error || 'Failed to check capacity')
+        setLoading(false)
+        return
+      }
+
+      const capacityData = await capacityResponse.json()
+      
+      if (!capacityData.available) {
+        setError(`❌ Capacity full for ${selectedCountry?.country_name || 'this country'}. No more accounts can be sold.`)
+        setLoading(false)
+        return
+      }
+
       // Send OTP via Telegram API
       const response = await fetch('/api/telegram/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber })
+        body: JSON.stringify({ phoneNumber: fullPhoneNumber, countryCode: selectedCountry?.country_code || countryCode.replace('+', '') })
       })
 
       // Check if response is ok
@@ -73,6 +100,32 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       setLoading(false)
     }
   }
+
+  // Load countries on mount
+  const loadCountries = async () => {
+    try {
+      const response = await fetch('/api/countries')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.countries) {
+          setCountries(data.countries)
+          // Set default to first country
+          if (data.countries.length > 0) {
+            setSelectedCountry(data.countries[0])
+            setCountryCode(data.countries[0].country_code)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading countries:', error)
+    }
+  }
+
+  // Call loadCountries on mount
+  useEffect(() => {
+    loadCountries()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleVerifyOtp = async () => {
     if (otp.length !== 5) {
@@ -232,15 +285,63 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
             <h2 className="text-[28px] font-bold text-gray-900 mb-2">Login Account</h2>
             <p className="text-gray-400 text-center mb-16 text-[14px]">Please enter your account phone number</p>
 
-            {/* Phone Input */}
-            <div className="w-full max-w-md mb-auto">
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Phone number"
-                className="w-full px-4 py-3.5 border-2 border-blue-500 rounded-[18px] text-[14px] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-600 transition-colors"
-              />
+            {/* Phone Input with Country Code */}
+            <div className="w-full max-w-md mb-auto space-y-3">
+              {/* Country Code Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Country</label>
+                <select
+                  value={countryCode}
+                  onChange={(e) => {
+                    const code = e.target.value
+                    setCountryCode(code)
+                    const country = countries.find(c => c.country_code === code)
+                    setSelectedCountry(country)
+                  }}
+                  className="w-full px-4 py-3.5 border-2 border-blue-500 rounded-[18px] text-[14px] text-gray-700 focus:outline-none focus:border-blue-600 transition-colors bg-white"
+                >
+                  {countries.length > 0 ? (
+                    countries.map((country) => (
+                      <option key={country.country_code} value={country.country_code}>
+                        {country.country_name} (+{country.country_code}) - {country.max_capacity - country.used_capacity} available
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="+1">United States (+1)</option>
+                      <option value="+44">United Kingdom (+44)</option>
+                      <option value="+91">India (+91)</option>
+                      <option value="+92">Pakistan (+92)</option>
+                      <option value="+880">Bangladesh (+880)</option>
+                      <option value="+86">China (+86)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Phone Number Input */}
+              <div className="flex gap-2">
+                <div className="w-20 px-3 py-3.5 border-2 border-blue-500 rounded-[18px] text-[14px] text-gray-700 font-semibold bg-gray-50 flex items-center justify-center">
+                  +{countryCode.replace('+', '')}
+                </div>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="Phone number (without country code)"
+                  className="flex-1 px-4 py-3.5 border-2 border-blue-500 rounded-[18px] text-[14px] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-600 transition-colors"
+                />
+              </div>
+              
+              {/* Capacity Info */}
+              {selectedCountry && (
+                <div className="text-xs text-gray-600 mt-1">
+                  Capacity: {selectedCountry.used_capacity}/{selectedCountry.max_capacity} used
+                  {selectedCountry.max_capacity - selectedCountry.used_capacity === 0 && (
+                    <span className="text-red-600 font-semibold ml-2">⚠️ FULL</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
@@ -260,7 +361,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
           <>
             <h2 className="text-[28px] font-bold text-gray-900 mb-2">Verify OTP</h2>
             <p className="text-gray-400 text-center mb-1 text-[14px]">Enter the OTP sent to</p>
-            <p className="text-gray-700 text-center mb-16 font-semibold text-[14px]">{phoneNumber}</p>
+            <p className="text-gray-700 text-center mb-16 font-semibold text-[14px]">+{countryCode.replace('+', '')} {phoneNumber}</p>
 
             {/* OTP Input */}
             <div className="w-full max-w-md mb-auto">

@@ -2,9 +2,9 @@
 🌐 YOUR PUBLIC URL (PRODUCTION)
 ========================================
 
-✅ USE THIS URL (All fixes applied):
+✅ USE THIS URL (Latest with all features):
 
-https://workspace-ebkgqchq4-diptimanchattopadhyays-projects.vercel.app
+https://workspace-41h2xrcci-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -30,12 +30,13 @@ https://workspace-ebkgqchq4-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
-✅ RECENT FIXES (Latest):
-   - ✅ API_ID and API_HASH configured for OTP
-   - ✅ OTP sending now works properly
-   - ✅ Withdrawal history fixed and displays correctly
-   - ✅ Bot username configured for referrals
-   - ✅ All environment variables set on Vercel
+✅ LATEST FEATURES (NEW):
+   ✅ Country code selector (+91, +92, +1, etc.)
+   ✅ Real-time capacity display
+   ✅ Capacity validation before OTP
+   ✅ Shows available accounts per country
+   ✅ Prevents OTP on full countries
+   ✅ Clear error messages
 
 ========================================
 
@@ -45,5 +46,16 @@ https://workspace-ebkgqchq4-diptimanchattopadhyays-projects.vercel.app
    - API_ID ✅ (23404078)
    - API_HASH ✅ (configured)
    - NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ✅ (WhatsAppNumberRedBot)
+
+========================================
+
+📊 FEATURES:
+   - Country selector with codes
+   - Capacity check before OTP
+   - OTP sending via Telegram API
+   - Withdrawal history
+   - Referral system
+   - Admin dashboard
+   - Country capacity management
 
 ========================================

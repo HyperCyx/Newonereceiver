@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { phoneNumber } = body
+    const { phoneNumber, countryCode } = body
 
     if (!phoneNumber) {
       return NextResponse.json(
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[SendOTP] Sending OTP to: ${phoneNumber}`)
+    console.log(`[SendOTP] Sending OTP to: ${phoneNumber} (Country: ${countryCode})`)
 
     const result = await sendOTP(phoneNumber)
 
