@@ -11,16 +11,30 @@ export async function POST(request: NextRequest) {
     }
 
     const users = await getCollection(Collections.USERS)
-    const referrals = await getCollection(Collections.REFERRALS)
 
-    // Get user data
-    const user = await users.findOne({ telegram_id: telegramId })
+    // Get user data (optimized with projection to only fetch needed fields)
+    const user = await users.findOne(
+      { telegram_id: telegramId },
+      { 
+        projection: { 
+          _id: 1, 
+          telegram_id: 1, 
+          telegram_username: 1, 
+          first_name: 1, 
+          last_name: 1, 
+          balance: 1, 
+          referral_code: 1, 
+          is_admin: 1 
+        } 
+      }
+    )
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Count referrals
+    // Count referrals - run in parallel with user lookup
+    const referrals = await getCollection(Collections.REFERRALS)
     const referralCount = await referrals.countDocuments({ referrer_id: user._id })
 
     // Ensure is_admin is a boolean

@@ -33,6 +33,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [accountCount, setAccountCount] = useState(0)
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState("")
   const { saveUserWithReferral } = useReferral()
 
@@ -46,6 +48,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
           tg.ready()
           const user = tg.initDataUnsafe?.user
           if (user && isMounted) {
+            console.log('[MenuView] 📱 Loading user data...')
             setTelegramUser(user)
             const displayName = `${user.first_name} ${user.last_name || ""}`.trim()
             setUserName(displayName)
@@ -144,53 +147,52 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               
               if (dbUser && isMounted) {
                 const adminStatus = dbUser.is_admin === true
-                console.log('[MenuView] ==================')
-                console.log('[MenuView] User data received:')
-                console.log('[MenuView]   telegram_id:', dbUser.telegram_id)
-                console.log('[MenuView]   is_admin raw:', dbUser.is_admin)
-                console.log('[MenuView]   is_admin type:', typeof dbUser.is_admin)
-                console.log('[MenuView]   is_admin === true:', dbUser.is_admin === true)
-                console.log('[MenuView]   adminStatus:', adminStatus)
-                console.log('[MenuView]   balance:', dbUser.balance)
-                console.log('[MenuView] ==================')
+                console.log('[MenuView] ✅ User data loaded')
+                console.log('[MenuView]   Admin:', adminStatus, '  Balance:', dbUser.balance)
                 
                 setIsAdmin(adminStatus)
-                console.log('[MenuView] SET isAdmin to:', adminStatus)
-                
                 const balanceValue = Number(dbUser.balance || 0)
-                console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
                 setBalance(balanceValue.toFixed(2))
                 
-                await saveUserWithReferral(user.id.toString(), undefined, {
-                  ...user,
-                  referralCode: dbUser.referral_code
-                })
-              }
-              
-              // Get accounts count via API
-              const accountsResponse = await fetch('/api/accounts/count', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'pending' })
-              })
-              
-              if (accountsResponse.ok) {
-                const accountsResult = await accountsResponse.json()
+                // Get accounts count - run in parallel with saving referral
+                const [accountsResult] = await Promise.all([
+                  fetch('/api/accounts/count', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'pending' })
+                  }).then(r => r.ok ? r.json() : { count: 0 }),
+                  
+                  saveUserWithReferral(user.id.toString(), undefined, {
+                    ...user,
+                    referralCode: dbUser.referral_code
+                  })
+                ])
+                
                 if (isMounted) {
                   setAccountCount(accountsResult.count || 0)
+                  setDataLoaded(true)
+                  setIsLoading(false)
+                  console.log('[MenuView] 🎉 All data loaded successfully!')
                 }
               }
             } catch (error: any) {
-              console.error('[MenuView] Critical error:', error)
+              console.error('[MenuView] ❌ Critical error:', error)
               if (isMounted) {
                 setError('Failed to load user data. Please refresh the app.')
+                setIsLoading(false)
               }
             }
           } else {
             console.log('[MenuView] No Telegram user found')
+            if (isMounted) {
+              setIsLoading(false)
+            }
           }
         } else {
           console.log('[MenuView] Telegram WebApp not available')
+          if (isMounted) {
+            setIsLoading(false)
+          }
         }
       }
     }
@@ -280,6 +282,11 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     } else if (action === "referral") {
       setShowReferral(true)
     }
+  }
+
+  // Show loading state - wait for ALL data to be ready
+  if (isLoading && !dataLoaded) {
+    return null // TelegramGuard already shows loading, don't show double
   }
 
   // Show error state
