@@ -10,6 +10,7 @@ interface MenuViewProps {
 
 interface MenuItem {
   icon: string
+  iconType?: 'material' | 'emoji'
   title: string
   subtitle: string
   badge?: string
@@ -206,20 +207,23 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
 
   const menuItems: MenuItem[] = [
     {
-      icon: "👤",
+      icon: "person",
+      iconType: "material",
       title: userName,
       subtitle: userId,
       color: "bg-blue-400",
     },
     {
-      icon: "💰",
+      icon: "account_balance_wallet",
+      iconType: "material",
       title: "Withdraw Money",
       subtitle: balance + " USDT",
       color: "bg-emerald-500",
       action: "withdraw",
     },
     {
-      icon: "📦",
+      icon: "inventory_2",
+      iconType: "material",
       title: "Send Accounts",
       subtitle: accountCount.toString(),
       badge: accountCount > 0 ? "AVAILABLE" : undefined,
@@ -227,14 +231,16 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       action: "send",
     },
     {
-      icon: "📋",
+      icon: "receipt_long",
+      iconType: "material",
       title: "Orders",
       subtitle: "0",
       color: "bg-rose-500",
       action: "orders",
     },
     {
-      icon: "📢",
+      icon: "campaign",
+      iconType: "material",
       title: "Channel",
       subtitle: "Check our channel for latest updates",
       color: "bg-amber-500",
@@ -243,14 +249,16 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     ...(isAdmin
       ? [
           {
-            icon: "⚙️",
+            icon: "admin_panel_settings",
+            iconType: "material" as const,
             title: "Admin Dashboard",
             subtitle: "Manage system settings",
             color: "bg-gradient-to-r from-purple-500 to-pink-500",
             action: "admin-dashboard",
           },
           {
-            icon: "🔗",
+            icon: "link",
+            iconType: "material" as const,
             title: "Referral Program",
             subtitle: "Manage referral links",
             color: "bg-violet-500",
@@ -315,7 +323,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
 
   return (
     <>
-      <div className="flex-1 flex flex-col bg-white">
+      <div className="flex flex-col bg-white h-screen">
         <div className="flex-1 overflow-y-auto">
           {menuItems.map((item, idx) => (
             <div
@@ -325,9 +333,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`${item.color} w-11 h-11 rounded-full flex items-center justify-center text-base flex-shrink-0`}
+                  className={`${item.color} w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0`}
                 >
-                  {item.icon}
+                  {item.iconType === 'material' ? (
+                    <span className="material-icons text-white text-[22px]">{item.icon}</span>
+                  ) : (
+                    <span className="text-base">{item.icon}</span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -345,7 +357,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
           ))}
         </div>
 
-        <div className="border-t border-gray-100 px-4 py-3 text-center text-gray-400 text-xs">v0.11.0</div>
+        <div className="border-t border-gray-100 px-4 py-3 text-center text-gray-400 text-xs flex-shrink-0">v0.11.0</div>
       </div>
 
       {showReferral && (

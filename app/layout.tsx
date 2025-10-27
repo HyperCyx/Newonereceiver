@@ -24,6 +24,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
       </head>
       <body className={`font-sans antialiased bg-white min-h-screen`} suppressHydrationWarning>
         <ReferralProvider>
