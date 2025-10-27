@@ -57,6 +57,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             
             try {
               // Fetch user data via API
+              console.log('[MenuView] Fetching user data for Telegram ID:', user.id)
               const response = await fetch('/api/user/me', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -68,32 +69,50 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               if (response.ok) {
                 const result = await response.json()
                 dbUser = result.user
-                console.log('[MenuView] Fetched user data:', dbUser)
+                console.log('[MenuView] User found in database:', dbUser)
               } else {
                 // User doesn't exist, create them
+                console.log('[MenuView] User not found in database, creating new user...')
+                
                 const urlParams = new URLSearchParams(window.location.search)
                 const referralCode = urlParams.get('ref') || urlParams.get('start')
                 
-                const registerResponse = await fetch('/api/user/register', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    telegramId: user.id,
-                    username: user.username,
-                    firstName: user.first_name,
-                    lastName: user.last_name,
-                    phoneNumber: user.phone_number,
-                    referralCode: referralCode
+                try {
+                  const registerResponse = await fetch('/api/user/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      telegramId: user.id,
+                      username: user.username || `user_${user.id}`,
+                      firstName: user.first_name || 'User',
+                      lastName: user.last_name || '',
+                      phoneNumber: null,
+                      referralCode: referralCode
+                    })
                   })
-                })
-                
-                const result = await registerResponse.json()
-                
-                if (result.user) {
-                  dbUser = result.user
-                  console.log('[MenuView] User registered:', dbUser._id)
-                } else {
-                  console.error('[MenuView] Failed to register user:', result.error)
+                  
+                  if (!registerResponse.ok) {
+                    const errorText = await registerResponse.text()
+                    console.error('[MenuView] Registration failed:', errorText)
+                    throw new Error('Failed to register user: ' + errorText)
+                  }
+                  
+                  const result = await registerResponse.json()
+                  
+                  if (result.user) {
+                    dbUser = result.user
+                    console.log('[MenuView] User registered successfully:', dbUser._id)
+                  } else {
+                    console.error('[MenuView] Registration returned no user:', result)
+                    throw new Error(result.error || 'Failed to create user account')
+                  }
+                } catch (registerError: any) {
+                  console.error('[MenuView] Registration error:', registerError)
+                  if (isMounted) {
+                    setError('Failed to create account. Please try again.')
+                    setIsLoading(false)
+                  }
+                  return // Exit early on registration error
                 }
               }
               
@@ -135,13 +154,29 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   setAccountCount(accountsResult.count || 0)
                 }
               }
-            } catch (error) {
-              console.error('Error fetching user data:', error)
+            } catch (error: any) {
+              console.error('[MenuView] Critical error:', error)
+              if (isMounted) {
+                setError('Failed to load user data. Please refresh the app.')
+                setIsLoading(false)
+              }
             } finally {
               if (isMounted) {
                 setIsLoading(false)
               }
             }
+          } else {
+            console.log('[MenuView] No Telegram user found')
+            if (isMounted) {
+              setError('Unable to get Telegram user information')
+              setIsLoading(false)
+            }
+          }
+        } else {
+          console.log('[MenuView] Telegram WebApp not available')
+          if (isMounted) {
+            setError('Please open this app in Telegram')
+            setIsLoading(false)
           }
         }
       }
@@ -232,6 +267,41 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     } else if (action === "referral") {
       setShowReferral(true)
     }
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="text-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your account...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="text-center p-8 max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Oops!</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError("")
+              setIsLoading(true)
+              window.location.reload()
+            }}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
