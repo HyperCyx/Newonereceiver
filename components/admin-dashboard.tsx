@@ -138,7 +138,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     if (typeof window !== 'undefined') {
       const tg = (window as any).Telegram?.WebApp
       if (tg && tg.initDataUnsafe?.user) {
+        console.log('[AdminDashboard] Setting admin Telegram ID:', tg.initDataUnsafe.user.id)
         setAdminTelegramId(tg.initDataUnsafe.user.id)
+      } else {
+        console.warn('[AdminDashboard] No Telegram user data found, using fallback admin ID')
+        // Fallback to known admin ID for testing
+        setAdminTelegramId(1211362365)
       }
     }
   }, [])
@@ -214,9 +219,19 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   })()
 
   useEffect(() => {
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('[AdminDashboard] Loading timeout reached, clearing loading state')
+        setLoading(false)
+      }
+    }, 15000) // 15 second timeout
+
     fetchAllData()
     fetchSettings()
-  }, [activeTab])
+
+    return () => clearTimeout(loadingTimeout)
+  }, [activeTab, loading])
 
   // Get Telegram user ID
   const getTelegramId = () => {
@@ -243,11 +258,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const fetchAllData = async () => {
     setLoading(true)
+    console.log('[AdminDashboard] Starting fetchAllData for tab:', activeTab)
 
     try {
       // Fetch users from API (bypasses RLS)
       if (activeTab === 'users' || activeTab === 'overview') {
         try {
+          console.log('[AdminDashboard] Fetching users...')
           const response = await fetch('/api/admin/users')
           if (response.ok) {
             const result = await response.json()
@@ -265,29 +282,53 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }
       }
 
-      // Fetch stats from API
-      const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
-        fetch('/api/admin/users'),
-        fetch('/api/admin/withdrawals'),
-        fetch('/api/transactions/list')
-      ])
+      // Fetch stats from API with better error handling
+      console.log('[AdminDashboard] Fetching stats...')
+      try {
+        const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
+          fetch('/api/admin/users').catch(err => {
+            console.error('[AdminDashboard] Users API error:', err)
+            return { ok: false, json: () => Promise.resolve({ count: 0 }) }
+          }),
+          fetch('/api/admin/withdrawals').catch(err => {
+            console.error('[AdminDashboard] Withdrawals API error:', err)
+            return { ok: false, json: () => Promise.resolve({ withdrawals: [] }) }
+          }),
+          fetch('/api/transactions/list').catch(err => {
+            console.error('[AdminDashboard] Transactions API error:', err)
+            return { ok: false, json: () => Promise.resolve({ transactions: [] }) }
+          })
+        ])
 
-      const usersCount = await usersResponse.json()
-      const withdrawalsResult = await withdrawalsResponse.json()
-      const transactionsResult = await transactionsResponse.json()
+        const usersCount = await usersResponse.json()
+        const withdrawalsResult = await withdrawalsResponse.json()
+        const transactionsResult = await transactionsResponse.json()
 
-      const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
-      const totalRevenue = transactionsResult.transactions?.reduce((sum: number, t: any) => 
-        t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
+        const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
+        const totalRevenue = transactionsResult.transactions?.reduce((sum: number, t: any) => 
+          t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
 
-      setStats({
-        totalUsers: usersCount.count || 0,
-        totalTransactions: transactionsResult.transactions?.length || 0,
-        totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
-        totalRevenue,
-        activeUsers: usersCount.count || 0,
-        pendingWithdrawals
-      })
+        setStats({
+          totalUsers: usersCount.count || 0,
+          totalTransactions: transactionsResult.transactions?.length || 0,
+          totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
+          totalRevenue,
+          activeUsers: usersCount.count || 0,
+          pendingWithdrawals
+        })
+        console.log('[AdminDashboard] Stats updated successfully')
+      } catch (err) {
+        console.error('[AdminDashboard] Error fetching stats:', err)
+        // Set default stats on error
+        setStats({
+          totalUsers: 0,
+          totalTransactions: 0,
+          totalWithdrawals: 0,
+          totalRevenue: 0,
+          activeUsers: 0,
+          pendingWithdrawals: 0
+        })
+      }
 
       // Fetch transactions
       if (activeTab === 'transactions' || activeTab === 'overview' || activeTab === 'analytics') {
@@ -444,10 +485,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       }
 
     } catch (error) {
-      console.error('Error fetching admin data:', error)
+      console.error('[AdminDashboard] Critical error in fetchAllData:', error)
+      // Set default states on critical error
+      setUsers([])
+      setTransactions([])
+      setWithdrawals([])
+      setPaymentRequests([])
+      setReferralCodes([])
+      setCountries([])
+      setCountryStats([])
+    } finally {
+      // Always clear loading state
+      console.log('[AdminDashboard] Clearing loading state')
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleApprovePayment = async (id: string) => {

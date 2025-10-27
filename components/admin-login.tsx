@@ -32,6 +32,7 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
         console.log('[AdminLogin] Checking admin access for:', user.id)
 
         // Check if user is admin
+        console.log('[AdminLogin] Checking admin status for user:', user.id)
         const response = await fetch('/api/admin/check-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -44,14 +45,17 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
           if (result.isAdmin) {
             setIsAuthorized(true)
-            // Auto login if authorized
+            // Auto login if authorized with shorter delay
             setTimeout(() => {
+              console.log('[AdminLogin] Proceeding to admin dashboard')
               onLogin()
-            }, 1000)
+            }, 500)
           } else {
             setError(`Access Denied. This account is not authorized.\n\nYour Telegram ID: ${user.id}\nAuthorized Admin ID: 1211362365`)
           }
         } else {
+          const errorText = await response.text()
+          console.error('[AdminLogin] API error:', response.status, errorText)
           setError("Failed to verify admin access")
         }
       }
