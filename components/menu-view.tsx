@@ -33,7 +33,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [accountCount, setAccountCount] = useState(0)
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
   const { saveUserWithReferral } = useReferral()
 
   useEffect(() => {
