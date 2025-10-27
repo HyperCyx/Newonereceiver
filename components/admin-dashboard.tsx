@@ -124,6 +124,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [countries, setCountries] = useState<Country[]>([])
   const [countryStats, setCountryStats] = useState<CountryStat[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
@@ -219,19 +220,22 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   })()
 
   useEffect(() => {
+    console.log('[AdminDashboard] useEffect triggered for activeTab:', activeTab)
+    
     // Set a timeout to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
-      if (loading) {
-        console.warn('[AdminDashboard] Loading timeout reached, clearing loading state')
-        setLoading(false)
-      }
+      console.warn('[AdminDashboard] Loading timeout reached, clearing loading state')
+      setLoading(false)
     }, 15000) // 15 second timeout
 
     fetchAllData()
     fetchSettings()
 
-    return () => clearTimeout(loadingTimeout)
-  }, [activeTab, loading])
+    return () => {
+      console.log('[AdminDashboard] Cleaning up timeout for activeTab:', activeTab)
+      clearTimeout(loadingTimeout)
+    }
+  }, [activeTab]) // Removed 'loading' from dependencies to prevent infinite loop
 
   // Get Telegram user ID
   const getTelegramId = () => {
@@ -258,12 +262,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const fetchAllData = async () => {
     setLoading(true)
+    setLoadingStep('starting')
     console.log('[AdminDashboard] Starting fetchAllData for tab:', activeTab)
 
     try {
       // Fetch users from API (bypasses RLS)
       if (activeTab === 'users' || activeTab === 'overview') {
         try {
+          setLoadingStep('fetching users')
           console.log('[AdminDashboard] Fetching users...')
           const response = await fetch('/api/admin/users')
           if (response.ok) {
@@ -283,6 +289,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       }
 
       // Fetch stats from API with better error handling
+      setLoadingStep('fetching stats')
       console.log('[AdminDashboard] Fetching stats...')
       try {
         const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
@@ -496,6 +503,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       setCountryStats([])
     } finally {
       // Always clear loading state
+      setLoadingStep('completed')
       console.log('[AdminDashboard] Clearing loading state')
       setLoading(false)
     }
@@ -702,7 +710,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               <h3 className="font-semibold text-gray-800 mb-3">Recent Transactions</h3>
               <div className="space-y-2">
                 {loading ? (
-                  <p className="text-center text-gray-400 py-4">Loading...</p>
+                  <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
                 ) : transactions.length === 0 ? (
                   <p className="text-center text-gray-400 py-4">No transactions yet</p>
                 ) : (
@@ -756,7 +764,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     {loading ? (
                       <tr key="loading">
                         <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                          Loading...
+                          Loading... ({loadingStep})
                         </td>
                       </tr>
                     ) : users.length === 0 ? (

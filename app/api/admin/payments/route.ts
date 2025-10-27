@@ -56,24 +56,39 @@ export async function POST(request: NextRequest) {
       const paymentRequests = await getCollection(Collections.PAYMENT_REQUESTS)
       const users = await getCollection(Collections.USERS)
 
-      const allPayments = await paymentRequests
-        .find({})
-        .sort({ created_at: -1 })
-        .toArray()
-
-      const paymentsWithUsers = await Promise.all(
-        allPayments.map(async (payment) => {
-          const user = await users.findOne({ _id: payment.user_id })
-          return {
-            ...payment,
-            users: user ? {
-              telegram_username: user.telegram_username,
-              first_name: user.first_name,
-              last_name: user.last_name
-            } : null
+      const paymentsWithUsers = await paymentRequests.aggregate([
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user_id',
+            foreignField: '_id',
+            as: 'users'
           }
-        })
-      )
+        },
+        {
+          $unwind: {
+            path: '$users',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            user_id: 1,
+            amount: 1,
+            wallet_address: 1,
+            status: 1,
+            created_at: 1,
+            updated_at: 1,
+            'users.telegram_username': 1,
+            'users.first_name': 1,
+            'users.last_name': 1
+          }
+        },
+        {
+          $sort: { created_at: -1 }
+        }
+      ]).toArray()
 
       return NextResponse.json({
         success: true,

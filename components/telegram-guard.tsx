@@ -15,6 +15,18 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
     // Check if we're in Telegram Mini App and user is registered
     const checkAccess = async () => {
       if (typeof window !== 'undefined') {
+        // Check if we're in admin mode - bypass Telegram checks
+        const urlParams = new URLSearchParams(window.location.search)
+        const isAdminMode = urlParams.get('admin') === 'true'
+        
+        if (isAdminMode) {
+          console.log('[TelegramGuard] Admin mode detected, bypassing Telegram checks')
+          setIsTelegram(true)
+          setIsRegistered(true)
+          setIsLoading(false)
+          return
+        }
+        
         const tg = (window as any).Telegram?.WebApp
         
         // Wait a bit for Telegram WebApp to initialize

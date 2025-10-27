@@ -8,26 +8,42 @@ export async function GET(request: NextRequest) {
     const withdrawals = await getCollection(Collections.WITHDRAWALS)
     const users = await getCollection(Collections.USERS)
 
-    // Fetch all withdrawals
-    const allWithdrawals = await withdrawals
-      .find({})
-      .sort({ created_at: -1 })
-      .toArray()
-
-    // Populate user data
-    const withdrawalsWithUsers = await Promise.all(
-      allWithdrawals.map(async (withdrawal) => {
-        const user = await users.findOne({ _id: withdrawal.user_id })
-        return {
-          ...withdrawal,
-          users: user ? {
-            telegram_username: user.telegram_username,
-            first_name: user.first_name,
-            last_name: user.last_name
-          } : null
+    // Use aggregation to join withdrawals with users in a single query
+    const withdrawalsWithUsers = await withdrawals.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user_id',
+          foreignField: '_id',
+          as: 'users'
         }
-      })
-    )
+      },
+      {
+        $unwind: {
+          path: '$users',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          user_id: 1,
+          amount: 1,
+          currency: 1,
+          wallet_address: 1,
+          status: 1,
+          created_at: 1,
+          updated_at: 1,
+          confirmed_at: 1,
+          'users.telegram_username': 1,
+          'users.first_name': 1,
+          'users.last_name': 1
+        }
+      },
+      {
+        $sort: { created_at: -1 }
+      }
+    ]).toArray()
 
     return NextResponse.json({
       success: true,
@@ -56,24 +72,41 @@ export async function POST(request: NextRequest) {
       const withdrawals = await getCollection(Collections.WITHDRAWALS)
       const users = await getCollection(Collections.USERS)
 
-      const allWithdrawals = await withdrawals
-        .find({})
-        .sort({ created_at: -1 })
-        .toArray()
-
-      const withdrawalsWithUsers = await Promise.all(
-        allWithdrawals.map(async (withdrawal) => {
-          const user = await users.findOne({ _id: withdrawal.user_id })
-          return {
-            ...withdrawal,
-            users: user ? {
-              telegram_username: user.telegram_username,
-              first_name: user.first_name,
-              last_name: user.last_name
-            } : null
+      const withdrawalsWithUsers = await withdrawals.aggregate([
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user_id',
+            foreignField: '_id',
+            as: 'users'
           }
-        })
-      )
+        },
+        {
+          $unwind: {
+            path: '$users',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            user_id: 1,
+            amount: 1,
+            currency: 1,
+            wallet_address: 1,
+            status: 1,
+            created_at: 1,
+            updated_at: 1,
+            confirmed_at: 1,
+            'users.telegram_username': 1,
+            'users.first_name': 1,
+            'users.last_name': 1
+          }
+        },
+        {
+          $sort: { created_at: -1 }
+        }
+      ]).toArray()
 
       return NextResponse.json({
         success: true,
