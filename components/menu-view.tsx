@@ -295,13 +295,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   // Don't show loading UI - let TelegramGuard handle it
   // Return white div to prevent black screen while data loads
   if (isLoading && !dataLoaded) {
-    return <div className="bg-white min-h-screen" />
+    return <div className="bg-white" style={{ height: '100vh' }} />
   }
 
   // Show error state
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-white">
+      <div className="flex items-center justify-center bg-white" style={{ height: '100vh' }}>
         <div className="text-center p-8 max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Oops!</h2>
@@ -323,8 +323,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
 
   return (
     <>
-      <div className="flex flex-col bg-white h-screen">
-        <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
+        <div className="flex-1" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {menuItems.map((item, idx) => (
             <div
               key={idx}

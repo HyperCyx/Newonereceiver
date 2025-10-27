@@ -124,15 +124,39 @@
   }
 }
 
-/* Prevent black/blank screen during loading transitions */
-html,
-body {
+/* Telegram Mini App specific fixes */
+html {
   background-color: white !important;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
+body {
+  background-color: white !important;
+  height: 100vh;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  -webkit-overscroll-behavior: none;
+}
+
+/* Prevent pull-to-refresh and overscroll */
 body > div,
 #__next {
   background-color: white;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overscroll-behavior: none;
+}
+
+/* Use Telegram viewport height if available */
+:root {
+  --tg-viewport-height: 100vh;
 }

@@ -78,7 +78,7 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
       <TelegramGuard>
         {currentView === "menu" ? (
         <MenuView onNavigate={(view) => handleNavigate(view)} />

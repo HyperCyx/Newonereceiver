@@ -39,6 +39,14 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
             tg.ready()
             tg.expand()
             
+            // Disable vertical swipes to prevent page scrolling
+            tg.disableVerticalSwipes()
+            
+            // Set viewport height properly
+            if (tg.viewportHeight) {
+              document.documentElement.style.setProperty('--tg-viewport-height', `${tg.viewportHeight}px`)
+            }
+            
             const user = tg.initDataUnsafe.user
             
             // Get referral code from Telegram start_param (bot deep link) or URL parameter
@@ -171,7 +179,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
   // Show single loading screen for entire app initialization
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="bg-white flex items-center justify-center" style={{ height: '100vh', overflow: 'hidden' }}>
         <div className="text-center px-6">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 text-sm">Loading...</p>
@@ -183,7 +191,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
   // If not in Telegram, show instructions
   if (!isTelegram) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+      <div className="bg-white flex items-center justify-center p-6" style={{ height: '100vh', overflow: 'auto' }}>
         <div className="max-w-md text-center">
           <div className="mb-8">
             <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
@@ -231,7 +239,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
   // Show referral code input if needed
   if (needsReferral && !isRegistered) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+      <div className="bg-white flex items-center justify-center p-6" style={{ height: '100vh', overflow: 'auto' }}>
         <div className="max-w-md w-full text-center">
           <div className="mb-8">
             <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">

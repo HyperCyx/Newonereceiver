@@ -410,7 +410,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="bg-white flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
       {/* Login Form */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8">
         {step === "phone" ? (

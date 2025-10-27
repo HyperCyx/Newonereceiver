@@ -644,7 +644,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col bg-gray-50" style={{ height: '100vh', overflow: 'hidden' }}>
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 flex overflow-x-auto sticky top-0 z-10">
         {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
@@ -663,7 +663,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {activeTab === "overview" && (
           <div className="p-4 space-y-4">
             {/* Stats Grid */}

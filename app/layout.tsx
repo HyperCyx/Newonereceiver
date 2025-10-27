@@ -23,12 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
       </head>
-      <body className={`font-sans antialiased bg-white min-h-screen`} suppressHydrationWarning>
+      <body className={`font-sans antialiased bg-white`} suppressHydrationWarning style={{ overflow: 'hidden', position: 'fixed', width: '100%', height: '100vh' }}>
         <ReferralProvider>
-          <div className="bg-white min-h-screen">
+          <div className="bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
             {children}
           </div>
           <Analytics />

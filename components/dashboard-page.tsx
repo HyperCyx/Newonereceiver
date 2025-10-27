@@ -14,13 +14,13 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [searchQuery, setSearchQuery] = useState("")
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="bg-white flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
       {currentView === "menu" ? (
         <MenuView onNavigate={onNavigate} />
       ) : (
         <>
           {/* Search Bar */}
-          <div className="px-4 py-3 border-b border-gray-100">
+          <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
               <input
                 type="text"
@@ -34,7 +34,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-100">
+          <div className="flex border-b border-gray-100 flex-shrink-0">
             {(["pending", "accepted", "rejected"] as const).map((tab) => (
               <button
                 key={tab}

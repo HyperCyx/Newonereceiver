@@ -152,7 +152,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           <p className="text-gray-400">No transactions found</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto pb-20">
+        <div className="flex-1 pb-20" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {filteredTransactions.map((transaction) => (
             <div 
               key={transaction.id} 
