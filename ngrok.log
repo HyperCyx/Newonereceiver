@@ -1,0 +1,11 @@
+t=2025-10-27T08:15:49+0000 lvl=info msg="no configuration paths supplied"
+t=2025-10-27T08:15:49+0000 lvl=info msg="using configuration at default config path" path=/home/ubuntu/.config/ngrok/ngrok.yml
+t=2025-10-27T08:15:49+0000 lvl=info msg="open config file" path=/home/ubuntu/.config/ngrok/ngrok.yml err=nil
+t=2025-10-27T08:15:49+0000 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2025-10-27T08:15:49+0000 lvl=info msg="client session established" obj=tunnels.session
+t=2025-10-27T08:15:49+0000 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2025-10-27T08:15:49+0000 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:3000 url=https://villiform-parker-perfunctorily.ngrok-free.dev
+t=2025-10-27T08:16:13+0000 lvl=info msg=start pg=/api/tunnels id=9907adeee81ca3f8
+t=2025-10-27T08:16:13+0000 lvl=info msg=end pg=/api/tunnels id=9907adeee81ca3f8 status=200 dur=305.674µs
+t=2025-10-27T08:16:19+0000 lvl=info msg=start pg=/api/tunnels id=32d0779f4887e28a
+t=2025-10-27T08:16:19+0000 lvl=info msg=end pg=/api/tunnels id=32d0779f4887e28a status=200 dur=133.916µs
