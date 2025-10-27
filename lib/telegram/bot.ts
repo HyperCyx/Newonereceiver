@@ -37,7 +37,7 @@ export async function handleTelegramUpdate(update: any) {
         welcomeMessage += `🎁 You joined via referral link!\n\n`
       }
       welcomeMessage += `📱 Your referral code: <code>${user.referral_code}</code>\n\n`
-      welcomeMessage += `🔗 Share this link with friends:\nhttps://t.me/${process.env.BOT_USERNAME}?start=${user.referral_code}\n\n`
+      welcomeMessage += `🔗 Share this link with friends:\nhttps://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'WhatsAppNumberRedBot'}?start=${user.referral_code}\n\n`
       welcomeMessage += `💡 Open the web app to start using the system!`
     } else {
       welcomeMessage += `👋 You're already registered! Welcome back!`

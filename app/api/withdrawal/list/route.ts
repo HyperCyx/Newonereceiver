@@ -1,18 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Collections, getCollection } from '@/lib/mongodb/client'
-import { requireAuth } from '@/lib/mongodb/auth'
+import { getDb } from '@/lib/mongodb/connection'
+import { ObjectId } from 'mongodb'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth()
+    // Get telegram ID from query params
+    const { searchParams } = new URL(request.url)
+    const telegramId = searchParams.get('telegramId')
 
-    const withdrawals = await getCollection(Collections.WITHDRAWALS)
+    if (!telegramId) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Telegram ID required' 
+      }, { status: 400 })
+    }
+
+    const db = await getDb()
+
+    // Get user by telegram ID
+    const user = await db.collection('users').findOne({ 
+      telegram_id: parseInt(telegramId) 
+    })
+
+    if (!user) {
+      return NextResponse.json({
+        success: true,
+        withdrawals: []
+      })
+    }
 
     // Fetch user's withdrawals
-    const userWithdrawals = await withdrawals
+    const userWithdrawals = await db.collection('withdrawals')
       .find({ user_id: user._id })
       .sort({ created_at: -1 })
       .toArray()
+
+    console.log('[WithdrawalList] Found', userWithdrawals.length, 'withdrawals for user:', telegramId)
 
     return NextResponse.json({
       success: true,
@@ -20,9 +43,57 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[WithdrawalList] Error:', error)
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: error.message }, { status: 401 })
+    return NextResponse.json({ 
+      success: false,
+      error: 'Internal server error' 
+    }, { status: 500 })
+  }
+}
+
+// Also support POST for consistency
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { telegramId } = body
+
+    if (!telegramId) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Telegram ID required' 
+      }, { status: 400 })
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+
+    const db = await getDb()
+
+    // Get user by telegram ID
+    const user = await db.collection('users').findOne({ 
+      telegram_id: parseInt(telegramId) 
+    })
+
+    if (!user) {
+      return NextResponse.json({
+        success: true,
+        withdrawals: []
+      })
+    }
+
+    // Fetch user's withdrawals
+    const userWithdrawals = await db.collection('withdrawals')
+      .find({ user_id: user._id })
+      .sort({ created_at: -1 })
+      .toArray()
+
+    console.log('[WithdrawalList] Found', userWithdrawals.length, 'withdrawals for user:', telegramId)
+
+    return NextResponse.json({
+      success: true,
+      withdrawals: userWithdrawals
+    })
+  } catch (error: any) {
+    console.error('[WithdrawalList] Error:', error)
+    return NextResponse.json({ 
+      success: false,
+      error: 'Internal server error' 
+    }, { status: 500 })
   }
 }

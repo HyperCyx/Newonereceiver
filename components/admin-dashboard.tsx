@@ -1033,7 +1033,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
                             <button
                               onClick={() => {
-                                const link = `https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || 'WhatsAppNumberRedBot'}?start=${code.code}`
+                                const link = `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'WhatsAppNumberRedBot'}?start=${code.code}`
                                 navigator.clipboard.writeText(link)
                                 alert('Bot link copied to clipboard!')
                               }}

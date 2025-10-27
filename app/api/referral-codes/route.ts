@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     await referralCodes.insertOne(newCode)
 
     // Generate bot link
-    const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'WhatsAppNumberRedBot'
+    const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'WhatsAppNumberRedBot'
     const link = `https://t.me/${botUsername}?start=${code}`
 
     return NextResponse.json({

@@ -37,7 +37,7 @@ export default function ReferralSection() {
         
         if (result.user?.referral_code) {
           setHasReferralCode(true)
-          const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'WhatsAppNumberRedBot'
+          const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'WhatsAppNumberRedBot'
           const link = `https://t.me/${botUsername}?start=${result.user.referral_code}`
           setReferralLink(link)
           
