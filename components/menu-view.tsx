@@ -97,7 +97,15 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               }
               
               if (dbUser && isMounted) {
-                setIsAdmin(dbUser.is_admin || false)
+                const adminStatus = dbUser.is_admin === true || dbUser.is_admin === 'true'
+                console.log('[MenuView] User data received:', {
+                  telegram_id: dbUser.telegram_id,
+                  is_admin: dbUser.is_admin,
+                  is_admin_type: typeof dbUser.is_admin,
+                  adminStatus: adminStatus,
+                  balance: dbUser.balance
+                })
+                setIsAdmin(adminStatus)
                 const balanceValue = Number(dbUser.balance || 0)
                 console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
                 setBalance(balanceValue.toFixed(2))
@@ -195,6 +203,9 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
         ]
       : []),
   ]
+
+  // Debug log when menu renders
+  console.log('[MenuView] Rendering menu. isAdmin:', isAdmin, 'menuItems count:', menuItems.length)
 
   const handleMenuItemClick = (action?: string) => {
     if (action === "send") {
