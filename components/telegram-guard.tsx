@@ -183,40 +183,13 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
     setIsLoading(false)
   }
 
-  // Show loading with different messages based on user type
+  // Show simple loading screen
   if (isLoading) {
-    const getLoadingColor = () => {
-      switch (userType) {
-        case 'admin': return 'border-purple-500'
-        case 'user': return 'border-blue-500'
-        default: return 'border-gray-500'
-      }
-    }
-
-    const getLoadingIcon = () => {
-      switch (userType) {
-        case 'admin': return '👑'
-        case 'user': return '👤'
-        default: return '⏳'
-      }
-    }
-
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center max-w-sm mx-auto px-6">
-          <div className="mb-6">
-            <div className={`w-16 h-16 border-4 ${getLoadingColor()} border-t-transparent rounded-full animate-spin mx-auto mb-4`}></div>
-            <div className="text-4xl mb-2">{getLoadingIcon()}</div>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            {userType === 'admin' ? 'Admin Access' : userType === 'user' ? 'User Dashboard' : 'Initializing'}
-          </h2>
-          <p className="text-gray-600 text-sm">{loadingMessage}</p>
-          {userType && (
-            <div className="mt-4 px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-500 inline-block">
-              {userType === 'admin' ? 'Administrator' : userType === 'user' ? 'Registered User' : 'Guest'}
-            </div>
-          )}
+        <div className="text-center px-6">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 text-sm">Loading...</p>
         </div>
       </div>
     )

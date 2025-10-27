@@ -33,7 +33,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [accountCount, setAccountCount] = useState(0)
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const { saveUserWithReferral } = useReferral()
 
@@ -298,13 +298,12 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     }
   }
 
-  // Show loading state
+  // Show minimal loading state (user already validated by TelegramGuard)
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
         <div className="text-center p-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your account...</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
         </div>
       </div>
     )
