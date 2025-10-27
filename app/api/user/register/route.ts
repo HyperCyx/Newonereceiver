@@ -45,27 +45,62 @@ export async function POST(request: Request) {
     if (referralCode) {
       console.log("[UserRegister] Looking for referrer with code:", referralCode)
       
-      // Check in referral_codes collection
+      // Check in referral_codes collection (admin-created codes)
       const referralCodes = await getCollection(Collections.REFERRAL_CODES)
       const refCode = await referralCodes.findOne({ code: referralCode, is_active: true })
       
       if (refCode) {
-        console.log("[UserRegister] Found referral code:", refCode._id)
+        console.log("[UserRegister] ✅ Found admin referral code:", refCode.code)
+        console.log("[UserRegister] Code details:", { 
+          id: refCode._id, 
+          name: refCode.name, 
+          created_by: refCode.created_by,
+          used_count: refCode.used_count 
+        })
+        
+        // Set referrer to the admin who created this code
+        // If created_by is "system", find the actual admin user
+        if (refCode.created_by === 'system') {
+          console.log("[UserRegister] Code was created by system, finding admin user...")
+          const adminUser = await users.findOne({ is_admin: true })
+          if (adminUser) {
+            referrerId = adminUser._id
+            console.log("[UserRegister] Using admin user as referrer:", referrerId)
+          } else {
+            console.log("[UserRegister] ⚠️ No admin user found, referral will not be tracked")
+          }
+        } else {
+          referrerId = refCode.created_by
+          console.log("[UserRegister] Referrer set to code creator:", referrerId)
+        }
+        
         // Increment used count
         await referralCodes.updateOne(
           { _id: refCode._id },
           { $inc: { used_count: 1 } }
         )
+        console.log("[UserRegister] Incremented used_count for admin code")
       } else {
         // Check if it's a user's personal referral code
+        console.log("[UserRegister] Not found in referral_codes, checking user personal codes...")
         const referrer = await users.findOne({ referral_code: referralCode })
         if (referrer) {
           referrerId = referrer._id
-          console.log("[UserRegister] Found referrer:", referrerId)
+          console.log("[UserRegister] ✅ Found user personal referral code, referrer:", referrerId)
         } else {
-          console.log("[UserRegister] Referrer not found for code:", referralCode)
+          console.log("[UserRegister] ❌ Invalid referral code:", referralCode)
+          return NextResponse.json(
+            { error: 'Invalid referral code. Please check and try again.' },
+            { status: 400 }
+          )
         }
       }
+    } else {
+      console.log("[UserRegister] ❌ No referral code provided")
+      return NextResponse.json(
+        { error: 'Referral code is required for registration.' },
+        { status: 400 }
+      )
     }
 
     // Generate unique referral code
