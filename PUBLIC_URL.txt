@@ -2,9 +2,9 @@
 🌐 YOUR PUBLIC URL (PRODUCTION)
 ========================================
 
-✅ USE THIS URL (Latest - Clean UI):
+✅ USE THIS URL (Latest - With Country Stats):
 
-https://workspace-jte8xztne-diptimanchattopadhyays-projects.vercel.app
+https://workspace-81rl5rqum-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -30,35 +30,78 @@ https://workspace-jte8xztne-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
-✅ LATEST UPDATE (COMPLETE):
-   ✅ Clean single input box for phone
-   ✅ No hint text - easy to paste
-   ✅ Admin uses phone codes (+1, +91, +92)
-   ✅ Database stores phone codes
-   ✅ Auto-detection working
-   ✅ Telegram toast notifications
-   ✅ Capacity validation before OTP
+✅ LATEST UPDATE (COUNTRY STATISTICS):
+   ✅ Country-wise purchase statistics
+   ✅ Shows phone codes (+1, +91, +92)
+   ✅ Visual percentage bars
+   ✅ Bulk session file download (ZIP)
+   ✅ One-click download all sessions
+
+========================================
+
+📊 NEW FEATURES (ADMIN DASHBOARD):
+
+   COUNTRIES TAB - New Section:
+   
+   1. Purchase Statistics Table
+      - See how many accounts per country
+      - Phone code display: +91, +92, +1
+      - Count and percentage for each
+      - Visual progress bars
+      - Total summary row
+   
+   2. Download All Sessions Button
+      - Downloads ZIP file with all sessions
+      - Includes all .json session files
+      - Named: telegram_sessions_YYYY-MM-DD.zip
+      - One-click bulk download
+
+========================================
+
+💡 ADMIN USAGE:
+
+   View Statistics:
+   1. Login as admin
+   2. Go to "Countries" tab
+   3. Scroll down to see statistics
+   4. View distribution by country
+   
+   Download Sessions:
+   1. In Countries tab statistics section
+   2. Click "📥 Download All Sessions"
+   3. Wait for ZIP download
+   4. Extract and use session files
 
 ========================================
 
 📝 USER EXPERIENCE:
-   - Clean input: Just paste phone number
+   - Clean single input box for phone
    - Example: +1234567890
    - Example: +911234567890  
    - Example: +923001234567
    - System auto-detects and validates
+   - Telegram toast notifications
 
 ========================================
 
-👨‍💼 ADMIN EXPERIENCE:
+👨‍💼 ADMIN FEATURES:
+   
    Add Country:
    - Phone Code: +1 (or just 1)
    - Country Name: United States
    - Max Capacity: 100
    - Prize Amount: 10.00
    
-   Database stores phone code "+1"
-   System matches user phones to codes
+   View Statistics:
+   - See purchases per country
+   - Phone codes: +1, +91, +92, etc.
+   - Counts and percentages
+   - Visual charts
+   
+   Download Sessions:
+   - All session files in one ZIP
+   - Backup and restore capability
+   - Easy bulk management
 
 ========================================
 
@@ -67,6 +110,7 @@ https://workspace-jte8xztne-diptimanchattopadhyays-projects.vercel.app
    - "Country with phone code +91 not found"
    - "❌ Capacity full for India"
    - "✅ Session created successfully!"
+   - "✅ Session files downloaded!"
 
 ========================================
 
@@ -84,5 +128,21 @@ https://workspace-jte8xztne-diptimanchattopadhyays-projects.vercel.app
    
    Admin adds phone codes directly:
    +1, +44, +91, +92, +880, etc.
+   
+   Statistics calculated from user database:
+   Count users per phone code → Show distribution
+
+========================================
+
+🗂️ SESSION FILES:
+   Location: telegram_sessions/
+   Format: {phone}_{timestamp}.json
+   Contains:
+   - phoneNumber
+   - sessionString
+   - createdAt
+   - userId
+   
+   Download: All files in one ZIP archive
 
 ========================================
