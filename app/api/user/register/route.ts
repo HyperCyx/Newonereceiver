@@ -7,20 +7,37 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { telegramId, username, firstName, lastName, phoneNumber, referralCode } = body
 
-    console.log("[UserRegister] Registering user:", telegramId, username)
+    console.log("[UserRegister] ========================================")
+    console.log("[UserRegister] Registration request received")
+    console.log("[UserRegister] Telegram ID:", telegramId)
+    console.log("[UserRegister] Username:", username)
+    console.log("[UserRegister] First Name:", firstName)
+    console.log("[UserRegister] ========================================")
+
+    if (!telegramId) {
+      console.error("[UserRegister] Missing telegramId!")
+      return NextResponse.json(
+        { error: 'Telegram ID is required' },
+        { status: 400 }
+      )
+    }
 
     const users = await getCollection(Collections.USERS)
+    console.log("[UserRegister] Got users collection")
 
     // Check if user already exists
     const existingUser = await users.findOne({ telegram_id: telegramId })
 
     if (existingUser) {
-      console.log("[UserRegister] User already exists:", existingUser._id, "Balance:", existingUser.balance)
+      console.log("[UserRegister] User already exists:", existingUser._id, "Balance:", existingUser.balance, "Admin:", existingUser.is_admin)
       
       // Set auth session
       await setAuthSession(existingUser._id)
       
-      return NextResponse.json({ user: existingUser })
+      return NextResponse.json({ 
+        success: true,
+        user: existingUser 
+      })
     }
 
     // Find referrer if referral code provided
@@ -76,8 +93,8 @@ export async function POST(request: Request) {
       updated_at: new Date()
     }
 
-    await users.insertOne(newUser)
-    console.log("[UserRegister] User profile created:", userId)
+    const insertResult = await users.insertOne(newUser)
+    console.log("[UserRegister] User profile created:", userId, "Insert result:", insertResult.acknowledged)
 
     // Create referral record if there's a referrer
     if (referrerId) {
@@ -95,8 +112,16 @@ export async function POST(request: Request) {
     // Set auth session
     await setAuthSession(userId)
 
-    console.log("[UserRegister] Registration complete for:", telegramId)
+    console.log("[UserRegister] ========================================")
+    console.log("[UserRegister] Registration SUCCESSFUL for:", telegramId)
+    console.log("[UserRegister] User ID:", userId)
+    console.log("[UserRegister] Username:", newUser.telegram_username)
+    console.log("[UserRegister] Is Admin:", newUser.is_admin)
+    console.log("[UserRegister] Balance:", newUser.balance)
+    console.log("[UserRegister] ========================================")
+    
     return NextResponse.json({ 
+      success: true,
       user: newUser
     })
   } catch (error) {
