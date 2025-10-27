@@ -210,7 +210,7 @@ const COUNTRY_CODE_MAP: { [key: string]: string } = {
   '998': 'UZ',    // Uzbekistan
 }
 
-function detectCountryCode(phoneNumber: string): string | null {
+function detectPhoneCode(phoneNumber: string): string | null {
   if (!phoneNumber.startsWith('+')) return null
   
   const digits = phoneNumber.substring(1) // Remove +
@@ -219,7 +219,8 @@ function detectCountryCode(phoneNumber: string): string | null {
   for (let len = 4; len >= 1; len--) {
     const prefix = digits.substring(0, len)
     if (COUNTRY_CODE_MAP[prefix]) {
-      return COUNTRY_CODE_MAP[prefix]
+      // Return the phone code with +
+      return '+' + prefix
     }
   }
   
@@ -238,25 +239,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let detectedCode = countryCode
+    let detectedPhoneCodeValue = countryCode
     
-    // If phone number provided, detect country code from it
+    // If phone number provided, detect phone code from it
     if (phoneNumber) {
-      detectedCode = detectCountryCode(phoneNumber)
-      if (!detectedCode) {
-        return NextResponse.json(
-          { success: false, error: 'Could not detect country code from phone number' },
-          { status: 400 }
-        )
+      detectedPhoneCodeValue = detectPhoneCode(phoneNumber)
+      if (!detectedPhoneCodeValue) {
+        return NextResponse.json({
+          success: false, 
+          available: false,
+          error: 'Could not detect country code from phone number. Please check the format.'
+        })
       }
-      console.log('[CheckCapacity] Detected country code:', detectedCode, 'from phone:', phoneNumber)
+      console.log('[CheckCapacity] Detected phone code:', detectedPhoneCodeValue, 'from phone:', phoneNumber)
     }
 
     const db = await getDb()
 
-    // Get country capacity info
+    // Get country capacity info by phone code (e.g., "+1", "+91")
     const country = await db.collection('country_capacity').findOne({
-      country_code: detectedCode.toUpperCase(),
+      country_code: detectedPhoneCodeValue,
       is_active: true
     })
 
@@ -264,8 +266,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false, 
         available: false,
-        countryName: detectedCode.toUpperCase(),
-        error: `Country ${detectedCode.toUpperCase()} not found or not active. Please contact admin.`
+        countryName: detectedPhoneCodeValue,
+        error: `Country with phone code ${detectedPhoneCodeValue} not found or not active. Please contact admin.`
       })
     }
 

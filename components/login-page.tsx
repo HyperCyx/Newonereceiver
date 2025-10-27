@@ -424,12 +424,9 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Phone number with country code (e.g., +1234567890)"
+                placeholder="+1234567890"
                 className="w-full px-4 py-3.5 border-2 border-blue-500 rounded-[18px] text-[14px] text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-600 transition-colors"
               />
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                Include country code: +1 (US), +91 (India), +92 (Pakistan), etc.
-              </p>
             </div>
 
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}

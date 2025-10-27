@@ -1249,13 +1249,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input
                   type="text"
-                  placeholder="Country Code (e.g., US)"
+                  placeholder="Phone Code (e.g., +1, +91, +92)"
                   className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-code-input"
                 />
                 <input
                   type="text"
-                  placeholder="Country Name"
+                  placeholder="Country Name (e.g., United States)"
                   className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-name-input"
                 />
@@ -1283,8 +1283,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   const prizeInput = document.getElementById('country-prize-input') as HTMLInputElement
                   
                   if (!codeInput.value || !nameInput.value) {
-                    alert('Please enter country code and name')
+                    alert('Please enter phone code and country name')
                     return
+                  }
+                  
+                  // Validate phone code format
+                  let phoneCode = codeInput.value.trim()
+                  if (!phoneCode.startsWith('+')) {
+                    phoneCode = '+' + phoneCode
                   }
                   
                   try {
@@ -1293,7 +1299,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         action: 'create',
-                        countryCode: codeInput.value.toUpperCase(),
+                        countryCode: phoneCode, // Now stores phone code like "+1"
                         countryName: nameInput.value,
                         maxCapacity: parseInt(capacityInput.value) || 0,
                         prizeAmount: parseFloat(prizeInput.value) || 0,
@@ -1309,7 +1315,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     }
                     
                     if (result.success) {
-                      alert(`Country ${result.country.country_name} created successfully!`)
+                      alert(`Country ${result.country.country_name} (${phoneCode}) created successfully!`)
                       codeInput.value = ''
                       nameInput.value = ''
                       capacityInput.value = ''
