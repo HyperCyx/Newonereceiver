@@ -56,17 +56,40 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         body: JSON.stringify({ phoneNumber: phoneNumber })
       })
 
-      if (!capacityResponse.ok) {
-        const capacityData = await capacityResponse.json()
-        setError(capacityData.error || 'Failed to check capacity')
+      let capacityData
+      try {
+        capacityData = await capacityResponse.json()
+      } catch (jsonError) {
+        console.error('[LoginPage] Failed to parse capacity response:', jsonError)
+        const errorMsg = 'Failed to check capacity. Please try again.'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
 
-      const capacityData = await capacityResponse.json()
-      
-      if (!capacityData.available) {
-        const errorMsg = `❌ Capacity full for ${capacityData.countryName || 'this country'}. No more accounts can be sold.`
+      // Check if capacity check failed or not available
+      if (!capacityData.success || !capacityData.available) {
+        let errorMsg = ''
+        
+        if (capacityData.error) {
+          // Country not found or other error
+          errorMsg = capacityData.error
+        } else if (!capacityData.available) {
+          // Capacity full
+          errorMsg = `❌ Capacity full for ${capacityData.countryName || 'this country'}. No more accounts can be sold.`
+        } else {
+          errorMsg = 'Failed to check capacity'
+        }
+        
+        console.log('[LoginPage] Showing capacity error:', errorMsg)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp

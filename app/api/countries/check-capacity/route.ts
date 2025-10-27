@@ -261,14 +261,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (!country) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          available: false,
-          error: `Country ${detectedCode.toUpperCase()} not found or not active. Please contact admin.` 
-        },
-        { status: 404 }
-      )
+      return NextResponse.json({
+        success: false, 
+        available: false,
+        countryName: detectedCode.toUpperCase(),
+        error: `Country ${detectedCode.toUpperCase()} not found or not active. Please contact admin.`
+      })
     }
 
     // Check if capacity is available

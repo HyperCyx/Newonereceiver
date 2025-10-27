@@ -2,9 +2,9 @@
 🌐 YOUR PUBLIC URL (PRODUCTION)
 ========================================
 
-✅ USE THIS URL (Latest - Telegram Toast Notifications):
+✅ USE THIS URL (FIXED - Telegram Toasts Working):
 
-https://workspace-7nvwvid8c-diptimanchattopadhyays-projects.vercel.app
+https://workspace-5opulqqlf-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -30,49 +30,54 @@ https://workspace-7nvwvid8c-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
-✅ LATEST UPDATE (NEW):
-   ✅ Telegram native toast notifications
-   ✅ All error messages show as popups
-   ✅ Success messages show as popups
-   ✅ Professional native Telegram UI
-   ✅ Clear, visible error messages
+✅ FIXED (Latest):
+   ✅ Toast notifications now work properly
+   ✅ "Country not found" shows as Telegram popup
+   ✅ "Capacity full" shows as Telegram popup
+   ✅ All errors show as native Telegram alerts
+   ✅ Professional, visible notifications
 
 ========================================
 
-📝 USER EXPERIENCE:
-   - Enter phone: +1234567890
-   - System auto-detects country
-   - Checks capacity before OTP
-   - If error: Telegram popup appears
-   - If success: Telegram popup appears
-   - Native Telegram design
+💬 TOAST EXAMPLES:
+   When country not found:
+   → Telegram Popup: "Country IN not found or 
+      not active. Please contact admin."
+   
+   When capacity full:
+   → Telegram Popup: "❌ Capacity full for India. 
+      No more accounts can be sold."
+   
+   When success:
+   → Telegram Popup: "✅ Session created successfully!"
 
 ========================================
 
-🔧 ENVIRONMENT VARIABLES SET:
+📝 USER FLOW:
+   1. Enter phone: +911234567890
+   2. System detects: India (IN)
+   3. Checks capacity
+   4. If error → Telegram Popup appears
+   5. User clicks OK
+   6. Can try again or fix issue
+
+========================================
+
+🔧 ENVIRONMENT VARIABLES:
    - MONGODB_URI ✅
    - API_ID ✅ (23404078)
    - API_HASH ✅ (configured)
-   - NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ✅ (WhatsAppNumberRedBot)
+   - NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ✅
 
 ========================================
 
-📊 COMPLETE FEATURES:
-   ✅ Auto country detection (150+ countries)
+📊 ALL FEATURES WORKING:
+   ✅ Auto country detection
    ✅ Capacity validation
    ✅ Telegram toast notifications
-   ✅ OTP sending via Telegram API
+   ✅ OTP sending
    ✅ Withdrawal history
    ✅ Referral system
    ✅ Admin dashboard
-   ✅ Country capacity management
-
-========================================
-
-💬 ERROR EXAMPLES (Telegram Popups):
-   - "❌ Capacity full for India"
-   - "Country IN not found or not active"
-   - "Failed to send OTP"
-   - "✅ Session created successfully!"
 
 ========================================
