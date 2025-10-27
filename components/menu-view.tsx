@@ -284,16 +284,10 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     }
   }
 
-  // Show loading state while data is being fetched
+  // Don't show loading UI - let TelegramGuard handle it
+  // Return white div to prevent black screen while data loads
   if (isLoading && !dataLoaded) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white min-h-screen">
-        <div className="text-center p-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your account...</p>
-        </div>
-      </div>
-    )
+    return <div className="bg-white min-h-screen" />
   }
 
   // Show error state
