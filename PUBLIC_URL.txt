@@ -2,9 +2,9 @@
 🌐 YOUR PUBLIC URL (PRODUCTION)
 ========================================
 
-✅ USE THIS URL (Latest with all features):
+✅ USE THIS URL (Latest - Auto Country Detection):
 
-https://workspace-41h2xrcci-diptimanchattopadhyays-projects.vercel.app
+https://workspace-jg4h90gri-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -30,32 +30,40 @@ https://workspace-41h2xrcci-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
-✅ LATEST FEATURES (NEW):
-   ✅ Country code selector (+91, +92, +1, etc.)
-   ✅ Real-time capacity display
-   ✅ Capacity validation before OTP
-   ✅ Shows available accounts per country
-   ✅ Prevents OTP on full countries
+✅ LATEST UPDATE (NEW):
+   ✅ Simplified user interface - just phone number
+   ✅ Automatic country detection from phone
+   ✅ 150+ countries supported (+1, +91, +92, etc.)
+   ✅ Capacity check before OTP
+   ✅ Admin manages countries via dashboard
    ✅ Clear error messages
+
+========================================
+
+📝 USER INSTRUCTIONS:
+   - Enter phone with country code
+   - Example: +1234567890 (US)
+   - Example: +911234567890 (India)
+   - Example: +923001234567 (Pakistan)
+   - System auto-detects country and checks capacity
 
 ========================================
 
 🔧 ENVIRONMENT VARIABLES SET:
    - MONGODB_URI ✅
-   - MONGODB_DB_NAME ✅
    - API_ID ✅ (23404078)
    - API_HASH ✅ (configured)
    - NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ✅ (WhatsAppNumberRedBot)
 
 ========================================
 
-📊 FEATURES:
-   - Country selector with codes
-   - Capacity check before OTP
-   - OTP sending via Telegram API
-   - Withdrawal history
-   - Referral system
-   - Admin dashboard
-   - Country capacity management
+📊 COMPLETE FEATURES:
+   ✅ Auto country detection (150+ countries)
+   ✅ Capacity validation
+   ✅ OTP sending via Telegram API
+   ✅ Withdrawal history
+   ✅ Referral system
+   ✅ Admin dashboard
+   ✅ Country capacity management
 
 ========================================
