@@ -33,7 +33,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [accountCount, setAccountCount] = useState(0)
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const { saveUserWithReferral } = useReferral()
 
@@ -47,7 +46,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
           tg.ready()
           const user = tg.initDataUnsafe?.user
           if (user && isMounted) {
-            setIsLoading(true)
             setTelegramUser(user)
             const displayName = `${user.first_name} ${user.last_name || ""}`.trim()
             setUserName(displayName)
@@ -139,7 +137,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   console.error('[MenuView] Registration error:', registerError)
                   if (isMounted) {
                     setError('Failed to create account. Please try again.')
-                    setIsLoading(false)
                   }
                   return // Exit early on registration error
                 }
@@ -187,26 +184,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               console.error('[MenuView] Critical error:', error)
               if (isMounted) {
                 setError('Failed to load user data. Please refresh the app.')
-                setIsLoading(false)
-              }
-            } finally {
-              if (isMounted) {
-                setIsLoading(false)
               }
             }
           } else {
             console.log('[MenuView] No Telegram user found')
-            if (isMounted) {
-              setError('Unable to get Telegram user information')
-              setIsLoading(false)
-            }
           }
         } else {
           console.log('[MenuView] Telegram WebApp not available')
-          if (isMounted) {
-            setError('Please open this app in Telegram')
-            setIsLoading(false)
-          }
         }
       }
     }
@@ -296,17 +280,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     } else if (action === "referral") {
       setShowReferral(true)
     }
-  }
-
-  // Show minimal loading state (user already validated by TelegramGuard)
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white">
-        <div className="text-center p-8">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
-        </div>
-      </div>
-    )
   }
 
   // Show error state

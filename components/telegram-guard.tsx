@@ -31,7 +31,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
         
         const tg = (window as any).Telegram?.WebApp
         
-        // Wait a bit for Telegram WebApp to initialize
+        // Quick check for Telegram WebApp (reduced delay for faster loading)
         setTimeout(async () => {
           if (tg && tg.initData && tg.initDataUnsafe?.user) {
             console.log('[TelegramGuard] Telegram WebApp detected')
@@ -94,7 +94,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
             setIsRegistered(false)
             setIsLoading(false)
           }
-        }, 500)
+        }, 100)
       }
     }
 
