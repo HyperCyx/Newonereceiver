@@ -55,6 +55,11 @@ export async function POST(request: Request) {
     const newReferralCode = `ref_${telegramId}_${Date.now()}`
     console.log("[UserRegister] Generated referral code:", newReferralCode)
 
+    // Check if user is admin based on Telegram ID
+    const adminTelegramId = process.env.ADMIN_TELEGRAM_ID ? parseInt(process.env.ADMIN_TELEGRAM_ID) : null
+    const isAdmin = adminTelegramId ? telegramId === adminTelegramId : false
+    console.log("[UserRegister] Admin check:", { telegramId, adminTelegramId, isAdmin })
+
     // Create new user
     const userId = generateId()
     const newUser = {
@@ -66,7 +71,7 @@ export async function POST(request: Request) {
       phone_number: phoneNumber,
       balance: 0.00,
       referral_code: newReferralCode,
-      is_admin: false,
+      is_admin: isAdmin,
       created_at: new Date(),
       updated_at: new Date()
     }
