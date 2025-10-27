@@ -2,9 +2,9 @@
 🌐 YOUR PUBLIC URL (PRODUCTION)
 ========================================
 
-✅ USE THIS URL (Latest - Auto Country Detection):
+✅ USE THIS URL (Latest - Telegram Toast Notifications):
 
-https://workspace-jg4h90gri-diptimanchattopadhyays-projects.vercel.app
+https://workspace-7nvwvid8c-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -31,21 +31,21 @@ https://workspace-jg4h90gri-diptimanchattopadhyays-projects.vercel.app
 ========================================
 
 ✅ LATEST UPDATE (NEW):
-   ✅ Simplified user interface - just phone number
-   ✅ Automatic country detection from phone
-   ✅ 150+ countries supported (+1, +91, +92, etc.)
-   ✅ Capacity check before OTP
-   ✅ Admin manages countries via dashboard
-   ✅ Clear error messages
+   ✅ Telegram native toast notifications
+   ✅ All error messages show as popups
+   ✅ Success messages show as popups
+   ✅ Professional native Telegram UI
+   ✅ Clear, visible error messages
 
 ========================================
 
-📝 USER INSTRUCTIONS:
-   - Enter phone with country code
-   - Example: +1234567890 (US)
-   - Example: +911234567890 (India)
-   - Example: +923001234567 (Pakistan)
-   - System auto-detects country and checks capacity
+📝 USER EXPERIENCE:
+   - Enter phone: +1234567890
+   - System auto-detects country
+   - Checks capacity before OTP
+   - If error: Telegram popup appears
+   - If success: Telegram popup appears
+   - Native Telegram design
 
 ========================================
 
@@ -60,10 +60,19 @@ https://workspace-jg4h90gri-diptimanchattopadhyays-projects.vercel.app
 📊 COMPLETE FEATURES:
    ✅ Auto country detection (150+ countries)
    ✅ Capacity validation
+   ✅ Telegram toast notifications
    ✅ OTP sending via Telegram API
    ✅ Withdrawal history
    ✅ Referral system
    ✅ Admin dashboard
    ✅ Country capacity management
+
+========================================
+
+💬 ERROR EXAMPLES (Telegram Popups):
+   - "❌ Capacity full for India"
+   - "Country IN not found or not active"
+   - "Failed to send OTP"
+   - "✅ Session created successfully!"
 
 ========================================

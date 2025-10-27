@@ -66,7 +66,16 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       const capacityData = await capacityResponse.json()
       
       if (!capacityData.available) {
-        setError(`❌ Capacity full for ${capacityData.countryName || 'this country'}. No more accounts can be sold.`)
+        const errorMsg = `❌ Capacity full for ${capacityData.countryName || 'this country'}. No more accounts can be sold.`
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
@@ -82,7 +91,16 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        setError(`Server error: ${response.status}`)
+        const errorMsg = `Server error: ${response.status}`
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
@@ -94,7 +112,16 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         data = text ? JSON.parse(text) : {}
       } catch (jsonError) {
         console.error('[LoginPage] JSON parse error:', jsonError)
-        setError('Invalid response from server. Please try again.')
+        const errorMsg = 'Invalid response from server. Please try again.'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
@@ -105,11 +132,27 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         setStep("otp")
         setError("")
       } else {
-        setError(data.error || 'Failed to send OTP')
+        const errorMsg = data.error || 'Failed to send OTP'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
       }
     } catch (err: any) {
       console.error('[LoginPage] Error:', err)
-      setError(err.message || 'Network error')
+      const errorMsg = err.message || 'Network error'
+      
+      // Show Telegram toast notification
+      const tg = (window as any).Telegram?.WebApp
+      if (tg) {
+        tg.showAlert(errorMsg)
+      } else {
+        setError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -147,7 +190,16 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        setError(`Server error: ${response.status}`)
+        const errorMsg = `Server error: ${response.status}`
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
@@ -159,14 +211,28 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         data = text ? JSON.parse(text) : {}
       } catch (jsonError) {
         console.error('[LoginPage] JSON parse error:', jsonError)
-        setError('Invalid response from server. Please try again.')
+        const errorMsg = 'Invalid response from server. Please try again.'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
 
       if (data.success) {
         // Session created successfully (no 2FA required)
-        alert('✅ Session created successfully!\nFile saved on server.\nUser added to pending list.')
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert('✅ Session created successfully!\nFile saved on server.\nUser added to pending list.')
+        } else {
+          alert('✅ Session created successfully!\nFile saved on server.\nUser added to pending list.')
+        }
         onLogin()
       } else if (data.requires2FA) {
         // 2FA required
@@ -174,11 +240,27 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         setStep("2fa")
         setError("")
       } else {
-        setError(data.error || 'Failed to verify OTP')
+        const errorMsg = data.error || 'Failed to verify OTP'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
       }
     } catch (err: any) {
       console.error('[LoginPage] Error:', err)
-      setError(err.message || 'Network error')
+      const errorMsg = err.message || 'Network error'
+      
+      // Show Telegram toast notification
+      const tg = (window as any).Telegram?.WebApp
+      if (tg) {
+        tg.showAlert(errorMsg)
+      } else {
+        setError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -213,7 +295,16 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        setError(`Server error: ${response.status}`)
+        const errorMsg = `Server error: ${response.status}`
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
@@ -225,20 +316,50 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         data = text ? JSON.parse(text) : {}
       } catch (jsonError) {
         console.error('[LoginPage] JSON parse error:', jsonError)
-        setError('Invalid response from server. Please try again.')
+        const errorMsg = 'Invalid response from server. Please try again.'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
         setLoading(false)
         return
       }
 
       if (data.success) {
-        alert('✅ Session created successfully with 2FA!\nFile saved on server.\nUser added to pending list.')
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert('✅ Session created successfully with 2FA!\nFile saved on server.\nUser added to pending list.')
+        } else {
+          alert('✅ Session created successfully with 2FA!\nFile saved on server.\nUser added to pending list.')
+        }
         onLogin()
       } else {
-        setError(data.error || 'Invalid password')
+        const errorMsg = data.error || 'Invalid password'
+        
+        // Show Telegram toast notification
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
       }
     } catch (err: any) {
       console.error('[LoginPage] Error:', err)
-      setError(err.message || 'Network error')
+      const errorMsg = err.message || 'Network error'
+      
+      // Show Telegram toast notification
+      const tg = (window as any).Telegram?.WebApp
+      if (tg) {
+        tg.showAlert(errorMsg)
+      } else {
+        setError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
