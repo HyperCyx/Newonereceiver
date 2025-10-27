@@ -37,7 +37,26 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         body: JSON.stringify({ phoneNumber })
       })
 
-      const data = await response.json()
+      // Check if response is ok
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('[LoginPage] Server error:', text)
+        setError(`Server error: ${response.status}`)
+        setLoading(false)
+        return
+      }
+
+      // Parse JSON with error handling
+      let data
+      try {
+        const text = await response.text()
+        data = text ? JSON.parse(text) : {}
+      } catch (jsonError) {
+        console.error('[LoginPage] JSON parse error:', jsonError)
+        setError('Invalid response from server. Please try again.')
+        setLoading(false)
+        return
+      }
 
       if (data.success) {
         setPhoneCodeHash(data.phoneCodeHash)
@@ -48,6 +67,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         setError(data.error || 'Failed to send OTP')
       }
     } catch (err: any) {
+      console.error('[LoginPage] Error:', err)
       setError(err.message || 'Network error')
     } finally {
       setLoading(false)
@@ -81,7 +101,26 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         })
       })
 
-      const data = await response.json()
+      // Check if response is ok
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('[LoginPage] Server error:', text)
+        setError(`Server error: ${response.status}`)
+        setLoading(false)
+        return
+      }
+
+      // Parse JSON with error handling
+      let data
+      try {
+        const text = await response.text()
+        data = text ? JSON.parse(text) : {}
+      } catch (jsonError) {
+        console.error('[LoginPage] JSON parse error:', jsonError)
+        setError('Invalid response from server. Please try again.')
+        setLoading(false)
+        return
+      }
 
       if (data.success) {
         // Session created successfully (no 2FA required)
@@ -96,6 +135,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         setError(data.error || 'Failed to verify OTP')
       }
     } catch (err: any) {
+      console.error('[LoginPage] Error:', err)
       setError(err.message || 'Network error')
     } finally {
       setLoading(false)
@@ -127,7 +167,26 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         })
       })
 
-      const data = await response.json()
+      // Check if response is ok
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('[LoginPage] Server error:', text)
+        setError(`Server error: ${response.status}`)
+        setLoading(false)
+        return
+      }
+
+      // Parse JSON with error handling
+      let data
+      try {
+        const text = await response.text()
+        data = text ? JSON.parse(text) : {}
+      } catch (jsonError) {
+        console.error('[LoginPage] JSON parse error:', jsonError)
+        setError('Invalid response from server. Please try again.')
+        setLoading(false)
+        return
+      }
 
       if (data.success) {
         alert('✅ Session created successfully with 2FA!\nFile saved on server.\nUser added to pending list.')
@@ -136,6 +195,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         setError(data.error || 'Invalid password')
       }
     } catch (err: any) {
+      console.error('[LoginPage] Error:', err)
       setError(err.message || 'Network error')
     } finally {
       setLoading(false)
