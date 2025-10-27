@@ -23,6 +23,16 @@ export async function POST(request: NextRequest) {
     // Count referrals
     const referralCount = await referrals.countDocuments({ referrer_id: user._id })
 
+    // Ensure is_admin is a boolean
+    const isAdminBoolean = user.is_admin === true
+
+    console.log('[UserMe] User found:', {
+      telegram_id: user.telegram_id,
+      is_admin_raw: user.is_admin,
+      is_admin_type: typeof user.is_admin,
+      is_admin_boolean: isAdminBoolean
+    })
+
     return NextResponse.json({
       success: true,
       user: {
@@ -33,7 +43,7 @@ export async function POST(request: NextRequest) {
         last_name: user.last_name,
         balance: user.balance,
         referral_code: user.referral_code,
-        is_admin: user.is_admin
+        is_admin: isAdminBoolean  // Always return boolean
       },
       referralCount
     })

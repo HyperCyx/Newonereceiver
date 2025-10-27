@@ -97,15 +97,20 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               }
               
               if (dbUser && isMounted) {
-                const adminStatus = dbUser.is_admin === true || dbUser.is_admin === 'true'
-                console.log('[MenuView] User data received:', {
-                  telegram_id: dbUser.telegram_id,
-                  is_admin: dbUser.is_admin,
-                  is_admin_type: typeof dbUser.is_admin,
-                  adminStatus: adminStatus,
-                  balance: dbUser.balance
-                })
+                const adminStatus = dbUser.is_admin === true
+                console.log('[MenuView] ==================')
+                console.log('[MenuView] User data received:')
+                console.log('[MenuView]   telegram_id:', dbUser.telegram_id)
+                console.log('[MenuView]   is_admin raw:', dbUser.is_admin)
+                console.log('[MenuView]   is_admin type:', typeof dbUser.is_admin)
+                console.log('[MenuView]   is_admin === true:', dbUser.is_admin === true)
+                console.log('[MenuView]   adminStatus:', adminStatus)
+                console.log('[MenuView]   balance:', dbUser.balance)
+                console.log('[MenuView] ==================')
+                
                 setIsAdmin(adminStatus)
+                console.log('[MenuView] SET isAdmin to:', adminStatus)
+                
                 const balanceValue = Number(dbUser.balance || 0)
                 console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
                 setBalance(balanceValue.toFixed(2))
@@ -205,7 +210,16 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   ]
 
   // Debug log when menu renders
-  console.log('[MenuView] Rendering menu. isAdmin:', isAdmin, 'menuItems count:', menuItems.length)
+  console.log('[MenuView] ==================')
+  console.log('[MenuView] RENDERING MENU')
+  console.log('[MenuView]   isAdmin state:', isAdmin)
+  console.log('[MenuView]   isAdmin type:', typeof isAdmin)
+  console.log('[MenuView]   menuItems count:', menuItems.length)
+  console.log('[MenuView]   Admin items included:', isAdmin ? 'YES' : 'NO')
+  if (isAdmin) {
+    console.log('[MenuView]   Admin menu items:', menuItems.filter(i => i.title.includes('Admin') || i.title.includes('Referral')))
+  }
+  console.log('[MenuView] ==================')
 
   const handleMenuItemClick = (action?: string) => {
     if (action === "send") {
