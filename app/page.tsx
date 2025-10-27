@@ -78,8 +78,9 @@ export default function Home() {
   }
 
   return (
-    <TelegramGuard>
-      {currentView === "menu" ? (
+    <div className="bg-white min-h-screen">
+      <TelegramGuard>
+        {currentView === "menu" ? (
         <MenuView onNavigate={(view) => handleNavigate(view)} />
       ) : currentView === "dashboard" ? (
         <DashboardPage onNavigate={(view) => handleNavigate(view)} />
@@ -99,6 +100,7 @@ export default function Home() {
       ) : (
         <MenuView onNavigate={(view) => handleNavigate(view)} />
       )}
-    </TelegramGuard>
+      </TelegramGuard>
+    </div>
   )
 }

@@ -167,13 +167,13 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
     await registerUserWithReferral(user, code.trim())
   }
 
-  // Show simple loading screen
+  // Show simple loading screen with white background to prevent black flash
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center px-6">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-sm">Loading...</p>
+          <p className="text-gray-600 text-sm">Initializing...</p>
         </div>
       </div>
     )

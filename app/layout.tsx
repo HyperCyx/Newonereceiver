@@ -25,9 +25,11 @@ export default function RootLayout({
       <head>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
       </head>
-      <body className={`font-sans antialiased`} suppressHydrationWarning>
+      <body className={`font-sans antialiased bg-white min-h-screen`} suppressHydrationWarning>
         <ReferralProvider>
-          {children}
+          <div className="bg-white min-h-screen">
+            {children}
+          </div>
           <Analytics />
           <Toaster />
         </ReferralProvider>

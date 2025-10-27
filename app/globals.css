@@ -123,3 +123,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Prevent black/blank screen during loading transitions */
+html,
+body {
+  background-color: white !important;
+  min-height: 100vh;
+}
+
+body > div,
+#__next {
+  background-color: white;
+  min-height: 100vh;
+}
