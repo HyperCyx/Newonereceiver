@@ -1,8 +1,10 @@
 ========================================
-🌐 YOUR PUBLIC URL (Vercel)
+🌐 YOUR PUBLIC URL (PRODUCTION)
 ========================================
 
-https://workspace-7xufa5ty1-diptimanchattopadhyays-projects.vercel.app
+✅ USE THIS URL (No authentication required):
+
+https://workspace-iu82s0rzo-diptimanchattopadhyays-projects.vercel.app
 
 ========================================
 
@@ -29,16 +31,16 @@ https://workspace-7xufa5ty1-diptimanchattopadhyays-projects.vercel.app
 
 🚀 DEPLOYMENT INFO:
    Platform: Vercel
+   Type: Production
    Status: Live
-   Type: Preview
-   
-📊 Production URL:
-   Run: vercel --prod --token YOUR_TOKEN
-   Or: pnpm deploy:prod
+   Protection: None (Public access enabled)
 
 ========================================
 
-💡 This URL is permanent and doesn't expire!
-   No more ngrok tunnels needed.
+❌ AVOID PREVIEW URLs:
+   Preview URLs have Vercel Deployment Protection
+   which requires BRAC/team authentication.
+   
+   Always use PRODUCTION URL for public access!
 
 ========================================

@@ -30,12 +30,12 @@ VERCEL_USER=$(vercel whoami 2>/dev/null)
 echo "✅ Logged in as: $VERCEL_USER"
 echo ""
 
-# Deploy to Vercel
-echo "🚀 Deploying to Vercel (this may take a minute)..."
+# Deploy to Vercel PRODUCTION (public access, no authentication)
+echo "🚀 Deploying to Vercel PRODUCTION (this may take a minute)..."
 echo ""
 
-# Deploy and capture the URL
-DEPLOY_OUTPUT=$(vercel --yes 2>&1)
+# Deploy to production and capture the URL
+DEPLOY_OUTPUT=$(vercel --prod --yes 2>&1)
 URL=$(echo "$DEPLOY_OUTPUT" | grep -Eo 'https://[a-zA-Z0-9.-]+\.vercel\.app' | head -1)
 
 if [ -z "$URL" ]; then
