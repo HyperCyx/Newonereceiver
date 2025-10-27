@@ -41,8 +41,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     let isMounted = true
     
     const fetchUserData = async () => {
-      if (isLoading) return
-      
       if (typeof window !== "undefined") {
         const tg = (window as any).Telegram?.WebApp
         if (tg) {
