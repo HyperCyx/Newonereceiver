@@ -9,7 +9,10 @@
     "start": "next start",
     "db:init": "tsx scripts/init-mongodb.ts",
     "db:seed": "tsx scripts/003_insert_test_data.ts",
-    "db:clear": "tsx scripts/004_clear_test_data.ts"
+    "db:clear": "tsx scripts/004_clear_test_data.ts",
+    "deploy": "vercel",
+    "deploy:prod": "vercel --prod",
+    "get-url": "bash GET_PUBLIC_URL.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -41,6 +44,7 @@
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
     "@vercel/analytics": "latest",
+    "archiver": "^7.0.1",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -68,6 +72,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
+    "@types/archiver": "^6.0.4",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -76,6 +81,7 @@
     "tailwindcss": "^4.1.9",
     "tsx": "^4.20.6",
     "tw-animate-css": "1.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^39.2.0"
   }
 }

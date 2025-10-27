@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verify2FA } from '@/lib/telegram/auth'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getDb } from '@/lib/mongodb/connection'
 
 /**
  * POST /api/telegram/auth/verify-2fa
@@ -11,7 +8,19 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
  */
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, sessionString, password, telegramId } = await request.json()
+    // Parse request body with error handling
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('[Verify2FA] Failed to parse request body:', parseError)
+      return NextResponse.json(
+        { success: false, error: 'Invalid request format' },
+        { status: 400 }
+      )
+    }
+
+    const { phoneNumber, sessionString, password, telegramId } = body
 
     if (!phoneNumber || !sessionString || !password) {
       return NextResponse.json(
@@ -28,31 +37,22 @@ export async function POST(request: NextRequest) {
       // Create account record in database
       if (telegramId) {
         try {
-          const supabase = createClient(supabaseUrl, supabaseServiceKey)
+          const db = await getDb()
           
           // Get user from database
-          const { data: user } = await supabase
-            .from('users')
-            .select('id')
-            .eq('telegram_id', telegramId)
-            .single()
+          const user = await db.collection('users').findOne({ telegram_id: telegramId })
           
           if (user) {
             // Insert account record with pending status
-            const { error: accountError } = await supabase
-              .from('accounts')
-              .insert({
-                user_id: user.id,
-                phone_number: phoneNumber,
-                amount: 0, // Default amount, can be updated later
-                status: 'pending'
-              })
+            await db.collection('accounts').insertOne({
+              user_id: user._id,
+              phone_number: phoneNumber,
+              amount: 0, // Default amount, can be updated later
+              status: 'pending',
+              created_at: new Date()
+            })
             
-            if (accountError) {
-              console.error('[Verify2FA] Error creating account record:', accountError)
-            } else {
-              console.log(`[Verify2FA] Account record created for ${phoneNumber}`)
-            }
+            console.log(`[Verify2FA] Account record created for ${phoneNumber}`)
           }
         } catch (dbError) {
           console.error('[Verify2FA] Database error:', dbError)

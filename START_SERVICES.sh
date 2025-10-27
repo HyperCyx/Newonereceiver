@@ -1,35 +1,36 @@
 #!/bin/bash
 
 echo "================================"
-echo "Starting Services..."
+echo "🚀 Starting Development Server"
 echo "================================"
 echo ""
 
 # Kill old processes
-pkill -9 -f "next|ngrok|pnpm" 2>/dev/null
+pkill -9 -f "next|pnpm" 2>/dev/null
 sleep 2
 
 # Start Next.js
 cd /workspace
-echo "Starting Next.js..."
+echo "Starting Next.js development server..."
 PORT=3000 pnpm dev > /tmp/nextjs.log 2>&1 &
 sleep 10
 
-# Start ngrok
-echo "Starting ngrok..."
-ngrok http 3000 --log=stdout > /tmp/ngrok.log 2>&1 &
-sleep 5
-
-# Get public URL
 echo ""
 echo "================================"
-echo "✅ SERVICES STARTED!"
+echo "✅ DEVELOPMENT SERVER STARTED!"
 echo "================================"
 echo ""
-echo "To get your PUBLIC URL, run:"
-echo "curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^\"]*ngrok-free[^\"]*' | head -1"
+echo "Local URL: http://localhost:3000"
 echo ""
-echo "Or visit: http://localhost:4040"
+echo "To get your PUBLIC URL for deployment:"
+echo "  ./GET_PUBLIC_URL.sh"
+echo ""
+echo "Or run:"
+echo "  pnpm get-url"
 echo ""
 echo "Admin ID: 1211362365"
 echo "================================"
+echo ""
+echo "💡 Development server running in background"
+echo "   View logs: tail -f /tmp/nextjs.log"
+echo ""

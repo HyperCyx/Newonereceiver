@@ -33,7 +33,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [accountCount, setAccountCount] = useState(0)
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
   const { saveUserWithReferral } = useReferral()
 
   useEffect(() => {
@@ -56,48 +57,111 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             
             try {
               // Fetch user data via API
+              console.log('[MenuView] ========================================')
+              console.log('[MenuView] STARTING USER DATA FETCH')
+              console.log('[MenuView] Telegram ID:', user.id)
+              console.log('[MenuView] Username:', user.username)
+              console.log('[MenuView] First Name:', user.first_name)
+              console.log('[MenuView] ========================================')
+              
               const response = await fetch('/api/user/me', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telegramId: user.id })
               })
               
+              console.log('[MenuView] API Response Status:', response.status, response.statusText)
+              
               let dbUser = null
               
               if (response.ok) {
                 const result = await response.json()
                 dbUser = result.user
-                console.log('[MenuView] Fetched user data:', dbUser)
+                console.log('[MenuView] ✅ USER FOUND IN DATABASE')
+                console.log('[MenuView] User ID:', dbUser._id)
+                console.log('[MenuView] Telegram ID:', dbUser.telegram_id)
+                console.log('[MenuView] Username:', dbUser.telegram_username)
+                console.log('[MenuView] Is Admin:', dbUser.is_admin)
+                console.log('[MenuView] Balance:', dbUser.balance)
               } else {
                 // User doesn't exist, create them
+                console.log('[MenuView] ========================================')
+                console.log('[MenuView] ⚠️ USER NOT FOUND - REGISTERING NEW USER')
+                console.log('[MenuView] ========================================')
+                
                 const urlParams = new URLSearchParams(window.location.search)
                 const referralCode = urlParams.get('ref') || urlParams.get('start')
                 
-                const registerResponse = await fetch('/api/user/register', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    telegramId: user.id,
-                    username: user.username,
-                    firstName: user.first_name,
-                    lastName: user.last_name,
-                    phoneNumber: user.phone_number,
-                    referralCode: referralCode
+                console.log('[MenuView] Registration Data:')
+                console.log('[MenuView]   - Telegram ID:', user.id)
+                console.log('[MenuView]   - Username:', user.username || `user_${user.id}`)
+                console.log('[MenuView]   - First Name:', user.first_name || 'User')
+                console.log('[MenuView]   - Referral Code:', referralCode || 'None')
+                
+                try {
+                  const registerResponse = await fetch('/api/user/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      telegramId: user.id,
+                      username: user.username || `user_${user.id}`,
+                      firstName: user.first_name || 'User',
+                      lastName: user.last_name || '',
+                      phoneNumber: null,
+                      referralCode: referralCode
+                    })
                   })
-                })
-                
-                const result = await registerResponse.json()
-                
-                if (result.user) {
-                  dbUser = result.user
-                  console.log('[MenuView] User registered:', dbUser._id)
-                } else {
-                  console.error('[MenuView] Failed to register user:', result.error)
+                  
+                  console.log('[MenuView] Registration Response Status:', registerResponse.status, registerResponse.statusText)
+                  
+                  if (!registerResponse.ok) {
+                    const errorText = await registerResponse.text()
+                    console.error('[MenuView] Registration failed:', errorText)
+                    throw new Error('Failed to register user: ' + errorText)
+                  }
+                  
+                  const result = await registerResponse.json()
+                  
+                  console.log('[MenuView] Registration Result:', result)
+                  
+                  if (result.success && result.user) {
+                    dbUser = result.user
+                    console.log('[MenuView] ========================================')
+                    console.log('[MenuView] ✅ USER REGISTERED SUCCESSFULLY')
+                    console.log('[MenuView] User ID:', dbUser._id)
+                    console.log('[MenuView] Telegram ID:', dbUser.telegram_id)
+                    console.log('[MenuView] Is Admin:', dbUser.is_admin)
+                    console.log('[MenuView] Balance:', dbUser.balance)
+                    console.log('[MenuView] ========================================')
+                  } else {
+                    console.error('[MenuView] Registration returned no user:', result)
+                    throw new Error(result.error || 'Failed to create user account')
+                  }
+                } catch (registerError: any) {
+                  console.error('[MenuView] Registration error:', registerError)
+                  if (isMounted) {
+                    setError('Failed to create account. Please try again.')
+                    setIsLoading(false)
+                  }
+                  return // Exit early on registration error
                 }
               }
               
               if (dbUser && isMounted) {
-                setIsAdmin(dbUser.is_admin || false)
+                const adminStatus = dbUser.is_admin === true
+                console.log('[MenuView] ==================')
+                console.log('[MenuView] User data received:')
+                console.log('[MenuView]   telegram_id:', dbUser.telegram_id)
+                console.log('[MenuView]   is_admin raw:', dbUser.is_admin)
+                console.log('[MenuView]   is_admin type:', typeof dbUser.is_admin)
+                console.log('[MenuView]   is_admin === true:', dbUser.is_admin === true)
+                console.log('[MenuView]   adminStatus:', adminStatus)
+                console.log('[MenuView]   balance:', dbUser.balance)
+                console.log('[MenuView] ==================')
+                
+                setIsAdmin(adminStatus)
+                console.log('[MenuView] SET isAdmin to:', adminStatus)
+                
                 const balanceValue = Number(dbUser.balance || 0)
                 console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
                 setBalance(balanceValue.toFixed(2))
@@ -121,13 +185,29 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   setAccountCount(accountsResult.count || 0)
                 }
               }
-            } catch (error) {
-              console.error('Error fetching user data:', error)
+            } catch (error: any) {
+              console.error('[MenuView] Critical error:', error)
+              if (isMounted) {
+                setError('Failed to load user data. Please refresh the app.')
+                setIsLoading(false)
+              }
             } finally {
               if (isMounted) {
                 setIsLoading(false)
               }
             }
+          } else {
+            console.log('[MenuView] No Telegram user found')
+            if (isMounted) {
+              setError('Unable to get Telegram user information')
+              setIsLoading(false)
+            }
+          }
+        } else {
+          console.log('[MenuView] Telegram WebApp not available')
+          if (isMounted) {
+            setError('Please open this app in Telegram')
+            setIsLoading(false)
           }
         }
       }
@@ -196,6 +276,18 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       : []),
   ]
 
+  // Debug log when menu renders
+  console.log('[MenuView] ==================')
+  console.log('[MenuView] RENDERING MENU')
+  console.log('[MenuView]   isAdmin state:', isAdmin)
+  console.log('[MenuView]   isAdmin type:', typeof isAdmin)
+  console.log('[MenuView]   menuItems count:', menuItems.length)
+  console.log('[MenuView]   Admin items included:', isAdmin ? 'YES' : 'NO')
+  if (isAdmin) {
+    console.log('[MenuView]   Admin menu items:', menuItems.filter(i => i.title.includes('Admin') || i.title.includes('Referral')))
+  }
+  console.log('[MenuView] ==================')
+
   const handleMenuItemClick = (action?: string) => {
     if (action === "send") {
       onNavigate?.("dashboard")
@@ -206,6 +298,41 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     } else if (action === "referral") {
       setShowReferral(true)
     }
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="text-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your account...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="text-center p-8 max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Oops!</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError("")
+              setIsLoading(true)
+              window.location.reload()
+            }}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

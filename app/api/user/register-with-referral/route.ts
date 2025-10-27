@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getDb } from '@/lib/mongodb/connection'
 
 export async function POST(request: Request) {
   try {
@@ -20,17 +17,15 @@ export async function POST(request: Request) {
       }, { status: 403 })
     }
     
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const db = await getDb()
     
     // Validate referral code
-    const { data: refCode, error: refError } = await supabase
-      .from('referral_codes')
-      .select('*')
-      .eq('code', referralCode)
-      .eq('is_active', true)
-      .single()
+    const refCode = await db.collection('referral_codes').findOne({
+      code: referralCode,
+      is_active: true
+    })
     
-    if (refError || !refCode) {
+    if (!refCode) {
       return NextResponse.json({ 
         error: 'Invalid or inactive referral code',
         requiresReferral: true 
@@ -38,7 +33,7 @@ export async function POST(request: Request) {
     }
     
     // Check if max uses reached
-    if (refCode.max_uses && refCode.used_count >= refCode.max_uses) {
+    if (refCode.max_uses && (refCode.used_count || 0) >= refCode.max_uses) {
       return NextResponse.json({ 
         error: 'Referral code has reached maximum uses',
         requiresReferral: true 
@@ -46,62 +41,56 @@ export async function POST(request: Request) {
     }
     
     // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('telegram_id', telegramId)
-      .single()
+    const existingUser = await db.collection('users').findOne({ telegram_id: telegramId })
     
     if (existingUser) {
       return NextResponse.json({ 
         success: true,
-        userId: existingUser.id,
+        userId: existingUser._id.toString(),
         message: 'User already registered'
       })
     }
     
     // Create new user with referral code
-    const { data: newUser, error: userError } = await supabase
-      .from('users')
-      .insert({
-        telegram_id: telegramId,
-        telegram_username: username,
-        first_name: firstName,
-        last_name: lastName,
-        used_referral_code: referralCode,
-        balance: 0,
-        is_admin: false,
-        email: `${telegramId}@telegram.user`
-      })
-      .select()
-      .single()
+    const newUserResult = await db.collection('users').insertOne({
+      telegram_id: telegramId,
+      telegram_username: username,
+      first_name: firstName,
+      last_name: lastName,
+      used_referral_code: referralCode,
+      balance: 0,
+      is_admin: false,
+      email: `${telegramId}@telegram.user`,
+      created_at: new Date()
+    })
     
-    if (userError) {
-      console.error('[RegisterWithReferral] User creation error:', userError)
+    const newUser = await db.collection('users').findOne({ _id: newUserResult.insertedId })
+    
+    if (!newUser) {
+      console.error('[RegisterWithReferral] User creation error')
       return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
     }
     
     // Increment referral code usage
-    await supabase
-      .from('referral_codes')
-      .update({ used_count: (refCode.used_count || 0) + 1 })
-      .eq('id', refCode.id)
+    await db.collection('referral_codes').updateOne(
+      { _id: refCode._id },
+      { $inc: { used_count: 1 } }
+    )
     
     // Create referral record
-    await supabase
-      .from('referrals')
-      .insert({
-        referrer_id: refCode.id,
-        referred_user_id: newUser.id,
-        referral_code: referralCode
-      })
+    await db.collection('referrals').insertOne({
+      referrer_id: refCode._id,
+      referred_user_id: newUser._id,
+      referral_code: referralCode,
+      created_at: new Date()
+    })
     
     console.log('[RegisterWithReferral] User registered successfully with referral code')
     
     return NextResponse.json({
       success: true,
-      userId: newUser.id,
-      user: newUser
+      userId: newUser._id.toString(),
+      user: { ...newUser, id: newUser._id.toString() }
     })
   } catch (error) {
     console.error('[RegisterWithReferral] Unexpected error:', error)

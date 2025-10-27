@@ -95,6 +95,13 @@ interface Country {
   updated_at: string
 }
 
+interface CountryStat {
+  phoneCode: string
+  countryName: string
+  count: number
+  users: any[]
+}
+
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
     "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "settings"
@@ -115,6 +122,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
   const [referralCodes, setReferralCodes] = useState<ReferralCode[]>([])
   const [countries, setCountries] = useState<Country[]>([])
+  const [countryStats, setCountryStats] = useState<CountryStat[]>([])
   const [loading, setLoading] = useState(true)
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [savingSettings, setSavingSettings] = useState(false)
@@ -123,6 +131,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{capacity: number, prize: number}>()
+  const [downloadingSession, setDownloadingSession] = useState(false)
 
   // Get Telegram ID on mount
   useEffect(() => {
@@ -401,7 +410,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }
       }
 
-      // Fetch countries
+      // Fetch countries and stats
       if (activeTab === 'countries') {
         try {
           const response = await fetch('/api/admin/countries')
@@ -414,6 +423,23 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         } catch (err) {
           console.error('[AdminDashboard] Error fetching countries:', err)
           setCountries([])
+        }
+
+        // Fetch country statistics
+        if (adminTelegramId) {
+          try {
+            const statsResponse = await fetch(`/api/admin/country-stats?telegramId=${adminTelegramId}`)
+            if (statsResponse.ok) {
+              const statsResult = await statsResponse.json()
+              if (statsResult.success && statsResult.stats) {
+                setCountryStats(statsResult.stats)
+                console.log('[AdminDashboard] Loaded country stats:', statsResult.stats.length)
+              }
+            }
+          } catch (err) {
+            console.error('[AdminDashboard] Error fetching country stats:', err)
+            setCountryStats([])
+          }
         }
       }
 
@@ -1033,7 +1059,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
                             <button
                               onClick={() => {
-                                const link = `https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || 'WhatsAppNumberRedBot'}?start=${code.code}`
+                                const link = `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'WhatsAppNumberRedBot'}?start=${code.code}`
                                 navigator.clipboard.writeText(link)
                                 alert('Bot link copied to clipboard!')
                               }}
@@ -1249,13 +1275,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input
                   type="text"
-                  placeholder="Country Code (e.g., US)"
+                  placeholder="Phone Code (e.g., +1, +91, +92)"
                   className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-code-input"
                 />
                 <input
                   type="text"
-                  placeholder="Country Name"
+                  placeholder="Country Name (e.g., United States)"
                   className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-name-input"
                 />
@@ -1283,8 +1309,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   const prizeInput = document.getElementById('country-prize-input') as HTMLInputElement
                   
                   if (!codeInput.value || !nameInput.value) {
-                    alert('Please enter country code and name')
+                    alert('Please enter phone code and country name')
                     return
+                  }
+                  
+                  // Validate phone code format
+                  let phoneCode = codeInput.value.trim()
+                  if (!phoneCode.startsWith('+')) {
+                    phoneCode = '+' + phoneCode
                   }
                   
                   try {
@@ -1293,7 +1325,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         action: 'create',
-                        countryCode: codeInput.value.toUpperCase(),
+                        countryCode: phoneCode, // Now stores phone code like "+1"
                         countryName: nameInput.value,
                         maxCapacity: parseInt(capacityInput.value) || 0,
                         prizeAmount: parseFloat(prizeInput.value) || 0,
@@ -1309,7 +1341,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     }
                     
                     if (result.success) {
-                      alert(`Country ${result.country.country_name} created successfully!`)
+                      alert(`Country ${result.country.country_name} (${phoneCode}) created successfully!`)
                       codeInput.value = ''
                       nameInput.value = ''
                       capacityInput.value = ''
@@ -1700,6 +1732,131 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   {countries.reduce((sum, c) => sum + (c.max_capacity - c.used_capacity), 0)}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Ready to purchase</p>
+              </div>
+            </div>
+
+            {/* Country Purchase Statistics */}
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4 border-b border-gray-200">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-1">
+                      <PieChart size={20} className="text-blue-500" />
+                      Purchase Statistics by Country
+                    </h3>
+                    <p className="text-sm text-gray-600">View how many accounts have been purchased from each country</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!adminTelegramId) {
+                        alert('❌ Admin Telegram ID not found')
+                        return
+                      }
+                      
+                      setDownloadingSession(true)
+                      try {
+                        const response = await fetch(`/api/admin/download-sessions?telegramId=${adminTelegramId}`)
+                        
+                        if (response.ok) {
+                          const blob = await response.blob()
+                          const url = window.URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `telegram_sessions_${new Date().toISOString().split('T')[0]}.zip`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          window.URL.revokeObjectURL(url)
+                          
+                          const tg = (window as any).Telegram?.WebApp
+                          if (tg?.showAlert) {
+                            tg.showAlert('✅ Session files downloaded successfully!')
+                          } else {
+                            alert('✅ Session files downloaded successfully!')
+                          }
+                        } else {
+                          const error = await response.json()
+                          alert(`❌ ${error.error || 'Failed to download sessions'}`)
+                        }
+                      } catch (err) {
+                        console.error('[DownloadSessions] Error:', err)
+                        alert('❌ Error downloading session files')
+                      } finally {
+                        setDownloadingSession(false)
+                      }
+                    }}
+                    disabled={downloadingSession}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                  >
+                    {downloadingSession ? (
+                      <>⏳ Downloading...</>
+                    ) : (
+                      <>📥 Download All Sessions</>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                {loading ? (
+                  <div className="p-8 text-center text-gray-400">Loading statistics...</div>
+                ) : countryStats.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">No purchase statistics available</div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Code</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Accounts Purchased</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {countryStats.map((stat, idx) => {
+                        const total = countryStats.reduce((sum, s) => sum + s.count, 0)
+                        const percentage = total > 0 ? ((stat.count / total) * 100).toFixed(1) : '0.0'
+                        
+                        return (
+                          <tr key={stat.phoneCode} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm">
+                              <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono text-blue-700 font-semibold">
+                                {stat.phoneCode}
+                              </code>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-800">
+                              {stat.countryName}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                {stat.count}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-sm font-semibold text-gray-700">{percentage}%</span>
+                                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      <tr className="bg-gray-50 font-semibold">
+                        <td colSpan={2} className="px-4 py-3 text-sm text-gray-700">Total</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                            {countryStats.reduce((sum, s) => sum + s.count, 0)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-700">100%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>

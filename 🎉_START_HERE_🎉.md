@@ -4,9 +4,20 @@
 
 ## 🌐 PUBLIC URL
 
-# **https://villiform-parker-perfunctorily.ngrok-free.dev**
+### Generate with Vercel CLI
+
+Run this to deploy and get your URL:
+```bash
+./GET_PUBLIC_URL.sh
+```
+Or:
+```bash
+pnpm get-url
+```
 
 ⚠️ **MUST be opened via Telegram Mini App** (Browser shows black screen)
+
+📖 **See `VERCEL_SETUP_GUIDE.md` for detailed setup instructions**
 
 ---
 
@@ -46,10 +57,11 @@
 
 ### For Admin (YOU - ID: 1211362365)
 
-**Step 1:** Open via Telegram
+**Step 1:** Generate public URL
+```bash
+./GET_PUBLIC_URL.sh
 ```
-https://villiform-parker-perfunctorily.ngrok-free.dev
-```
+Copy the URL and open it via Telegram
 
 **Step 2:** See your menu:
 ```
@@ -305,8 +317,10 @@ All features documented:
 
 # 🚀 YOUR APP IS READY TO USE!
 
-**Access it now via Telegram:**
-## https://villiform-parker-perfunctorily.ngrok-free.dev
+**Generate your public URL:**
+```bash
+./GET_PUBLIC_URL.sh
+```
 
 **Admin ID:** 1211362365 (@policehost)
 

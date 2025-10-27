@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOTP } from '@/lib/telegram/auth'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { getDb } from '@/lib/mongodb/connection'
 
 /**
  * POST /api/telegram/auth/verify-otp
@@ -11,11 +8,31 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
  */
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, phoneCodeHash, otpCode, sessionString, telegramId } = await request.json()
+    // Parse request body with error handling
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('[VerifyOTP] Failed to parse request body:', parseError)
+      return NextResponse.json(
+        { success: false, error: 'Invalid request format' },
+        { status: 400 }
+      )
+    }
+
+    const { phoneNumber, phoneCodeHash, otpCode, sessionString, telegramId } = body
 
     if (!phoneNumber || !phoneCodeHash || !otpCode) {
       return NextResponse.json(
         { success: false, error: 'Phone number, code hash, and OTP are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate OTP format
+    if (!/^\d{5}$/.test(otpCode)) {
+      return NextResponse.json(
+        { success: false, error: 'OTP must be 5 digits' },
         { status: 400 }
       )
     }
@@ -28,31 +45,22 @@ export async function POST(request: NextRequest) {
       // Create account record in database
       if (telegramId) {
         try {
-          const supabase = createClient(supabaseUrl, supabaseServiceKey)
+          const db = await getDb()
           
           // Get user from database
-          const { data: user } = await supabase
-            .from('users')
-            .select('id')
-            .eq('telegram_id', telegramId)
-            .single()
+          const user = await db.collection('users').findOne({ telegram_id: telegramId })
           
           if (user) {
             // Insert account record with pending status
-            const { error: accountError } = await supabase
-              .from('accounts')
-              .insert({
-                user_id: user.id,
-                phone_number: phoneNumber,
-                amount: 0, // Default amount, can be updated later
-                status: 'pending'
-              })
+            await db.collection('accounts').insertOne({
+              user_id: user._id,
+              phone_number: phoneNumber,
+              amount: 0, // Default amount, can be updated later
+              status: 'pending',
+              created_at: new Date()
+            })
             
-            if (accountError) {
-              console.error('[VerifyOTP] Error creating account record:', accountError)
-            } else {
-              console.log(`[VerifyOTP] Account record created for ${phoneNumber}`)
-            }
+            console.log(`[VerifyOTP] Account record created for ${phoneNumber}`)
           }
         } catch (dbError) {
           console.error('[VerifyOTP] Database error:', dbError)

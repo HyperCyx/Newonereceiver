@@ -92,11 +92,16 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
         console.log('[WithdrawalHistory] Balance:', userBalance.toFixed(2))
       }
 
-      // Get withdrawals
-      const withdrawalsResponse = await fetch('/api/withdrawal/list')
+      // Get withdrawals with telegram ID
+      const withdrawalsResponse = await fetch('/api/withdrawal/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: telegramUser.id })
+      })
       
       if (withdrawalsResponse.ok) {
         const withdrawalsData = await withdrawalsResponse.json()
+        console.log('[WithdrawalHistory] Withdrawals response:', withdrawalsData)
         
         if (withdrawalsData.success && withdrawalsData.withdrawals) {
           const formattedWithdrawals: Withdrawal[] = withdrawalsData.withdrawals.map((w: any) => ({
@@ -114,6 +119,8 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
           console.log('[WithdrawalHistory] Formatted', formattedWithdrawals.length, 'withdrawals')
           setWithdrawals(formattedWithdrawals)
         }
+      } else {
+        console.error('[WithdrawalHistory] Failed to fetch withdrawals:', withdrawalsResponse.status)
       }
     } catch (error) {
       console.error('[WithdrawalHistory] Error:', error)

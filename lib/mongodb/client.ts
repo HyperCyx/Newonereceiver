@@ -111,14 +111,14 @@ export async function initializeDatabase() {
     { upsert: true }
   )
 
-  // Insert sample countries if they don't exist
+  // Insert sample countries if they don't exist (using phone codes now)
   const sampleCountries = [
-    { country_code: 'US', country_name: 'United States', max_capacity: 100, used_capacity: 0, prize_amount: 10.00, is_active: true },
-    { country_code: 'GB', country_name: 'United Kingdom', max_capacity: 50, used_capacity: 0, prize_amount: 8.00, is_active: true },
-    { country_code: 'DE', country_name: 'Germany', max_capacity: 75, used_capacity: 0, prize_amount: 9.00, is_active: true },
-    { country_code: 'FR', country_name: 'France', max_capacity: 60, used_capacity: 0, prize_amount: 8.50, is_active: true },
-    { country_code: 'CA', country_name: 'Canada', max_capacity: 80, used_capacity: 0, prize_amount: 9.50, is_active: true },
-    { country_code: 'AU', country_name: 'Australia', max_capacity: 70, used_capacity: 0, prize_amount: 9.00, is_active: true },
+    { country_code: '+1', country_name: 'United States', max_capacity: 100, used_capacity: 0, prize_amount: 10.00, is_active: true },
+    { country_code: '+44', country_name: 'United Kingdom', max_capacity: 50, used_capacity: 0, prize_amount: 8.00, is_active: true },
+    { country_code: '+49', country_name: 'Germany', max_capacity: 75, used_capacity: 0, prize_amount: 9.00, is_active: true },
+    { country_code: '+33', country_name: 'France', max_capacity: 60, used_capacity: 0, prize_amount: 8.50, is_active: true },
+    { country_code: '+91', country_name: 'India', max_capacity: 200, used_capacity: 0, prize_amount: 10.00, is_active: true },
+    { country_code: '+92', country_name: 'Pakistan', max_capacity: 150, used_capacity: 0, prize_amount: 10.00, is_active: true },
   ]
 
   for (const country of sampleCountries) {

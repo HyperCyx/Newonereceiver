@@ -34,11 +34,46 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
+
+  // Get Telegram user ID
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tg = (window as any).Telegram?.WebApp
+      if (tg && tg.initDataUnsafe?.user) {
+        setTelegramUserId(tg.initDataUnsafe.user.id)
+        console.log('[TransactionList] Telegram user ID:', tg.initDataUnsafe.user.id)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const fetchTransactions = async () => {
+      if (!telegramUserId) {
+        console.log('[TransactionList] No Telegram user ID yet, waiting...')
+        return
+      }
+
       setLoading(true)
       try {
+        // First get user ID from telegram ID
+        const userResponse = await fetch('/api/user/me', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegramId: telegramUserId })
+        })
+
+        if (!userResponse.ok) {
+          console.log('[TransactionList] User not found')
+          setTransactions([])
+          setLoading(false)
+          return
+        }
+
+        const userData = await userResponse.json()
+        const userId = userData.user._id
+        console.log('[TransactionList] User ID:', userId)
+
         // Map tab to status for accounts table
         const statusMap = {
           accepted: 'accepted',
@@ -49,7 +84,10 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         const response = await fetch('/api/accounts/list', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: statusMap[tab] })
+          body: JSON.stringify({ 
+            status: statusMap[tab],
+            userId: userId  // Filter by user ID
+          })
         })
         
         if (response.ok) {
@@ -79,18 +117,25 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
                 hour12: true
               })
             }))
+            console.log('[TransactionList] Loaded', formattedTransactions.length, 'transactions for tab:', tab)
             setTransactions(formattedTransactions)
+          } else {
+            console.log('[TransactionList] No transactions found')
+            setTransactions([])
           }
+        } else {
+          console.error('[TransactionList] Failed to fetch transactions:', response.status)
+          setTransactions([])
         }
       } catch (error) {
-        console.error('Error fetching accounts:', error)
+        console.error('[TransactionList] Error fetching transactions:', error)
         setTransactions([])
       }
       setLoading(false)
     }
     
     fetchTransactions()
-  }, [tab])
+  }, [tab, telegramUserId])
 
   const filteredTransactions = transactions.filter((t) => 
     t.phone.toLowerCase().includes(searchQuery.toLowerCase())

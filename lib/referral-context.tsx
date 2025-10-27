@@ -116,7 +116,7 @@ export function ReferralProvider({ children }: { children: React.ReactNode }) {
   const getReferralLink = (): string => {
     if (!currentUser) return ""
     // Use bot link for referrals
-    const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'your_bot'
+    const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'WhatsAppNumberRedBot'
     return `https://t.me/${botUsername}?start=${currentUser.referralCode}`
   }
 
