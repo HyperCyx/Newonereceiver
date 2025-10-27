@@ -8,7 +8,19 @@ import { getDb } from '@/lib/mongodb/connection'
  */
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, sessionString, password, telegramId } = await request.json()
+    // Parse request body with error handling
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('[Verify2FA] Failed to parse request body:', parseError)
+      return NextResponse.json(
+        { success: false, error: 'Invalid request format' },
+        { status: 400 }
+      )
+    }
+
+    const { phoneNumber, sessionString, password, telegramId } = body
 
     if (!phoneNumber || !sessionString || !password) {
       return NextResponse.json(
