@@ -10,7 +10,7 @@ interface DashboardPageProps {
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [currentView, setCurrentView] = useState<"transactions" | "menu">("transactions")
-  const [activeTab, setActiveTab] = useState<"pending" | "accepted" | "rejected">("accepted")
+  const [activeTab, setActiveTab] = useState<"pending" | "accepted" | "rejected">("pending")
   const [searchQuery, setSearchQuery] = useState("")
 
   return (
