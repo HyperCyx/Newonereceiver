@@ -105,6 +105,8 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           const data = await response.json()
           
           if (data.success && data.accounts) {
+            console.log('[TransactionList] Raw accounts data:', data.accounts)
+            
             const formattedTransactions: Transaction[] = data.accounts.map((acc: any) => ({
               id: acc._id,
               phone: acc.phone_number || '',
@@ -131,12 +133,14 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
               autoApproveMinutes: acc.auto_approve_minutes || 1440
             }))
             
-            // Log auto-approve minutes for debugging
-            console.log('[TransactionList] Account auto-approve times:', 
+            // Detailed logging for debugging
+            console.log('[TransactionList] Formatted transactions:', 
               formattedTransactions.map(t => ({
                 phone: t.phone,
-                minutes: t.autoApproveMinutes,
-                hours: (t.autoApproveMinutes || 0) / 60
+                amount: t.amount,
+                autoApproveMinutes: t.autoApproveMinutes,
+                autoApproveHours: (t.autoApproveMinutes || 0) / 60,
+                status: t.status
               }))
             )
             console.log('[TransactionList] Loaded', formattedTransactions.length, 'transactions for tab:', tab)

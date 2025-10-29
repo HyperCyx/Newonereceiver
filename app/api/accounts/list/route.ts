@@ -19,6 +19,14 @@ export async function POST(request: NextRequest) {
       .sort({ created_at: -1 })
       .toArray()
 
+    console.log(`[AccountsList] Found ${accountsList.length} accounts with query:`, query)
+    console.log(`[AccountsList] Raw accounts:`, accountsList.map(a => ({
+      phone: a.phone_number,
+      amount: a.amount,
+      status: a.status,
+      created_at: a.created_at
+    })))
+
     // Add auto_approve_minutes to each account
     const enrichedAccounts = await Promise.all(
       accountsList.map(async (acc) => {
@@ -27,6 +35,7 @@ export async function POST(request: NextRequest) {
         // Try to detect country from phone number
         const phoneDigits = acc.phone_number.replace(/[^\d]/g, '')
         let countryFound = false
+        let detectedCountry = null
         
         console.log(`[AccountsList] Detecting country for ${acc.phone_number}, digits: ${phoneDigits}`)
         
@@ -34,9 +43,12 @@ export async function POST(request: NextRequest) {
           const possibleCode = phoneDigits.substring(0, i)
           const country = await countryCapacity.findOne({ country_code: possibleCode })
           
+          console.log(`[AccountsList] Trying code: ${possibleCode}, found:`, country ? `${country.country_name}` : 'none')
+          
           if (country) {
             autoApproveMinutes = country.auto_approve_minutes ?? 1440
-            console.log(`[AccountsList] ✅ Country found: ${country.country_name}, code: ${possibleCode}, auto-approve: ${autoApproveMinutes} minutes`)
+            detectedCountry = country
+            console.log(`[AccountsList] ✅ Country found: ${country.country_name}, code: ${possibleCode}, auto-approve: ${autoApproveMinutes} minutes, prize: ${country.prize_amount}`)
             countryFound = true
           }
         }
@@ -45,13 +57,23 @@ export async function POST(request: NextRequest) {
           // Fallback to global setting
           const globalSettings = await settings.findOne({ setting_key: 'auto_approve_minutes' })
           autoApproveMinutes = parseInt(globalSettings?.setting_value || '1440')
-          console.log(`[AccountsList] No country found for ${acc.phone_number}, using global: ${autoApproveMinutes} minutes`)
+          console.log(`[AccountsList] ❌ No country found for ${acc.phone_number}, using global: ${autoApproveMinutes} minutes`)
         }
         
-        return {
+        const enriched = {
           ...acc,
-          auto_approve_minutes: autoApproveMinutes
+          auto_approve_minutes: autoApproveMinutes,
+          detected_country: detectedCountry ? detectedCountry.country_name : null
         }
+        
+        console.log(`[AccountsList] Enriched account:`, {
+          phone: enriched.phone_number,
+          amount: enriched.amount,
+          auto_approve_minutes: enriched.auto_approve_minutes,
+          detected_country: enriched.detected_country
+        })
+        
+        return enriched
       })
     )
 
