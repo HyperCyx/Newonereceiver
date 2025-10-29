@@ -126,7 +126,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
-  const [autoApproveMinutes, setAutoApproveMinutes] = useState("1440")
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
@@ -256,8 +256,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           if (result.settings.min_withdrawal_amount) {
             setMinWithdrawalAmount(result.settings.min_withdrawal_amount)
           }
-          if (result.settings.auto_approve_minutes) {
-            setAutoApproveMinutes(result.settings.auto_approve_minutes)
+          if (result.settings.login_button_enabled !== undefined) {
+            setLoginButtonEnabled(result.settings.login_button_enabled === 'true' || result.settings.login_button_enabled === true)
           }
         }
       }
@@ -549,15 +549,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      const autoMinutes = parseInt(autoApproveMinutes)
-      if (isNaN(autoMinutes) || autoMinutes < 0) {
-        console.error('[AdminDashboard] Invalid minutes:', autoApproveMinutes)
-        setSettingsError("Please enter valid auto-approve minutes")
-        setSavingSettings(false)
-        return
-      }
-
-      console.log('[AdminDashboard] Saving settings:', { minAmount, autoMinutes })
+      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled })
 
       // Save both settings
       const responses = await Promise.all([
@@ -574,8 +566,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-          settingKey: 'auto_approve_minutes',
-          settingValue: autoMinutes.toString(),
+            settingKey: 'login_button_enabled',
+            settingValue: loginButtonEnabled.toString(),
             telegramId: adminTelegramId
           })
         })
@@ -2017,23 +2009,43 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   />
                 </div>
 
-                {/* Auto-Approve Hours */}
+                {/* Login Button Toggle */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Auto-Approve Time (Minutes)
+                    Login Button Status
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Accounts will be automatically approved after this many minutes if login is successful
+                    Enable or disable the login button globally. When enabled, users can sell accounts.
                   </p>
-                  <input
-                    type="number"
-                    value={autoApproveMinutes}
-                    onChange={(e) => setAutoApproveMinutes(e.target.value)}
-                    step="1"
-                    min="0"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="Enter minutes (e.g., 1440)"
-                  />
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setLoginButtonEnabled(true)}
+                      className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-all ${
+                        loginButtonEnabled
+                          ? 'bg-green-500 text-white border-green-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-green-300'
+                      }`}
+                    >
+                      <span className="material-icons text-xl mr-2 align-middle">check_circle</span>
+                      Enabled
+                    </button>
+                    <button
+                      onClick={() => setLoginButtonEnabled(false)}
+                      className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-all ${
+                        !loginButtonEnabled
+                          ? 'bg-red-500 text-white border-red-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-red-300'
+                      }`}
+                    >
+                      <span className="material-icons text-xl mr-2 align-middle">cancel</span>
+                      Disabled
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {loginButtonEnabled 
+                      ? '✅ Login button is currently ENABLED - Users can sell accounts' 
+                      : '❌ Login button is currently DISABLED - Users cannot sell accounts'}
+                  </p>
                 </div>
 
                 {/* Save Button */}
@@ -2080,7 +2092,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     <p className={`text-sm ${
                       settingsSaved ? 'text-green-800' : 'text-blue-800'
                     }`}>
-                      <span className="font-medium">Auto-Approve Time:</span> {autoApproveMinutes} minutes
+                      <span className="font-medium">Login Button:</span> {loginButtonEnabled ? 'Enabled ✅' : 'Disabled ❌'}
                     </p>
                   </div>
                 </div>

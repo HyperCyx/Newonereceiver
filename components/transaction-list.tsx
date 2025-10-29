@@ -38,6 +38,27 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
   const [, setTick] = useState(0)
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+
+  // Fetch login button setting
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.settings) {
+            const enabled = data.settings.login_button_enabled === 'true' || data.settings.login_button_enabled === true
+            setLoginButtonEnabled(enabled)
+            console.log('[TransactionList] Login button enabled:', enabled)
+          }
+        }
+      } catch (error) {
+        console.error('[TransactionList] Error fetching settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
 
   // Update timer every second for live countdown
   useEffect(() => {
@@ -259,14 +280,24 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
-        <button
-          onClick={onLoginClick}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[15px] font-medium py-3 rounded-full transition-colors"
-        >
-          Login
-        </button>
-      </div>
+      {loginButtonEnabled && (
+        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
+          <button
+            onClick={onLoginClick}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[15px] font-medium py-3 rounded-full transition-colors"
+          >
+            Login
+          </button>
+        </div>
+      )}
+      
+      {!loginButtonEnabled && (
+        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
+          <div className="w-full bg-gray-300 text-gray-600 text-[15px] font-medium py-3 rounded-full text-center">
+            Login Disabled by Admin
+          </div>
+        </div>
+      )}
 
       {/* Transaction Details Modal */}
       {selectedTransaction && (
