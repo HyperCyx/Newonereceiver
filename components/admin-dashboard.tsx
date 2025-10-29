@@ -116,6 +116,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveMinutes: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   
   // Sessions state
   const [sessions, setSessions] = useState<any[]>([])
@@ -624,6 +625,108 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
             <p className="text-sm text-gray-500">Manage your platform</p>
           </div>
+        </div>
+        
+        {/* Menu Button */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Menu"
+          >
+            <Menu className="w-6 h-6 text-gray-700" />
+          </button>
+          
+          {showMenu && (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 z-20" 
+                onClick={() => setShowMenu(false)}
+              />
+              
+              {/* Dropdown Menu */}
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-30">
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</p>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('sessions')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-purple-600 text-lg">download</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Sessions</p>
+                    <p className="text-xs text-gray-500">Download session files</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('countries')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-blue-600 text-lg">public</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Countries</p>
+                    <p className="text-xs text-gray-500">Manage country settings</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('payments')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-green-600 text-lg">payments</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Payments</p>
+                    <p className="text-xs text-gray-500">Review payment requests</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('settings')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-gray-600 text-lg">settings</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Settings</p>
+                    <p className="text-xs text-gray-500">Configure system settings</p>
+                  </div>
+                </button>
+                
+                <div className="border-t border-gray-100 mt-2 pt-2">
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to logout?')) {
+                        onNavigate('login')
+                      }
+                      setShowMenu(false)
+                    }}
+                    className="w-full px-4 py-2.5 text-left hover:bg-red-50 transition-colors flex items-center gap-3"
+                  >
+                    <span className="material-icons text-red-600 text-lg">logout</span>
+                    <div>
+                      <p className="text-sm font-medium text-red-600">Logout</p>
+                      <p className="text-xs text-gray-500">Exit admin panel</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1883,7 +1986,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     {new Date(session.createdAt).toLocaleDateString()}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                <div className="flex items-center gap-1 w-full sm:w-auto">
                                   <button
                                     onClick={async (e) => {
                                       e.stopPropagation()
@@ -1916,10 +2019,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       setDownloadingSingleSession(null)
                                     }}
                                     disabled={downloadingSingleSession === session.fileName}
-                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                    className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                   >
-                                    <span className="material-icons text-sm">download</span>
-                                    <span className="hidden sm:inline">Download</span>
+                                    <span className="material-icons" style={{fontSize: '14px'}}>download</span>
+                                    <span className="hidden sm:inline text-[10px]">DL</span>
                                   </button>
                                   <button
                                     onClick={async (e) => {
@@ -1951,10 +2054,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       setDownloadingSingleSession(null)
                                     }}
                                     disabled={downloadingSingleSession === session.fileName}
-                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                    className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                   >
-                                    <span className="material-icons text-sm">delete</span>
-                                    <span className="hidden sm:inline">Delete</span>
+                                    <span className="material-icons" style={{fontSize: '14px'}}>delete</span>
+                                    <span className="hidden sm:inline text-[10px]">DEL</span>
                                   </button>
                                 </div>
                               </div>
@@ -2071,7 +2174,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                             {new Date(session.createdAt).toLocaleDateString()}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                        <div className="flex items-center gap-1 w-full sm:w-auto">
                                           <button
                                             onClick={async (e) => {
                                               e.stopPropagation()
@@ -2104,10 +2207,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                               setDownloadingSingleSession(null)
                                             }}
                                             disabled={downloadingSingleSession === session.fileName}
-                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                            className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                           >
-                                            <span className="material-icons text-sm">download</span>
-                                            <span className="hidden sm:inline">Download</span>
+                                            <span className="material-icons" style={{fontSize: '14px'}}>download</span>
+                                            <span className="hidden sm:inline text-[10px]">DL</span>
                                           </button>
                                           <button
                                             onClick={async (e) => {
@@ -2139,10 +2242,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                               setDownloadingSingleSession(null)
                                             }}
                                             disabled={downloadingSingleSession === session.fileName}
-                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                            className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                           >
-                                            <span className="material-icons text-sm">delete</span>
-                                            <span className="hidden sm:inline">Delete</span>
+                                            <span className="material-icons" style={{fontSize: '14px'}}>delete</span>
+                                            <span className="hidden sm:inline text-[10px]">DEL</span>
                                           </button>
                                         </div>
                                       </div>
