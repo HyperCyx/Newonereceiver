@@ -327,7 +327,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const result = await response.json()
             if (result.withdrawals) {
               const formattedWd: Withdrawal[] = result.withdrawals.map((wd: any) => ({
-                id: wd.id,
+                id: wd._id || wd.id,
                 userId: wd.user_id,
                 userName: wd.users?.telegram_username || `${wd.users?.first_name || ''} ${wd.users?.last_name || ''}`.trim() || 'Unknown',
                 amount: Number(wd.amount).toFixed(2),
@@ -1147,10 +1147,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         </td>
                       </tr>
                     ) : (
-                      [...withdrawals.map(w => ({...w, type: 'Withdrawal'})), ...paymentRequests.map(p => ({...p, type: 'Payment', date: p.requestDate}))]
+                      [...withdrawals.map((w, idx) => ({...w, type: 'Withdrawal', uniqueId: w.id || w._id || `w-${idx}`})), ...paymentRequests.map((p, idx) => ({...p, type: 'Payment', date: p.requestDate, uniqueId: p.id || p._id || `p-${idx}`}))]
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                        .map((request: any) => (
-                        <tr key={`${request.type}-${request.id}`} className="border-b border-gray-100 hover:bg-gray-50">
+                        .map((request: any, idx: number) => (
+                        <tr key={request.uniqueId || `request-${idx}`} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-800">{request.userName || request.userId}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-gray-800">${request.amount}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
@@ -1182,14 +1182,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                             {request.status === 'pending' && (
                               <div className="flex gap-2">
                                 <button
-                                  onClick={() => request.type === 'Withdrawal' ? handleApproveWithdrawal(request.id) : handleApprovePayment(request.id)}
+                                  onClick={() => request.type === 'Withdrawal' ? handleApproveWithdrawal(request.id || request._id) : handleApprovePayment(request.id || request._id)}
                                   className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors"
                                 >
                                   <Check size={14} className="inline mr-1" />
                                   Approve
                                 </button>
                                 <button
-                                  onClick={() => request.type === 'Withdrawal' ? handleRejectWithdrawal(request.id) : handleRejectPayment(request.id)}
+                                  onClick={() => request.type === 'Withdrawal' ? handleRejectWithdrawal(request.id || request._id) : handleRejectPayment(request.id || request._id)}
                                   className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
                                 >
                                   <X size={14} className="inline mr-1" />
