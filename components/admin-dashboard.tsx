@@ -1869,90 +1869,94 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                                  session.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                                  session.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                  session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
-                                  'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                  {session.status.toUpperCase()}
-                                </span>
-                                <span className="text-xs text-gray-400 hidden md:inline">
-                                  {new Date(session.createdAt).toLocaleDateString()}
-                                </span>
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation()
-                                    if (!adminTelegramId) return
-                                    setDownloadingSingleSession(session.fileName)
-                                    try {
-                                      const response = await fetch('/api/admin/sessions/download', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ 
-                                          telegramId: adminTelegramId, 
-                                          filter: 'single',
-                                          fileName: session.fileName
+                              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                    session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                    session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                    session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {session.status.toUpperCase()}
+                                  </span>
+                                  <span className="text-xs text-gray-400 hidden md:inline">
+                                    {new Date(session.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      if (!adminTelegramId) return
+                                      setDownloadingSingleSession(session.fileName)
+                                      try {
+                                        const response = await fetch('/api/admin/sessions/download', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ 
+                                            telegramId: adminTelegramId, 
+                                            filter: 'single',
+                                            fileName: session.fileName
+                                          })
                                         })
-                                      })
-                                      if (response.ok) {
-                                        const blob = await response.blob()
-                                        const url = window.URL.createObjectURL(blob)
-                                        const a = document.createElement('a')
-                                        a.href = url
-                                        a.download = session.fileName
-                                        document.body.appendChild(a)
-                                        a.click()
-                                        window.URL.revokeObjectURL(url)
-                                        document.body.removeChild(a)
-                                      }
-                                    } catch (error) {
-                                      console.error('Download error:', error)
-                                    }
-                                    setDownloadingSingleSession(null)
-                                  }}
-                                  disabled={downloadingSingleSession === session.fileName}
-                                  className="px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  <span className="material-icons text-sm">download</span>
-                                  <span className="hidden sm:inline">Download</span>
-                                </button>
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation()
-                                    if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
-                                    setDownloadingSingleSession(session.fileName)
-                                    try {
-                                      const response = await fetch('/api/admin/sessions/delete', {
-                                        method: 'DELETE',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ 
-                                          telegramId: adminTelegramId, 
-                                          fileName: session.fileName
-                                        })
-                                      })
-                                      if (response.ok) {
-                                        // Refresh sessions list
-                                        const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
-                                        if (listResponse.ok) {
-                                          const data = await listResponse.json()
-                                          setSessions(data.allSessions || [])
-                                          setSessionsByCountry(data.sessionsByCountry || {})
-                                          setCountrySessionStats(data.countryStats || [])
+                                        if (response.ok) {
+                                          const blob = await response.blob()
+                                          const url = window.URL.createObjectURL(blob)
+                                          const a = document.createElement('a')
+                                          a.href = url
+                                          a.download = session.fileName
+                                          document.body.appendChild(a)
+                                          a.click()
+                                          window.URL.revokeObjectURL(url)
+                                          document.body.removeChild(a)
                                         }
+                                      } catch (error) {
+                                        console.error('Download error:', error)
                                       }
-                                    } catch (error) {
-                                      console.error('Delete error:', error)
-                                    }
-                                    setDownloadingSingleSession(null)
-                                  }}
-                                  disabled={downloadingSingleSession === session.fileName}
-                                  className="px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  <span className="material-icons text-sm">delete</span>
-                                  <span className="hidden sm:inline">Delete</span>
-                                </button>
+                                      setDownloadingSingleSession(null)
+                                    }}
+                                    disabled={downloadingSingleSession === session.fileName}
+                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                  >
+                                    <span className="material-icons text-sm">download</span>
+                                    <span className="hidden sm:inline">Download</span>
+                                  </button>
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
+                                      setDownloadingSingleSession(session.fileName)
+                                      try {
+                                        const response = await fetch('/api/admin/sessions/delete', {
+                                          method: 'DELETE',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ 
+                                            telegramId: adminTelegramId, 
+                                            fileName: session.fileName
+                                          })
+                                        })
+                                        if (response.ok) {
+                                          // Refresh sessions list
+                                          const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                                          if (listResponse.ok) {
+                                            const data = await listResponse.json()
+                                            setSessions(data.allSessions || [])
+                                            setSessionsByCountry(data.sessionsByCountry || {})
+                                            setCountrySessionStats(data.countryStats || [])
+                                          }
+                                        }
+                                      } catch (error) {
+                                        console.error('Delete error:', error)
+                                      }
+                                      setDownloadingSingleSession(null)
+                                    }}
+                                    disabled={downloadingSingleSession === session.fileName}
+                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                  >
+                                    <span className="material-icons text-sm">delete</span>
+                                    <span className="hidden sm:inline">Delete</span>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -2053,90 +2057,94 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           {session.fileName} • {(session.size / 1024).toFixed(2)} KB
                                         </p>
                                       </div>
-                                      <div className="flex items-center gap-2 flex-shrink-0">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                                          session.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                                          session.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                          session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
-                                          'bg-yellow-100 text-yellow-700'
-                                        }`}>
-                                          {session.status.toUpperCase()}
-                                        </span>
-                                        <span className="text-xs text-gray-400 hidden sm:inline">
-                                          {new Date(session.createdAt).toLocaleDateString()}
-                                        </span>
-                                        <button
-                                          onClick={async (e) => {
-                                            e.stopPropagation()
-                                            if (!adminTelegramId) return
-                                            setDownloadingSingleSession(session.fileName)
-                                            try {
-                                              const response = await fetch('/api/admin/sessions/download', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ 
-                                                  telegramId: adminTelegramId, 
-                                                  filter: 'single',
-                                                  fileName: session.fileName
+                                      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                          <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                            session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                            session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                            session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
+                                            'bg-yellow-100 text-yellow-700'
+                                          }`}>
+                                            {session.status.toUpperCase()}
+                                          </span>
+                                          <span className="text-xs text-gray-400 hidden md:inline">
+                                            {new Date(session.createdAt).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation()
+                                              if (!adminTelegramId) return
+                                              setDownloadingSingleSession(session.fileName)
+                                              try {
+                                                const response = await fetch('/api/admin/sessions/download', {
+                                                  method: 'POST',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ 
+                                                    telegramId: adminTelegramId, 
+                                                    filter: 'single',
+                                                    fileName: session.fileName
+                                                  })
                                                 })
-                                              })
-                                              if (response.ok) {
-                                                const blob = await response.blob()
-                                                const url = window.URL.createObjectURL(blob)
-                                                const a = document.createElement('a')
-                                                a.href = url
-                                                a.download = session.fileName
-                                                document.body.appendChild(a)
-                                                a.click()
-                                                window.URL.revokeObjectURL(url)
-                                                document.body.removeChild(a)
-                                              }
-                                            } catch (error) {
-                                              console.error('Download error:', error)
-                                            }
-                                            setDownloadingSingleSession(null)
-                                          }}
-                                          disabled={downloadingSingleSession === session.fileName}
-                                          className="px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
-                                        >
-                                          <span className="material-icons text-sm">download</span>
-                                          <span className="hidden sm:inline">Download</span>
-                                        </button>
-                                        <button
-                                          onClick={async (e) => {
-                                            e.stopPropagation()
-                                            if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
-                                            setDownloadingSingleSession(session.fileName)
-                                            try {
-                                              const response = await fetch('/api/admin/sessions/delete', {
-                                                method: 'DELETE',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ 
-                                                  telegramId: adminTelegramId, 
-                                                  fileName: session.fileName
-                                                })
-                                              })
-                                              if (response.ok) {
-                                                // Refresh sessions list
-                                                const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
-                                                if (listResponse.ok) {
-                                                  const data = await listResponse.json()
-                                                  setSessions(data.allSessions || [])
-                                                  setSessionsByCountry(data.sessionsByCountry || {})
-                                                  setCountrySessionStats(data.countryStats || [])
+                                                if (response.ok) {
+                                                  const blob = await response.blob()
+                                                  const url = window.URL.createObjectURL(blob)
+                                                  const a = document.createElement('a')
+                                                  a.href = url
+                                                  a.download = session.fileName
+                                                  document.body.appendChild(a)
+                                                  a.click()
+                                                  window.URL.revokeObjectURL(url)
+                                                  document.body.removeChild(a)
                                                 }
+                                              } catch (error) {
+                                                console.error('Download error:', error)
                                               }
-                                            } catch (error) {
-                                              console.error('Delete error:', error)
-                                            }
-                                            setDownloadingSingleSession(null)
-                                          }}
-                                          disabled={downloadingSingleSession === session.fileName}
-                                          className="px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
-                                        >
-                                          <span className="material-icons text-sm">delete</span>
-                                          <span className="hidden sm:inline">Delete</span>
-                                        </button>
+                                              setDownloadingSingleSession(null)
+                                            }}
+                                            disabled={downloadingSingleSession === session.fileName}
+                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                          >
+                                            <span className="material-icons text-sm">download</span>
+                                            <span className="hidden sm:inline">Download</span>
+                                          </button>
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation()
+                                              if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
+                                              setDownloadingSingleSession(session.fileName)
+                                              try {
+                                                const response = await fetch('/api/admin/sessions/delete', {
+                                                  method: 'DELETE',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ 
+                                                    telegramId: adminTelegramId, 
+                                                    fileName: session.fileName
+                                                  })
+                                                })
+                                                if (response.ok) {
+                                                  // Refresh sessions list
+                                                  const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                                                  if (listResponse.ok) {
+                                                    const data = await listResponse.json()
+                                                    setSessions(data.allSessions || [])
+                                                    setSessionsByCountry(data.sessionsByCountry || {})
+                                                    setCountrySessionStats(data.countryStats || [])
+                                                  }
+                                                }
+                                              } catch (error) {
+                                                console.error('Delete error:', error)
+                                              }
+                                              setDownloadingSingleSession(null)
+                                            }}
+                                            disabled={downloadingSingleSession === session.fileName}
+                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                          >
+                                            <span className="material-icons text-sm">delete</span>
+                                            <span className="hidden sm:inline">Delete</span>
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>

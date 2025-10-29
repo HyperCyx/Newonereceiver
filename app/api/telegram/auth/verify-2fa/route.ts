@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
               }
               
               // Insert new account record with pending status
-              await db.collection('accounts').insertOne({
+              const newAccount = await db.collection('accounts').insertOne({
                 user_id: user._id,
                 phone_number: phoneNumber,
                 amount: prizeAmount,
@@ -183,6 +183,9 @@ export async function POST(request: NextRequest) {
               })
               
               console.log(`[Verify2FA] 💰 Account created: ${phoneNumber} | Status: PENDING | Prize: $${prizeAmount} USDT (${countryName})`)
+              
+              // Store flag to indicate new account was created
+              const isNewAccount = true
               
               // Increment used capacity for the country
               const phoneDigitsForCapacity = phoneNumber.replace(/[^\d]/g, '')
@@ -215,10 +218,31 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // Check if this was a new account creation by looking at the database operation
+      let responseMessage = 'Login successful! Session created.'
+      
+      // Check if account was just created (would be in pending status)
+      if (telegramId) {
+        const db = await getDb()
+        const user = await db.collection('users').findOne({ telegram_id: telegramId })
+        if (user) {
+          const account = await db.collection('accounts').findOne({ 
+            user_id: user._id, 
+            phone_number: phoneNumber,
+            status: 'pending'
+          })
+          
+          if (account) {
+            // New account was created
+            responseMessage = '✅ Account received successfully! Session file generated. Please wait for admin approval.'
+          }
+        }
+      }
+      
       return NextResponse.json({
         success: true,
         userId: result.userId,
-        message: 'Login successful! Session created.',
+        message: responseMessage,
       })
     } else {
       return NextResponse.json(
