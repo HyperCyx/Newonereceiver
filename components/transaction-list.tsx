@@ -309,14 +309,6 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           </button>
         </div>
       )}
-      
-      {!loginButtonEnabled && (
-        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
-          <div className="w-full bg-gray-300 text-gray-600 text-[15px] font-medium py-3 rounded-full text-center">
-            Login Disabled by Admin
-          </div>
-        </div>
-      )}
 
       {/* Transaction Details Modal */}
       {selectedTransaction && (
