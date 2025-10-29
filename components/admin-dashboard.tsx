@@ -140,6 +140,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [sessionsByCountry, setSessionsByCountry] = useState<any>({})
   const [countrySessionStats, setCountrySessionStats] = useState<any[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
+  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set())
+  const [downloadingSingleSession, setDownloadingSingleSession] = useState<string | null>(null)
 
   // Get Telegram ID on mount
   useEffect(() => {
@@ -2195,39 +2197,98 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
                           {/* Session files list */}
                           {sessionsByCountry[countryStat.name] && (
-                            <div className="max-h-60 overflow-y-auto">
-                              {sessionsByCountry[countryStat.name].slice(0, 10).map((session: any, idx: number) => (
-                                <div key={idx} className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm text-gray-900">{session.phone}</p>
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {session.fileName} • {(session.size / 1024).toFixed(2)} KB
-                                      </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                        session.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                                        session.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                        'bg-yellow-100 text-yellow-700'
-                                      }`}>
-                                        {session.status.toUpperCase()}
-                                      </span>
-                                      <span className="text-xs text-gray-400">
-                                        {new Date(session.createdAt).toLocaleDateString()}
-                                      </span>
+                            <>
+                              {/* Show first 10 sessions */}
+                              <div className="max-h-60 overflow-y-auto">
+                                {sessionsByCountry[countryStat.name].slice(0, expandedCountries.has(countryStat.name) ? undefined : 10).map((session: any, idx: number) => (
+                                  <div key={idx} className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm text-gray-900 truncate">{session.phone}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                          {session.fileName} • {(session.size / 1024).toFixed(2)} KB
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                          session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                          session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                          session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
+                                          'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                          {session.status.toUpperCase()}
+                                        </span>
+                                        <span className="text-xs text-gray-400 hidden sm:inline">
+                                          {new Date(session.createdAt).toLocaleDateString()}
+                                        </span>
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation()
+                                            if (!adminTelegramId) return
+                                            setDownloadingSingleSession(session.fileName)
+                                            try {
+                                              const response = await fetch('/api/admin/sessions/download', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ 
+                                                  telegramId: adminTelegramId, 
+                                                  filter: 'single',
+                                                  fileName: session.fileName
+                                                })
+                                              })
+                                              if (response.ok) {
+                                                const blob = await response.blob()
+                                                const url = window.URL.createObjectURL(blob)
+                                                const a = document.createElement('a')
+                                                a.href = url
+                                                a.download = session.fileName
+                                                document.body.appendChild(a)
+                                                a.click()
+                                                window.URL.revokeObjectURL(url)
+                                                document.body.removeChild(a)
+                                              }
+                                            } catch (error) {
+                                              console.error('Download error:', error)
+                                            }
+                                            setDownloadingSingleSession(null)
+                                          }}
+                                          disabled={downloadingSingleSession === session.fileName}
+                                          className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+                                        >
+                                          <span className="material-icons text-sm">download</span>
+                                          <span className="hidden sm:inline">Download</span>
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
+                              
+                              {/* Expand/Collapse button if more than 10 sessions */}
                               {sessionsByCountry[countryStat.name].length > 10 && (
-                                <div className="px-4 py-2 bg-gray-50 text-center">
-                                  <p className="text-xs text-gray-500">
-                                    +{sessionsByCountry[countryStat.name].length - 10} more sessions...
+                                <button
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedCountries)
+                                    if (expandedCountries.has(countryStat.name)) {
+                                      newExpanded.delete(countryStat.name)
+                                    } else {
+                                      newExpanded.add(countryStat.name)
+                                    }
+                                    setExpandedCountries(newExpanded)
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 text-center transition-colors border-t border-gray-200"
+                                >
+                                  <p className="text-sm font-medium text-blue-600 flex items-center justify-center gap-2">
+                                    <span className="material-icons text-sm">
+                                      {expandedCountries.has(countryStat.name) ? 'expand_less' : 'expand_more'}
+                                    </span>
+                                    {expandedCountries.has(countryStat.name) 
+                                      ? 'Show Less' 
+                                      : `Show All ${sessionsByCountry[countryStat.name].length} Sessions`}
                                   </p>
-                                </div>
+                                </button>
                               )}
-                            </div>
+                            </>
                           )}
                         </div>
                       ))}

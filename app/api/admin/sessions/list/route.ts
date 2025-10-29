@@ -55,53 +55,64 @@ export async function GET(request: NextRequest) {
     const sessions: SessionInfo[] = []
     const sessionsByCountry: { [key: string]: SessionInfo[] } = {}
 
-    for (const account of accountsList) {
-      const phoneNumber = account.phone_number
-      const fileName = `${phoneNumber.replace(/[^\d]/g, '')}.json`
+    // Process session files and match with accounts
+    for (const fileName of sessionFiles) {
       const filePath = path.join(SESSIONS_DIR, fileName)
+      const stats = fs.statSync(filePath)
+      
+      // Extract phone number from filename (supports both formats: 998701470983.json and 998701470983_timestamp.json)
+      const phoneMatch = fileName.match(/^(\d+)/)
+      if (!phoneMatch) continue
+      
+      const phoneDigits = phoneMatch[1]
+      
+      // Try to find matching account
+      const account = await accounts.findOne({
+        $or: [
+          { phone_number: phoneDigits },
+          { phone_number: `+${phoneDigits}` }
+        ]
+      })
 
-      // Check if session file exists
-      if (sessionFiles.includes(fileName) && fs.existsSync(filePath)) {
-        const stats = fs.statSync(filePath)
-        
-        // Detect country from phone number
-        const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
-        let countryName = 'Unknown'
-        let countryCode = phoneNumber.substring(0, Math.min(5, phoneNumber.length))
+      const phoneNumber = account ? account.phone_number : `+${phoneDigits}`
+      const accountStatus = account ? account.status : 'unknown'
+      
+      // Detect country from phone number
+      let countryName = 'Unknown'
+      let countryCode = phoneNumber.substring(0, Math.min(5, phoneNumber.length))
 
-        for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
-          const possibleCode = phoneDigits.substring(0, i)
-          const country = await countries.findOne({
-            $or: [
-              { country_code: possibleCode },
-              { country_code: `+${possibleCode}` }
-            ]
-          })
+      for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
+        const possibleCode = phoneDigits.substring(0, i)
+        const country = await countries.findOne({
+          $or: [
+            { country_code: possibleCode },
+            { country_code: `+${possibleCode}` }
+          ]
+        })
 
-          if (country) {
-            countryName = country.country_name
-            countryCode = country.country_code
-            break
-          }
+        if (country) {
+          countryName = country.country_name
+          countryCode = country.country_code
+          break
         }
-
-        const sessionInfo: SessionInfo = {
-          phone: phoneNumber,
-          country: countryName,
-          countryCode: countryCode,
-          fileName: fileName,
-          size: stats.size,
-          createdAt: stats.mtime,
-          status: account.status
-        }
-
-        sessions.push(sessionInfo)
-
-        if (!sessionsByCountry[countryName]) {
-          sessionsByCountry[countryName] = []
-        }
-        sessionsByCountry[countryName].push(sessionInfo)
       }
+
+      const sessionInfo: SessionInfo = {
+        phone: phoneNumber,
+        country: countryName,
+        countryCode: countryCode,
+        fileName: fileName,
+        size: stats.size,
+        createdAt: stats.mtime,
+        status: accountStatus
+      }
+
+      sessions.push(sessionInfo)
+
+      if (!sessionsByCountry[countryName]) {
+        sessionsByCountry[countryName] = []
+      }
+      sessionsByCountry[countryName].push(sessionInfo)
     }
 
     // Sort sessions by date (newest first)

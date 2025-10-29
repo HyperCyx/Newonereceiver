@@ -51,26 +51,26 @@ export async function POST(request: NextRequest) {
     // Get session files to include
     const filesToInclude: string[] = []
 
-    if (filter === 'latest') {
-      // Get latest N sessions
-      let count = 0
-      for (const account of accountsList) {
-        if (count >= limit) break
-        
-        const phoneNumber = account.phone_number
-        const fileName = `${phoneNumber.replace(/[^\d]/g, '')}.json`
-        const filePath = path.join(SESSIONS_DIR, fileName)
+    // Get all session files
+    const allSessionFiles = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'))
 
-        if (fs.existsSync(filePath)) {
-          filesToInclude.push(fileName)
-          count++
-        }
-      }
+    if (filter === 'latest') {
+      // Get latest N sessions based on file modification time
+      const filesWithStats = allSessionFiles.map(file => ({
+        name: file,
+        mtime: fs.statSync(path.join(SESSIONS_DIR, file)).mtime
+      }))
+      
+      filesWithStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+      filesToInclude.push(...filesWithStats.slice(0, limit).map(f => f.name))
+      
     } else if (filter === 'country' && country) {
       // Get sessions for specific country
-      for (const account of accountsList) {
-        const phoneNumber = account.phone_number
-        const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
+      for (const file of allSessionFiles) {
+        const phoneMatch = file.match(/^(\d+)/)
+        if (!phoneMatch) continue
+        
+        const phoneDigits = phoneMatch[1]
 
         // Detect country
         let matchesCountry = false
@@ -90,24 +90,19 @@ export async function POST(request: NextRequest) {
         }
 
         if (matchesCountry) {
-          const fileName = `${phoneNumber.replace(/[^\d]/g, '')}.json`
-          const filePath = path.join(SESSIONS_DIR, fileName)
-
-          if (fs.existsSync(filePath)) {
-            filesToInclude.push(fileName)
-          }
+          filesToInclude.push(file)
         }
       }
     } else if (filter === 'all') {
       // Get all sessions
-      for (const account of accountsList) {
-        const phoneNumber = account.phone_number
-        const fileName = `${phoneNumber.replace(/[^\d]/g, '')}.json`
-        const filePath = path.join(SESSIONS_DIR, fileName)
-
-        if (fs.existsSync(filePath)) {
-          filesToInclude.push(fileName)
-        }
+      filesToInclude.push(...allSessionFiles)
+    } else if (filter === 'single' && body.fileName) {
+      // Download single session file
+      const fileName = body.fileName
+      const filePath = path.join(SESSIONS_DIR, fileName)
+      
+      if (fs.existsSync(filePath)) {
+        filesToInclude.push(fileName)
       }
     } else {
       return NextResponse.json(
@@ -121,6 +116,23 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'No session files found matching criteria' },
         { status: 404 }
       )
+    }
+
+    // Handle single file download (no ZIP needed)
+    if (filter === 'single' && filesToInclude.length === 1) {
+      const fileName = filesToInclude[0]
+      const filePath = path.join(SESSIONS_DIR, fileName)
+      const fileContent = fs.readFileSync(filePath)
+      
+      console.log(`[DownloadSessions] Downloading single file: ${fileName}`)
+      
+      return new NextResponse(fileContent, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="${fileName}"`,
+          'Content-Length': fileContent.length.toString(),
+        },
+      })
     }
 
     console.log(`[DownloadSessions] Creating zip with ${filesToInclude.length} files (filter: ${filter})`)
