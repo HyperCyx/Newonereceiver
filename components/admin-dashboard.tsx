@@ -1380,6 +1380,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-prize-input"
                 />
+                <input
+                  type="number"
+                  placeholder="Auto-Approve Hours (e.g., 24, 48, 72)"
+                  min="0"
+                  defaultValue="24"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                  id="country-auto-approve-input"
+                />
               </div>
               <button
                 onClick={async () => {
@@ -1387,6 +1395,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   const nameInput = document.getElementById('country-name-input') as HTMLInputElement
                   const capacityInput = document.getElementById('country-capacity-input') as HTMLInputElement
                   const prizeInput = document.getElementById('country-prize-input') as HTMLInputElement
+                  const autoApproveInput = document.getElementById('country-auto-approve-input') as HTMLInputElement
                   
                   if (!codeInput.value || !nameInput.value) {
                     alert('Please enter phone code and country name')
@@ -1409,6 +1418,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         countryName: nameInput.value,
                         maxCapacity: parseInt(capacityInput.value) || 0,
                         prizeAmount: parseFloat(prizeInput.value) || 0,
+                        autoApproveHours: parseInt(autoApproveInput.value) || 24,
                         telegramId: adminTelegramId
                       })
                     })
@@ -1426,6 +1436,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       nameInput.value = ''
                       capacityInput.value = ''
                       prizeInput.value = ''
+                      autoApproveInput.value = '24'
                       fetchAllData()
                     }
                   } catch (err) {
@@ -1543,17 +1554,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues?.autoApproveHours ?? country.auto_approve_hours ?? 24}
-                                  onChange={(e) => setEditValues(prev => ({...prev!, autoApproveHours: parseInt(e.target.value) || 0}))}
-                                  min="0"
-                                  className="w-16 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
-                                />
-                              ) : (
-                                <span className="font-semibold">{country.auto_approve_hours ?? 24}h</span>
-                              )}
+                              <span className="font-semibold text-blue-600">{country.auto_approve_hours ?? 24}h</span>
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <button
@@ -1635,7 +1636,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                               countryId: country._id,
                                               maxCapacity: editValues.capacity,
                                               prizeAmount: editValues.prize,
-                                              autoApproveHours: editValues.autoApproveHours,
                                               telegramId: adminTelegramId
                                             })
                                           })
@@ -1679,7 +1679,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         setEditValues({
                                           capacity: country.max_capacity,
                                           prize: country.prize_amount,
-                                          autoApproveHours: country.auto_approve_hours ?? 24
+                                          autoApproveHours: 0
                                         })
                                       }}
                                       className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"
