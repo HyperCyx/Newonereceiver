@@ -84,20 +84,22 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
     const refreshInterval = setInterval(() => {
       if (telegramUserId) {
         console.log('[TransactionList] Auto-refreshing accounts for tab:', tab)
-        fetchTransactions()
+        fetchTransactions(false) // Don't show loading spinner on auto-refresh
       }
     }, 5000) // Refresh every 5 seconds for all tabs
     
     return () => clearInterval(refreshInterval)
   }, [telegramUserId, tab])
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (showLoading = true) => {
     if (!telegramUserId) {
       console.log('[TransactionList] No Telegram user ID yet, waiting...')
       return
     }
 
-    setLoading(true)
+    if (showLoading) {
+      setLoading(true)
+    }
       try {
         // First get user ID from telegram ID
         const userResponse = await fetch('/api/user/me', {
@@ -156,7 +158,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
             const formattedTransactions: Transaction[] = data.accounts.map((acc: any) => ({
               id: acc._id,
               phone: acc.phone_number || '',
-              amount: Number(acc.amount).toFixed(2),
+              amount: Number(acc.amount || 0).toFixed(2),
               currency: 'USDT',
               status: acc.status === 'accepted' ? ['ACCEPTED', 'SUCCESS'] : 
                      acc.status === 'rejected' ? ['REJECTED', 'FAILED'] : ['PENDING'],
@@ -202,8 +204,11 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
       } catch (error) {
         console.error('[TransactionList] Error fetching transactions:', error)
         setTransactions([])
+      } finally {
+        if (showLoading) {
+          setLoading(false)
+        }
       }
-      setLoading(false)
   }
 
   useEffect(() => {

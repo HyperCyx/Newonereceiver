@@ -21,11 +21,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`[AccountsList] Found ${accountsList.length} accounts with query:`, query)
     console.log(`[AccountsList] Raw accounts:`, accountsList.map(a => ({
+      id: a._id,
       phone: a.phone_number,
       amount: a.amount,
       status: a.status,
       created_at: a.created_at
     })))
+    
+    // Log any accounts with undefined or 0 amount
+    const zeroAmountAccounts = accountsList.filter(a => !a.amount || a.amount === 0)
+    if (zeroAmountAccounts.length > 0) {
+      console.log(`[AccountsList] ⚠️ Found ${zeroAmountAccounts.length} accounts with 0 or undefined amount:`, 
+        zeroAmountAccounts.map(a => ({ phone: a.phone_number, amount: a.amount, status: a.status }))
+      )
+    }
 
     // Add auto_approve_minutes to each account
     const enrichedAccounts = await Promise.all(
