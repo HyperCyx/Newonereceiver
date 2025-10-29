@@ -781,38 +781,39 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
               </div>
               <div className="p-5">
-              <div className="space-y-2">
-                {loading ? (
-                  <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
-                ) : transactions.length === 0 ? (
-                  <p className="text-center text-gray-400 py-4">No transactions yet</p>
-                ) : (
-                  transactions.slice(0, 3).map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{tx.userName || tx.userId.substring(0, 20) + '...'}</p>
-                      <p className="text-xs text-gray-500">{tx.date}</p>
+                <div className="space-y-2">
+                  {loading ? (
+                    <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
+                  ) : transactions.length === 0 ? (
+                    <p className="text-center text-gray-400 py-4">No transactions yet</p>
+                  ) : (
+                    transactions.slice(0, 3).map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{tx.userName || tx.userId.substring(0, 20) + '...'}</p>
+                        <p className="text-xs text-gray-500">{tx.date}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-800">${tx.amount}</p>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            tx.status === "completed"
+                              ? "bg-green-100 text-green-700"
+                              : tx.status === "pending"
+                                ? "bg-yellow-100 text-yellow-700"
+                                : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {tx.status}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-800">${tx.amount}</p>
-                      <span
-                        className={`text-xs px-2 py-1 rounded ${
-                          tx.status === "completed"
-                            ? "bg-green-100 text-green-700"
-                            : tx.status === "pending"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {tx.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
