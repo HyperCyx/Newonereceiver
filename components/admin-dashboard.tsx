@@ -143,23 +143,30 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // Computed analytics data
   const dailyRevenue = (() => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date()
       date.setDate(date.getDate() - (6 - i))
       return date
     })
 
-    return last7Days.map((date, idx) => {
+    return last7Days.map((date) => {
       // Use withdrawals as revenue indicator instead of transactions
       const dayWithdrawals = withdrawals.filter(w => {
         const wDate = new Date(w.date)
         return wDate.toDateString() === date.toDateString() && w.status === 'confirmed'
       })
       const revenue = dayWithdrawals.reduce((sum, w) => sum + Number(w.amount), 0)
+      
+      // Format day as "Mon 12/25"
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const dayName = dayNames[date.getDay()]
+      const monthDay = `${date.getMonth() + 1}/${date.getDate()}`
+      
       return {
-        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
-        revenue: Math.round(revenue)
+        day: dayName,
+        date: monthDay,
+        fullDate: date.toLocaleDateString(),
+        revenue: Math.round(revenue * 100) / 100 // Round to 2 decimal places
       }
     })
   })()
@@ -952,28 +959,54 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <div className="flex items-center justify-center h-40">
                   <p className="text-gray-400">Loading chart data...</p>
                 </div>
+              ) : dailyRevenue.length === 0 ? (
+                <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-gray-400 mb-1">No revenue data available</p>
+                    <p className="text-xs text-gray-500">Revenue will appear here once withdrawals are confirmed</p>
+                  </div>
+                </div>
               ) : (
-                <div className="flex items-end justify-between h-40 gap-2">
-                  {dailyRevenue.map((item, idx) => {
-                    const maxRevenue = Math.max(...dailyRevenue.map(d => d.revenue), 1)
-                    const heightPercent = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0
-                    
-                    return (
-                      <div key={idx} className="flex-1 flex flex-col items-center">
-                        <div className="w-full bg-blue-100 rounded-t relative group h-full flex items-end">
-                          <div
-                            className="bg-blue-500 rounded-t transition-all hover:bg-blue-600 cursor-pointer w-full"
-                            style={{ height: `${heightPercent}%`, minHeight: item.revenue > 0 ? '4px' : '0' }}
-                          >
-                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              ${item.revenue}
+                <div className="relative">
+                  <div className="flex items-end justify-between h-48 gap-2 mb-2">
+                    {dailyRevenue.map((item, idx) => {
+                      const maxRevenue = Math.max(...dailyRevenue.map(d => d.revenue), 1)
+                      const heightPercent = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0
+                      
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center group relative">
+                          <div className="w-full flex items-end h-48">
+                            <div
+                              className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500 cursor-pointer w-full relative"
+                              style={{ height: `${heightPercent}%`, minHeight: item.revenue > 0 ? '8px' : '2px' }}
+                            >
+                              {/* Tooltip */}
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-800 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none shadow-lg">
+                                <div className="font-semibold">${item.revenue.toFixed(2)}</div>
+                                <div className="text-gray-300 text-[10px]">{item.fullDate}</div>
+                                {/* Arrow */}
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                              </div>
                             </div>
                           </div>
+                          <div className="text-center mt-2">
+                            <p className="text-xs font-semibold text-gray-700">{item.day}</p>
+                            <p className="text-[10px] text-gray-500">{item.date}</p>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-2">{item.day}</p>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gradient-to-t from-blue-500 to-blue-400 rounded"></div>
+                      <span className="text-xs text-gray-600">Daily Revenue (USDT)</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Total: ${dailyRevenue.reduce((sum, d) => sum + d.revenue, 0).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
