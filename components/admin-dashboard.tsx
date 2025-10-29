@@ -29,15 +29,6 @@ interface DashboardStats {
   pendingWithdrawals: number
 }
 
-interface Transaction {
-  id: string
-  userId: string
-  userName?: string
-  amount: string
-  status: "completed" | "pending" | "failed"
-  date: string
-}
-
 interface Withdrawal {
   id: string
   userId: string
@@ -95,16 +86,9 @@ interface Country {
   updated_at: string
 }
 
-interface CountryStat {
-  phoneCode: string
-  countryName: string
-  count: number
-  users: any[]
-}
-
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "sessions" | "settings"
+    "overview" | "users" | "analytics" | "referrals" | "payments" | "countries" | "sessions" | "settings"
   >("overview")
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -117,12 +101,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   })
 
   const [users, setUsers] = useState<User[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
   const [referralCodes, setReferralCodes] = useState<ReferralCode[]>([])
   const [countries, setCountries] = useState<Country[]>([])
-  const [countryStats, setCountryStats] = useState<CountryStat[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
@@ -351,29 +333,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         })
       }
 
-      // Fetch transactions
-      if (activeTab === 'transactions' || activeTab === 'overview' || activeTab === 'analytics') {
-        try {
-          const response = await fetch('/api/transactions/list')
-          if (response.ok) {
-            const result = await response.json()
-            if (result.success && result.transactions) {
-              const formattedTx: Transaction[] = result.transactions.map((tx: any) => ({
-                id: tx._id,
-                userId: tx.user_id,
-                userName: tx.users?.telegram_username || 'Unknown',
-                amount: Number(tx.amount).toFixed(2),
-                status: tx.status as "completed" | "pending" | "failed",
-                date: new Date(tx.created_at).toLocaleDateString()
-              }))
-              setTransactions(formattedTx)
-            }
-          }
-        } catch (err) {
-          console.error('[AdminDashboard] Error fetching transactions:', err)
-          setTransactions([])
-        }
-      }
 
       // Fetch withdrawals with user info (only for analytics and overview)
       if (activeTab === 'overview' || activeTab === 'analytics') {
@@ -487,22 +446,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           setCountries([])
         }
 
-        // Fetch country statistics
-        if (adminTelegramId) {
-          try {
-            const statsResponse = await fetch(`/api/admin/country-stats?telegramId=${adminTelegramId}`)
-            if (statsResponse.ok) {
-              const statsResult = await statsResponse.json()
-              if (statsResult.success && statsResult.stats) {
-                setCountryStats(statsResult.stats)
-                console.log('[AdminDashboard] Loaded country stats:', statsResult.stats.length)
-              }
-            }
-          } catch (err) {
-            console.error('[AdminDashboard] Error fetching country stats:', err)
-            setCountryStats([])
-          }
-        }
       }
 
       // Fetch sessions when sessions tab is active
@@ -533,12 +476,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       console.error('[AdminDashboard] Critical error in fetchAllData:', error)
       // Set default states on critical error
       setUsers([])
-      setTransactions([])
       setWithdrawals([])
       setPaymentRequests([])
       setReferralCodes([])
       setCountries([])
-      setCountryStats([])
     } finally {
       // Always clear loading state
       setLoadingStep('completed')
@@ -704,12 +645,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 px-4 overflow-x-auto sticky top-0 z-10">
         <div className="flex gap-1">
-          {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "sessions", "settings"] as const).map(
+          {(["overview", "users", "analytics", "referrals", "payments", "countries", "sessions", "settings"] as const).map(
             (tab) => {
               const icons = {
                 overview: "dashboard",
                 users: "people",
-                transactions: "receipt_long",
                 analytics: "analytics",
                 referrals: "link",
                 payments: "payments",
@@ -905,60 +845,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         )}
 
-        {activeTab === "transactions" && (
-          <div className="p-4">
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Amount</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr key="loading-transactions">
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          Loading transactions...
-                        </td>
-                      </tr>
-                    ) : transactions.length === 0 ? (
-                      <tr key="no-transactions">
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          No transactions found
-                        </td>
-                      </tr>
-                    ) : (
-                      transactions.map((tx) => (
-                        <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800">{tx.userName || tx.userId}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-800">${tx.amount}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-semibold ${
-                              tx.status === "completed"
-                                ? "bg-green-100 text-green-700"
-                                : tx.status === "pending"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {tx.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{tx.date}</td>
-                      </tr>
-                    ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
 
 
         {activeTab === "analytics" && (
@@ -1884,130 +1770,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
             </div>
 
-            {/* Country Purchase Statistics */}
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4 border-b border-gray-200">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <div>
-                    <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-1">
-                      <PieChart size={20} className="text-blue-500" />
-                      Purchase Statistics by Country
-                    </h3>
-                    <p className="text-sm text-gray-600">View how many accounts have been purchased from each country</p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!adminTelegramId) {
-                        alert('❌ Admin Telegram ID not found')
-                        return
-                      }
-                      
-                      setDownloadingSession(true)
-                      try {
-                        const response = await fetch(`/api/admin/download-sessions?telegramId=${adminTelegramId}`)
-                        
-                        if (response.ok) {
-                          const blob = await response.blob()
-                          const url = window.URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = `telegram_sessions_${new Date().toISOString().split('T')[0]}.zip`
-                          document.body.appendChild(a)
-                          a.click()
-                          document.body.removeChild(a)
-                          window.URL.revokeObjectURL(url)
-                          
-                          const tg = (window as any).Telegram?.WebApp
-                          if (tg?.showAlert) {
-                            tg.showAlert('✅ Session files downloaded successfully!')
-                          } else {
-                            alert('✅ Session files downloaded successfully!')
-                          }
-                        } else {
-                          const error = await response.json()
-                          alert(`❌ ${error.error || 'Failed to download sessions'}`)
-                        }
-                      } catch (err) {
-                        console.error('[DownloadSessions] Error:', err)
-                        alert('❌ Error downloading session files')
-                      } finally {
-                        setDownloadingSession(false)
-                      }
-                    }}
-                    disabled={downloadingSession}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  >
-                    {downloadingSession ? (
-                      <>⏳ Downloading...</>
-                    ) : (
-                      <>📥 Download All Sessions</>
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                {loading ? (
-                  <div className="p-8 text-center text-gray-400">Loading statistics...</div>
-                ) : countryStats.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400">No purchase statistics available</div>
-                ) : (
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Code</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Accounts Purchased</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Percentage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {countryStats.map((stat, idx) => {
-                        const total = countryStats.reduce((sum, s) => sum + s.count, 0)
-                        const percentage = total > 0 ? ((stat.count / total) * 100).toFixed(1) : '0.0'
-                        
-                        return (
-                          <tr key={stat.phoneCode} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm">
-                              <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono text-blue-700 font-semibold">
-                                {stat.phoneCode}
-                              </code>
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-800">
-                              {stat.countryName}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
-                                {stat.count}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <span className="text-sm font-semibold text-gray-700">{percentage}%</span>
-                                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                                    style={{ width: `${percentage}%` }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                      <tr className="bg-gray-50 font-semibold">
-                        <td colSpan={2} className="px-4 py-3 text-sm text-gray-700">Total</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
-                            {countryStats.reduce((sum, s) => sum + s.count, 0)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-700">100%</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
           </div>
         )}
 
