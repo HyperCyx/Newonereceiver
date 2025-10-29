@@ -132,7 +132,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [settingsError, setSettingsError] = useState("")
   const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<{capacity: number, prize: number}>()
+  const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveHours: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
 
   // Get Telegram ID on mount
@@ -1458,6 +1458,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Used</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Available</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize (USDT)</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Auto-Approve (Hrs)</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -1465,13 +1466,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <tbody>
                     {loading ? (
                       <tr key="loading-countries">
-                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                        <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                           Loading countries...
                         </td>
                       </tr>
                     ) : countries.length === 0 ? (
                       <tr key="no-countries">
-                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                        <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                           No countries found. Add one above!
                         </td>
                       </tr>
@@ -1539,6 +1540,19 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                 />
                               ) : (
                                 <span className="font-semibold">${country.prize_amount.toFixed(2)}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues?.autoApproveHours ?? country.auto_approve_hours ?? 24}
+                                  onChange={(e) => setEditValues(prev => ({...prev!, autoApproveHours: parseInt(e.target.value) || 0}))}
+                                  min="0"
+                                  className="w-16 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
+                                />
+                              ) : (
+                                <span className="font-semibold">{country.auto_approve_hours ?? 24}h</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm">
@@ -1621,6 +1635,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                               countryId: country._id,
                                               maxCapacity: editValues.capacity,
                                               prizeAmount: editValues.prize,
+                                              autoApproveHours: editValues.autoApproveHours,
                                               telegramId: adminTelegramId
                                             })
                                           })
@@ -1663,7 +1678,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         setEditingCountry(country._id)
                                         setEditValues({
                                           capacity: country.max_capacity,
-                                          prize: country.prize_amount
+                                          prize: country.prize_amount,
+                                          autoApproveHours: country.auto_approve_hours ?? 24
                                         })
                                       }}
                                       className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"

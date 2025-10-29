@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { action, countryId, countryCode, countryName, maxCapacity, prizeAmount, isActive, telegramId } = body
+    const { action, countryId, countryCode, countryName, maxCapacity, prizeAmount, autoApproveHours, isActive, telegramId } = body
 
     console.log('[Countries API] POST request:', { action, countryId, telegramId })
 
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         country_name: countryName,
         max_capacity: maxCapacity || 0,
         prize_amount: prizeAmount || 0,
+        auto_approve_hours: autoApproveHours !== undefined ? autoApproveHours : 24,
         is_active: isActive !== undefined ? isActive : true,
         used_capacity: 0,
         created_at: new Date(),
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
       if (countryName !== undefined) updateData.country_name = countryName
       if (maxCapacity !== undefined) updateData.max_capacity = maxCapacity
       if (prizeAmount !== undefined) updateData.prize_amount = prizeAmount
+      if (autoApproveHours !== undefined) updateData.auto_approve_hours = autoApproveHours
       if (isActive !== undefined) updateData.is_active = isActive
 
       console.log('[Countries API] Update data:', updateData)

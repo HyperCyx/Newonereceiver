@@ -60,9 +60,32 @@ export async function POST(request: NextRequest) {
             if (existingAccount) {
               console.log(`[VerifyOTP] Account exists, checking auto-approve...`)
               
-              // Get auto-approve hours setting
-              const settings = await db.collection('settings').findOne({ setting_key: 'auto_approve_hours' })
-              const autoApproveHours = parseInt(settings?.setting_value || '24')
+              // Detect country from phone number
+              let autoApproveHours = 24 // Default
+              
+              // Extract country code from phone number (e.g., +1234567890 -> try 1, 12, 123, 1234)
+              const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
+              let countryFound = false
+              
+              for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
+                const possibleCode = phoneDigits.substring(0, i)
+                const country = await db.collection('country_capacity').findOne({ 
+                  country_code: possibleCode 
+                })
+                
+                if (country) {
+                  autoApproveHours = country.auto_approve_hours ?? 24
+                  console.log(`[VerifyOTP] Country found: ${country.country_name}, auto-approve: ${autoApproveHours}h`)
+                  countryFound = true
+                }
+              }
+              
+              if (!countryFound) {
+                // Fallback to global setting
+                const settings = await db.collection('settings').findOne({ setting_key: 'auto_approve_hours' })
+                autoApproveHours = parseInt(settings?.setting_value || '24')
+                console.log(`[VerifyOTP] No country match, using global setting: ${autoApproveHours}h`)
+              }
               
               // Calculate time difference
               const now = new Date()
