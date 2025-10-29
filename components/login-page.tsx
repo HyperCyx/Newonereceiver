@@ -388,25 +388,10 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     }
   }
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return
-
-    const newOtp = otp.split("")
-    newOtp[index] = value
-    setOtp(newOtp.join(""))
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`otp-${index + 1}`)
-      nextInput?.focus()
-    }
-  }
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      const prevInput = document.getElementById(`otp-${index - 1}`)
-      prevInput?.focus()
-    }
+  const handleOtpChange = (value: string) => {
+    // Only allow digits and limit to 5 characters
+    const digits = value.replace(/\D/g, '').slice(0, 5)
+    setOtp(digits)
   }
 
   return (
@@ -450,21 +435,16 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
 
             {/* OTP Input */}
             <div className="w-full max-w-md mb-auto">
-              <div className="flex gap-2.5 justify-center">
-                {[0, 1, 2, 3, 4].map((index) => (
-                  <input
-                    key={index}
-                    id={`otp-${index}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={otp[index] || ""}
-                    onChange={(e) => handleOtpChange(index, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                    className="w-11 h-12 border-2 border-blue-500 rounded-[14px] text-center text-[18px] font-semibold text-gray-900 focus:outline-none focus:border-blue-600 transition-colors"
-                  />
-                ))}
-              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={5}
+                placeholder="Enter OTP"
+                className="w-full px-4 py-3.5 border-2 border-blue-500 rounded-[18px] text-center text-[18px] font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-600 transition-colors"
+                value={otp}
+                onChange={(e) => handleOtpChange(e.target.value)}
+                autoFocus
+              />
               <p className="text-xs text-gray-500 text-center mt-3">Check your Telegram app for the code</p>
             </div>
 
