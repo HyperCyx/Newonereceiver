@@ -256,14 +256,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             color: "bg-gradient-to-r from-purple-500 to-pink-500",
             action: "admin-dashboard",
           },
-          {
-            icon: "link",
-            iconType: "material" as const,
-            title: "Referral Program",
-            subtitle: "Manage referral links",
-            color: "bg-violet-500",
-            action: "referral",
-          },
         ]
       : []),
   ]
