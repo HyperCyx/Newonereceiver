@@ -8,11 +8,13 @@ export async function GET(request: NextRequest) {
     const settings = await getCollection(Collections.SETTINGS)
     
     const minWithdrawal = await settings.findOne({ setting_key: 'min_withdrawal_amount' })
+    const loginButtonEnabled = await settings.findOne({ setting_key: 'login_button_enabled' })
 
     return NextResponse.json({
       success: true,
       settings: {
-        min_withdrawal_amount: minWithdrawal?.setting_value || '5.00'
+        min_withdrawal_amount: minWithdrawal?.setting_value || '5.00',
+        login_button_enabled: loginButtonEnabled?.setting_value || 'true'
       }
     })
   } catch (error) {

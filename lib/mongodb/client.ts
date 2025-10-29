@@ -16,14 +16,20 @@ export async function connectToDatabase() {
   }
 
   const client = await MongoClient.connect(MONGODB_URI, {
-    maxPoolSize: 10,
+    maxPoolSize: 20,  // Increased for better concurrency
     minPoolSize: 5,
+    maxIdleTimeMS: 60000,  // Keep connections alive for 1 minute
+    serverSelectionTimeoutMS: 5000,  // Faster timeout
+    socketTimeoutMS: 10000,  // Socket timeout
+    connectTimeoutMS: 5000,  // Connection timeout
   })
 
   const db = client.db(DB_NAME)
 
   cachedClient = client
   cachedDb = db
+
+  console.log('✅ MongoDB connected with optimized pool settings')
 
   return { client, db }
 }

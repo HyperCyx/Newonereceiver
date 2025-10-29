@@ -12,6 +12,8 @@ interface Transaction {
   date: string
   fullDate: string
   percentage?: string
+  createdAt?: Date
+  autoApproveMinutes?: number
 }
 
 const getStatusColor = (status: string) => {
@@ -35,6 +37,36 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
+  const [, setTick] = useState(0)
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+
+  // Fetch login button setting
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.settings) {
+            const enabled = data.settings.login_button_enabled === 'true' || data.settings.login_button_enabled === true
+            setLoginButtonEnabled(enabled)
+            console.log('[TransactionList] Login button enabled:', enabled)
+          }
+        }
+      } catch (error) {
+        console.error('[TransactionList] Error fetching settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
+
+  // Update timer every second for live countdown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1)
+    }, 1000) // Update every second for live timer
+    return () => clearInterval(interval)
+  }, [])
 
   // Get Telegram user ID
   useEffect(() => {
@@ -47,14 +79,25 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
     }
   }, [])
 
+  // Auto-refresh every 5 seconds to check for updates and auto-approvals
   useEffect(() => {
-    const fetchTransactions = async () => {
-      if (!telegramUserId) {
-        console.log('[TransactionList] No Telegram user ID yet, waiting...')
-        return
+    const refreshInterval = setInterval(() => {
+      if (telegramUserId) {
+        console.log('[TransactionList] Auto-refreshing accounts for tab:', tab)
+        fetchTransactions()
       }
+    }, 5000) // Refresh every 5 seconds for all tabs
+    
+    return () => clearInterval(refreshInterval)
+  }, [telegramUserId, tab])
 
-      setLoading(true)
+  const fetchTransactions = async () => {
+    if (!telegramUserId) {
+      console.log('[TransactionList] No Telegram user ID yet, waiting...')
+      return
+    }
+
+    setLoading(true)
       try {
         // First get user ID from telegram ID
         const userResponse = await fetch('/api/user/me', {
@@ -73,6 +116,20 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         const userData = await userResponse.json()
         const userId = userData.user._id
         console.log('[TransactionList] User ID:', userId)
+
+        // Check for auto-approvals if viewing pending tab
+        if (tab === 'pending') {
+          try {
+            console.log('[TransactionList] Checking for auto-approvals...')
+            await fetch('/api/accounts/check-auto-approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: userId })
+            })
+          } catch (error) {
+            console.error('[TransactionList] Error checking auto-approvals:', error)
+          }
+        }
 
         // Map tab to status for accounts table
         const statusMap = {
@@ -94,6 +151,8 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           const data = await response.json()
           
           if (data.success && data.accounts) {
+            console.log('[TransactionList] Raw accounts data:', data.accounts)
+            
             const formattedTransactions: Transaction[] = data.accounts.map((acc: any) => ({
               id: acc._id,
               phone: acc.phone_number || '',
@@ -115,8 +174,21 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
-              })
+              }),
+              createdAt: new Date(acc.created_at),
+              autoApproveMinutes: acc.auto_approve_minutes || 1440
             }))
+            
+            // Detailed logging for debugging
+            console.log('[TransactionList] Formatted transactions:', 
+              formattedTransactions.map(t => ({
+                phone: t.phone,
+                amount: t.amount,
+                autoApproveMinutes: t.autoApproveMinutes,
+                autoApproveHours: (t.autoApproveMinutes || 0) / 60,
+                status: t.status
+              }))
+            )
             console.log('[TransactionList] Loaded', formattedTransactions.length, 'transactions for tab:', tab)
             setTransactions(formattedTransactions)
           } else {
@@ -132,14 +204,47 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         setTransactions([])
       }
       setLoading(false)
-    }
-    
+  }
+
+  useEffect(() => {
     fetchTransactions()
   }, [tab, telegramUserId])
 
   const filteredTransactions = transactions.filter((t) => 
     t.phone.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const getTimeRemaining = (transaction: Transaction) => {
+    if (!transaction.createdAt || transaction.status[0] !== 'PENDING') return null
+    
+    const now = new Date()
+    const createdAt = new Date(transaction.createdAt)
+    
+    // Calculate time in seconds for precise countdown
+    const secondsPassed = (now.getTime() - createdAt.getTime()) / 1000
+    const totalSeconds = (transaction.autoApproveMinutes || 1440) * 60
+    const secondsRemaining = totalSeconds - secondsPassed
+    
+    if (secondsRemaining <= 0) {
+      return 'Auto-approving...'
+    }
+    
+    // Convert to hours, minutes, seconds
+    const hoursRemaining = Math.floor(secondsRemaining / 3600)
+    const minsRemaining = Math.floor((secondsRemaining % 3600) / 60)
+    const secsRemaining = Math.floor(secondsRemaining % 60)
+    
+    // Format with leading zeros for seconds
+    const formattedSecs = secsRemaining.toString().padStart(2, '0')
+    
+    if (hoursRemaining > 0) {
+      return `${hoursRemaining}h ${minsRemaining}m ${formattedSecs}s`
+    } else if (minsRemaining > 0) {
+      return `${minsRemaining}m ${formattedSecs}s`
+    } else {
+      return `${secsRemaining}s`
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col relative">
@@ -152,7 +257,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           <p className="text-gray-400">No transactions found</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto pb-20">
+        <div className="flex-1 pb-20" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {filteredTransactions.map((transaction) => (
             <div 
               key={transaction.id} 
@@ -166,6 +271,11 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
                     {transaction.amount} {transaction.currency}
                     {transaction.percentage && <span className="text-red-500 ml-2">{transaction.percentage}</span>}
                   </p>
+                  {transaction.status[0] === 'PENDING' && getTimeRemaining(transaction) && (
+                    <p className="text-[12px] text-blue-600 mt-1 font-medium">
+                      ⏱️ Auto-approve in: {getTimeRemaining(transaction)}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <button className="text-gray-400 text-base mb-1">↗</button>
@@ -184,14 +294,24 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
-        <button
-          onClick={onLoginClick}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[15px] font-medium py-3 rounded-full transition-colors"
-        >
-          Login
-        </button>
-      </div>
+      {loginButtonEnabled && (
+        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
+          <button
+            onClick={onLoginClick}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[15px] font-medium py-3 rounded-full transition-colors"
+          >
+            Login
+          </button>
+        </div>
+      )}
+      
+      {!loginButtonEnabled && (
+        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
+          <div className="w-full bg-gray-300 text-gray-600 text-[15px] font-medium py-3 rounded-full text-center">
+            Login Disabled by Admin
+          </div>
+        </div>
+      )}
 
       {/* Transaction Details Modal */}
       {selectedTransaction && (

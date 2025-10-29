@@ -10,6 +10,7 @@ interface MenuViewProps {
 
 interface MenuItem {
   icon: string
+  iconType?: 'material' | 'emoji'
   title: string
   subtitle: string
   badge?: string
@@ -34,6 +35,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [showReferral, setShowReferral] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState("")
   const { saveUserWithReferral } = useReferral()
 
@@ -41,15 +43,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     let isMounted = true
     
     const fetchUserData = async () => {
-      if (isLoading) return
-      
       if (typeof window !== "undefined") {
         const tg = (window as any).Telegram?.WebApp
         if (tg) {
           tg.ready()
           const user = tg.initDataUnsafe?.user
           if (user && isMounted) {
-            setIsLoading(true)
+            console.log('[MenuView] 📱 Loading user data...')
             setTelegramUser(user)
             const displayName = `${user.first_name} ${user.last_name || ""}`.trim()
             setUserName(displayName)
@@ -141,7 +141,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   console.error('[MenuView] Registration error:', registerError)
                   if (isMounted) {
                     setError('Failed to create account. Please try again.')
-                    setIsLoading(false)
                   }
                   return // Exit early on registration error
                 }
@@ -149,64 +148,50 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
               
               if (dbUser && isMounted) {
                 const adminStatus = dbUser.is_admin === true
-                console.log('[MenuView] ==================')
-                console.log('[MenuView] User data received:')
-                console.log('[MenuView]   telegram_id:', dbUser.telegram_id)
-                console.log('[MenuView]   is_admin raw:', dbUser.is_admin)
-                console.log('[MenuView]   is_admin type:', typeof dbUser.is_admin)
-                console.log('[MenuView]   is_admin === true:', dbUser.is_admin === true)
-                console.log('[MenuView]   adminStatus:', adminStatus)
-                console.log('[MenuView]   balance:', dbUser.balance)
-                console.log('[MenuView] ==================')
+                console.log('[MenuView] ✅ User data loaded')
+                console.log('[MenuView]   Admin:', adminStatus, '  Balance:', dbUser.balance)
                 
                 setIsAdmin(adminStatus)
-                console.log('[MenuView] SET isAdmin to:', adminStatus)
-                
                 const balanceValue = Number(dbUser.balance || 0)
-                console.log('[MenuView] Balance value:', dbUser.balance, '-> Formatted:', balanceValue.toFixed(2))
                 setBalance(balanceValue.toFixed(2))
                 
-                await saveUserWithReferral(user.id.toString(), undefined, {
-                  ...user,
-                  referralCode: dbUser.referral_code
-                })
-              }
-              
-              // Get accounts count via API
-              const accountsResponse = await fetch('/api/accounts/count', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'pending' })
-              })
-              
-              if (accountsResponse.ok) {
-                const accountsResult = await accountsResponse.json()
+                // Get accounts count - run in parallel with saving referral
+                const [accountsResult] = await Promise.all([
+                  fetch('/api/accounts/count', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'pending' })
+                  }).then(r => r.ok ? r.json() : { count: 0 }),
+                  
+                  saveUserWithReferral(user.id.toString(), undefined, {
+                    ...user,
+                    referralCode: dbUser.referral_code
+                  })
+                ])
+                
                 if (isMounted) {
                   setAccountCount(accountsResult.count || 0)
+                  setDataLoaded(true)
+                  setIsLoading(false)
+                  console.log('[MenuView] 🎉 All data loaded successfully!')
                 }
               }
             } catch (error: any) {
-              console.error('[MenuView] Critical error:', error)
+              console.error('[MenuView] ❌ Critical error:', error)
               if (isMounted) {
                 setError('Failed to load user data. Please refresh the app.')
-                setIsLoading(false)
-              }
-            } finally {
-              if (isMounted) {
                 setIsLoading(false)
               }
             }
           } else {
             console.log('[MenuView] No Telegram user found')
             if (isMounted) {
-              setError('Unable to get Telegram user information')
               setIsLoading(false)
             }
           }
         } else {
           console.log('[MenuView] Telegram WebApp not available')
           if (isMounted) {
-            setError('Please open this app in Telegram')
             setIsLoading(false)
           }
         }
@@ -222,20 +207,23 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
 
   const menuItems: MenuItem[] = [
     {
-      icon: "👤",
+      icon: "person",
+      iconType: "material",
       title: userName,
       subtitle: userId,
       color: "bg-blue-400",
     },
     {
-      icon: "💰",
+      icon: "account_balance_wallet",
+      iconType: "material",
       title: "Withdraw Money",
       subtitle: balance + " USDT",
       color: "bg-emerald-500",
       action: "withdraw",
     },
     {
-      icon: "📦",
+      icon: "inventory_2",
+      iconType: "material",
       title: "Send Accounts",
       subtitle: accountCount.toString(),
       badge: accountCount > 0 ? "AVAILABLE" : undefined,
@@ -243,14 +231,16 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       action: "send",
     },
     {
-      icon: "📋",
+      icon: "receipt_long",
+      iconType: "material",
       title: "Orders",
       subtitle: "0",
       color: "bg-rose-500",
       action: "orders",
     },
     {
-      icon: "📢",
+      icon: "campaign",
+      iconType: "material",
       title: "Channel",
       subtitle: "Check our channel for latest updates",
       color: "bg-amber-500",
@@ -259,14 +249,16 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     ...(isAdmin
       ? [
           {
-            icon: "⚙️",
+            icon: "admin_panel_settings",
+            iconType: "material" as const,
             title: "Admin Dashboard",
             subtitle: "Manage system settings",
             color: "bg-gradient-to-r from-purple-500 to-pink-500",
             action: "admin-dashboard",
           },
           {
-            icon: "🔗",
+            icon: "link",
+            iconType: "material" as const,
             title: "Referral Program",
             subtitle: "Manage referral links",
             color: "bg-violet-500",
@@ -300,22 +292,16 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     }
   }
 
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white">
-        <div className="text-center p-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your account...</p>
-        </div>
-      </div>
-    )
+  // Don't show loading UI - let TelegramGuard handle it
+  // Return white div to prevent black screen while data loads
+  if (isLoading && !dataLoaded) {
+    return <div className="bg-white" style={{ height: '100vh' }} />
   }
 
   // Show error state
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-white">
+      <div className="flex items-center justify-center bg-white" style={{ height: '100vh' }}>
         <div className="text-center p-8 max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Oops!</h2>
@@ -337,8 +323,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
 
   return (
     <>
-      <div className="flex-1 flex flex-col bg-white">
-        <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
+        <div className="flex-1" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {menuItems.map((item, idx) => (
             <div
               key={idx}
@@ -347,9 +333,13 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`${item.color} w-11 h-11 rounded-full flex items-center justify-center text-base flex-shrink-0`}
+                  className={`${item.color} w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0`}
                 >
-                  {item.icon}
+                  {item.iconType === 'material' ? (
+                    <span className="material-icons text-white text-[22px]">{item.icon}</span>
+                  ) : (
+                    <span className="text-base">{item.icon}</span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -367,7 +357,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
           ))}
         </div>
 
-        <div className="border-t border-gray-100 px-4 py-3 text-center text-gray-400 text-xs">v0.11.0</div>
+        <div className="border-t border-gray-100 px-4 py-3 text-center text-gray-400 text-xs flex-shrink-0">v0.11.0</div>
       </div>
 
       {showReferral && (

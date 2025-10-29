@@ -69,7 +69,7 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-500 via-blue-500 to-pink-500 flex items-center justify-center p-4">
+      <div className="bg-gradient-to-br from-purple-500 via-blue-500 to-pink-500 flex items-center justify-center p-4" style={{ height: '100vh', overflow: 'auto' }}>
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="flex flex-col items-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mb-4"></div>
@@ -83,7 +83,7 @@ export default function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
   if (isAuthorized) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-500 via-blue-500 to-pink-500 flex items-center justify-center p-4">
+      <div className="bg-gradient-to-br from-purple-500 via-blue-500 to-pink-500 flex items-center justify-center p-4" style={{ height: '100vh', overflow: 'auto' }}>
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="flex flex-col items-center">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4">

@@ -149,9 +149,9 @@ export default function WithdrawalHistory({ onNavigate }: WithdrawalHistoryProps
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
       {/* Withdrawal History List */}
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 pb-20" style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <p className="text-gray-400 text-sm">Loading...</p>

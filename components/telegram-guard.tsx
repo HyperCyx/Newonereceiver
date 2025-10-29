@@ -10,29 +10,19 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
   const [isTelegram, setIsTelegram] = useState<boolean | null>(null)
   const [isRegistered, setIsRegistered] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [userType, setUserType] = useState<'guest' | 'user' | 'admin' | null>(null)
-  const [loadingMessage, setLoadingMessage] = useState('Initializing...')
   const [needsReferral, setNeedsReferral] = useState(false)
   const [referralCode, setReferralCode] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
-    // Check if we're in Telegram Mini App and user is registered
     const checkAccess = async () => {
       if (typeof window !== 'undefined') {
         // Check if we're in admin mode - bypass Telegram checks
         const urlParams = new URLSearchParams(window.location.search)
         const isAdminMode = urlParams.get('admin') === 'true'
-        const referralParam = urlParams.get('start') || urlParams.get('ref')
-        
-        if (referralParam) {
-          console.log('[TelegramGuard] Referral code detected:', referralParam)
-          setReferralCode(referralParam)
-        }
         
         if (isAdminMode) {
           console.log('[TelegramGuard] Admin mode detected, bypassing Telegram checks')
-          setLoadingMessage('Loading admin dashboard...')
-          setUserType('admin')
           setIsTelegram(true)
           setIsRegistered(true)
           setIsLoading(false)
@@ -41,7 +31,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
         
         const tg = (window as any).Telegram?.WebApp
         
-        // Wait a bit for Telegram WebApp to initialize
+        // Quick check for Telegram WebApp (reduced delay for faster loading)
         setTimeout(async () => {
           if (tg && tg.initData && tg.initDataUnsafe?.user) {
             console.log('[TelegramGuard] Telegram WebApp detected')
@@ -49,11 +39,28 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
             tg.ready()
             tg.expand()
             
-            // Check if user is registered
+            // Disable vertical swipes to prevent page scrolling
+            tg.disableVerticalSwipes()
+            
+            // Set viewport height properly
+            if (tg.viewportHeight) {
+              document.documentElement.style.setProperty('--tg-viewport-height', `${tg.viewportHeight}px`)
+            }
+            
             const user = tg.initDataUnsafe.user
-            setLoadingMessage('Checking user account...')
+            
+            // Get referral code from Telegram start_param (bot deep link) or URL parameter
+            const telegramStartParam = tg.initDataUnsafe.start_param
+            const urlRefParam = urlParams.get('start') || urlParams.get('ref')
+            const refCode = telegramStartParam || urlRefParam
+            
+            if (refCode) {
+              console.log('[TelegramGuard] Referral code detected:', refCode)
+              setReferralCode(refCode)
+            }
             
             try {
+              // Check if user exists
               const response = await fetch('/api/user/me', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -63,58 +70,40 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
               if (response.ok) {
                 const result = await response.json()
                 if (result.success && result.user) {
-                  console.log('[TelegramGuard] User is registered:', result.user)
-                  setUserType(result.user.is_admin ? 'admin' : 'user')
-                  setLoadingMessage(result.user.is_admin ? 'Loading admin interface...' : 'Loading user dashboard...')
+                  console.log('[TelegramGuard] User already registered:', result.user)
                   setIsRegistered(true)
-                } else {
-                  // User not found - need to register
-                  console.log('[TelegramGuard] User not registered yet')
-                  setUserType('guest')
-                  
-                  if (referralCode) {
-                    // Auto-register with referral code
-                    setLoadingMessage('Creating account with referral...')
-                    await registerUserWithReferral(user, referralCode)
-                  } else {
-                    // Need referral code
-                    setLoadingMessage('Account registration required')
-                    setNeedsReferral(true)
-                    setIsRegistered(false)
-                  }
+                  // Keep loading visible for 500ms more to allow MenuView to load data
+                  setTimeout(() => setIsLoading(false), 500)
+                  return
                 }
-              } else if (response.status === 404) {
-                // User not found - need to register
-                console.log('[TelegramGuard] User not found in database')
-                setUserType('guest')
-                
-                if (referralCode) {
-                  // Auto-register with referral code
-                  setLoadingMessage('Creating account with referral...')
-                  await registerUserWithReferral(user, referralCode)
-                } else {
-                  // Need referral code
-                  setLoadingMessage('Account registration required')
-                  setNeedsReferral(true)
-                  setIsRegistered(false)
-                }
+              }
+              
+              // User not found - need to register
+              console.log('[TelegramGuard] User not registered')
+              
+              if (refCode) {
+                // Auto-register with referral code
+                console.log('[TelegramGuard] Auto-registering with referral code:', refCode)
+                await registerUserWithReferral(user, refCode)
               } else {
-                console.error('[TelegramGuard] API error:', response.status)
-                setLoadingMessage('Error checking account')
+                // No referral code - show input form
+                console.log('[TelegramGuard] No referral code, showing input form')
+                setNeedsReferral(true)
                 setIsRegistered(false)
+                setIsLoading(false)
               }
             } catch (err) {
               console.error('[TelegramGuard] Error checking registration:', err)
-              setLoadingMessage('Connection error')
-              setIsRegistered(false)
+              setErrorMessage('Connection error. Please try again.')
+              setIsLoading(false)
             }
           } else {
             console.log('[TelegramGuard] Not running in Telegram')
             setIsTelegram(false)
             setIsRegistered(false)
+            setIsLoading(false)
           }
-          setIsLoading(false)
-        }, 500)
+        }, 100)
       }
     }
 
@@ -124,110 +113,86 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
   // Function to register user with referral code
   const registerUserWithReferral = async (telegramUser: any, refCode: string) => {
     try {
-      console.log('[TelegramGuard] Registering user with referral:', refCode)
+      console.log('[TelegramGuard] Registering user:', {
+        telegramId: telegramUser.id,
+        username: telegramUser.username,
+        referralCode: refCode
+      })
+      
       const response = await fetch('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           telegramId: telegramUser.id,
-          username: telegramUser.username,
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
+          username: telegramUser.username || `user_${telegramUser.id}`,
+          firstName: telegramUser.first_name || 'User',
+          lastName: telegramUser.last_name || '',
+          phoneNumber: null,
           referralCode: refCode
         })
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.user) {
-          console.log('[TelegramGuard] User registered successfully:', result.user)
-          setUserType(result.user.is_admin ? 'admin' : 'user')
-          setLoadingMessage(result.user.is_admin ? 'Loading admin interface...' : 'Welcome! Loading dashboard...')
-          setIsRegistered(true)
-          setNeedsReferral(false)
-        } else {
-          console.error('[TelegramGuard] Registration failed:', result.error)
-          setLoadingMessage('Registration failed')
-          setNeedsReferral(true)
-          setIsRegistered(false)
-        }
+      const result = await response.json()
+      
+      if (response.ok && result.success && result.user) {
+        console.log('[TelegramGuard] User registered successfully:', result.user)
+        setIsRegistered(true)
+        setNeedsReferral(false)
+        setErrorMessage('')
+        setIsLoading(false)
       } else {
-        console.error('[TelegramGuard] Registration API error:', response.status)
-        setLoadingMessage('Registration failed')
+        console.error('[TelegramGuard] Registration failed:', result.error)
+        setErrorMessage(result.error || 'Registration failed. Invalid referral code.')
         setNeedsReferral(true)
         setIsRegistered(false)
+        setIsLoading(false)
       }
     } catch (err) {
       console.error('[TelegramGuard] Registration error:', err)
-      setLoadingMessage('Registration failed')
+      setErrorMessage('Registration failed. Please try again.')
       setNeedsReferral(true)
       setIsRegistered(false)
+      setIsLoading(false)
     }
   }
 
   // Handle manual referral code submission
   const handleReferralSubmit = async (code: string) => {
-    if (!code.trim()) return
+    if (!code.trim()) {
+      setErrorMessage('Please enter a referral code')
+      return
+    }
 
     const tg = (window as any).Telegram?.WebApp
     const user = tg?.initDataUnsafe?.user
     
     if (!user) {
-      setLoadingMessage('Telegram user not found')
+      setErrorMessage('Telegram user not found')
       return
     }
 
     setIsLoading(true)
-    setLoadingMessage('Creating account...')
+    setErrorMessage('')
     await registerUserWithReferral(user, code.trim())
-    setIsLoading(false)
   }
 
-  // Show loading with different messages based on user type
+  // Show single loading screen for entire app initialization
   if (isLoading) {
-    const getLoadingColor = () => {
-      switch (userType) {
-        case 'admin': return 'border-purple-500'
-        case 'user': return 'border-blue-500'
-        default: return 'border-gray-500'
-      }
-    }
-
-    const getLoadingIcon = () => {
-      switch (userType) {
-        case 'admin': return '👑'
-        case 'user': return '👤'
-        default: return '⏳'
-      }
-    }
-
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center max-w-sm mx-auto px-6">
-          <div className="mb-6">
-            <div className={`w-16 h-16 border-4 ${getLoadingColor()} border-t-transparent rounded-full animate-spin mx-auto mb-4`}></div>
-            <div className="text-4xl mb-2">{getLoadingIcon()}</div>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            {userType === 'admin' ? 'Admin Access' : userType === 'user' ? 'User Dashboard' : 'Initializing'}
-          </h2>
-          <p className="text-gray-600 text-sm">{loadingMessage}</p>
-          {userType && (
-            <div className="mt-4 px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-500 inline-block">
-              {userType === 'admin' ? 'Administrator' : userType === 'user' ? 'Registered User' : 'Guest'}
-            </div>
-          )}
+      <div className="bg-white flex items-center justify-center" style={{ height: '100vh', overflow: 'hidden' }}>
+        <div className="text-center px-6">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 text-sm">Loading...</p>
         </div>
       </div>
     )
   }
 
-  // If not in Telegram, show clean instructions
+  // If not in Telegram, show instructions
   if (!isTelegram) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+      <div className="bg-white flex items-center justify-center p-6" style={{ height: '100vh', overflow: 'auto' }}>
         <div className="max-w-md text-center">
-          {/* Telegram Logo/Icon */}
           <div className="mb-8">
             <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
               <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -236,8 +201,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
             </div>
           </div>
 
-          {/* Instructions */}
-          <h2 className="text-2xl font-bold text-gray-800 mb-8">How to Access:</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-8">Open in Telegram</h2>
           
           <div className="space-y-6 mb-8">
             <div className="flex items-start text-left">
@@ -245,7 +209,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
                 1
               </div>
               <div className="flex-1 pt-1">
-                <p className="text-gray-700 text-lg">Open Telegram app on your device</p>
+                <p className="text-gray-700 text-lg">Open Telegram app</p>
               </div>
             </div>
             
@@ -254,7 +218,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
                 2
               </div>
               <div className="flex-1 pt-1">
-                <p className="text-gray-700 text-lg">Search for our bot or use the provided link</p>
+                <p className="text-gray-700 text-lg">Search for the bot</p>
               </div>
             </div>
             
@@ -263,7 +227,7 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
                 3
               </div>
               <div className="flex-1 pt-1">
-                <p className="text-gray-700 text-lg">Click "Start" to launch the Mini App</p>
+                <p className="text-gray-700 text-lg">Click "Start" to launch</p>
               </div>
             </div>
           </div>
@@ -275,17 +239,17 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
   // Show referral code input if needed
   if (needsReferral && !isRegistered) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+      <div className="bg-white flex items-center justify-center p-6" style={{ height: '100vh', overflow: 'auto' }}>
         <div className="max-w-md w-full text-center">
           <div className="mb-8">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
               <span className="text-3xl">🔗</span>
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Account Registration Required</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Referral Code Required</h2>
           <p className="text-gray-600 mb-6">
-            You need a valid referral code to create an account. Please enter your referral code below.
+            Enter your referral code to create an account
           </p>
 
           <div className="space-y-4">
@@ -306,26 +270,25 @@ export default function TelegramGuard({ children }: TelegramGuardProps) {
             </button>
           </div>
 
-          <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-blue-900 mb-2">Don't have a referral code?</h3>
-            <p className="text-sm text-blue-700">
-              Contact an existing user or administrator to get a referral code. 
-              All new accounts require a valid referral for registration.
-            </p>
-          </div>
-
-          {loadingMessage.includes('failed') && (
+          {errorMessage && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-600">
-                ❌ {loadingMessage}. Please check your referral code and try again.
+                ❌ {errorMessage}
               </p>
             </div>
           )}
+
+          <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+            <h3 className="font-semibold text-blue-900 mb-2">Need a referral code?</h3>
+            <p className="text-sm text-blue-700">
+              Get a referral link from an existing user or administrator.
+            </p>
+          </div>
         </div>
       </div>
     )
   }
 
-  // If in Telegram, render the app
+  // User is registered - render the app
   return <>{children}</>
 }

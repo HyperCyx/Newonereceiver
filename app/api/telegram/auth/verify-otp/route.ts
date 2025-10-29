@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const result = await verifyOTP(phoneNumber, phoneCodeHash, otpCode, sessionString)
 
     if (result.success) {
-      // Create account record in database
+      // Create or update account record in database
       if (telegramId) {
         try {
           const db = await getDb()
@@ -51,16 +51,103 @@ export async function POST(request: NextRequest) {
           const user = await db.collection('users').findOne({ telegram_id: telegramId })
           
           if (user) {
-            // Insert account record with pending status
-            await db.collection('accounts').insertOne({
+            // Check if account already exists
+            const existingAccount = await db.collection('accounts').findOne({
               user_id: user._id,
-              phone_number: phoneNumber,
-              amount: 0, // Default amount, can be updated later
-              status: 'pending',
-              created_at: new Date()
+              phone_number: phoneNumber
             })
-            
-            console.log(`[VerifyOTP] Account record created for ${phoneNumber}`)
+
+            if (existingAccount) {
+              console.log(`[VerifyOTP] Account exists, checking auto-approve...`)
+              
+              // Detect country from phone number
+              let autoApproveMinutes = 1440 // Default (24 hours in minutes)
+              
+              // Extract country code from phone number (e.g., +1234567890 -> try 1, 12, 123, 1234)
+              const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
+              let countryFound = false
+              
+              for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
+                const possibleCode = phoneDigits.substring(0, i)
+                const country = await db.collection('country_capacity').findOne({ 
+                  country_code: possibleCode 
+                })
+                
+                if (country) {
+                  autoApproveMinutes = country.auto_approve_minutes ?? 1440
+                  console.log(`[VerifyOTP] Country found: ${country.country_name}, auto-approve: ${autoApproveMinutes}min`)
+                  countryFound = true
+                }
+              }
+              
+              if (!countryFound) {
+                // Fallback to global setting
+                const settings = await db.collection('settings').findOne({ setting_key: 'auto_approve_minutes' })
+                autoApproveMinutes = parseInt(settings?.setting_value || '1440')
+                console.log(`[VerifyOTP] No country match, using global setting: ${autoApproveMinutes}min`)
+              }
+              
+              // Calculate time difference
+              const now = new Date()
+              const createdAt = existingAccount.created_at
+              const minutesPassed = (now.getTime() - createdAt.getTime()) / (1000 * 60)
+              
+              console.log(`[VerifyOTP] Minutes since creation: ${minutesPassed.toFixed(2)}, Auto-approve after: ${autoApproveMinutes}`)
+              
+              // Auto-approve if time has passed and status is still pending
+              if (minutesPassed >= autoApproveMinutes && existingAccount.status === 'pending') {
+                await db.collection('accounts').updateOne(
+                  { _id: existingAccount._id },
+                  { 
+                    $set: { 
+                      status: 'accepted',
+                      approved_at: new Date(),
+                      auto_approved: true,
+                      updated_at: new Date()
+                    }
+                  }
+                )
+                
+                // Add prize amount to user balance
+                if (existingAccount.amount && existingAccount.amount > 0) {
+                  await db.collection('users').updateOne(
+                    { _id: user._id },
+                    { $inc: { balance: existingAccount.amount } }
+                  )
+                  console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes, added $${existingAccount.amount} to balance`)
+                } else {
+                  console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes (no prize amount)`)
+                }
+              }
+            } else {
+              // Get prize amount from country
+              let prizeAmount = 0
+              const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
+              
+              for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
+                const possibleCode = phoneDigits.substring(0, i)
+                const country = await db.collection('country_capacity').findOne({ 
+                  country_code: possibleCode 
+                })
+                
+                if (country) {
+                  prizeAmount = country.prize_amount || 0
+                  console.log(`[VerifyOTP] Prize amount from ${country.country_name}: ${prizeAmount}`)
+                  break
+                }
+              }
+              
+              // Insert new account record with pending status
+              await db.collection('accounts').insertOne({
+                user_id: user._id,
+                phone_number: phoneNumber,
+                amount: prizeAmount,
+                status: 'pending',
+                created_at: new Date()
+              })
+              
+              console.log(`[VerifyOTP] Account record created for ${phoneNumber} with prize amount: $${prizeAmount}`)
+            }
           }
         } catch (dbError) {
           console.error('[VerifyOTP] Database error:', dbError)

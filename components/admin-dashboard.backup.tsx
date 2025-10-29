@@ -126,13 +126,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
-  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+  const [autoApproveHours, setAutoApproveHours] = useState("24")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
   const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveMinutes: number}>()
+  const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveHours: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
 
   // Get Telegram ID on mount
@@ -256,8 +256,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           if (result.settings.min_withdrawal_amount) {
             setMinWithdrawalAmount(result.settings.min_withdrawal_amount)
           }
-          if (result.settings.login_button_enabled !== undefined) {
-            setLoginButtonEnabled(result.settings.login_button_enabled === 'true' || result.settings.login_button_enabled === true)
+          if (result.settings.auto_approve_hours) {
+            setAutoApproveHours(result.settings.auto_approve_hours)
           }
         }
       }
@@ -549,7 +549,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled })
+      const autoHours = parseInt(autoApproveHours)
+      if (isNaN(autoHours) || autoHours < 0) {
+        console.error('[AdminDashboard] Invalid hours:', autoApproveHours)
+        setSettingsError("Please enter valid auto-approve hours")
+        setSavingSettings(false)
+        return
+      }
+
+      console.log('[AdminDashboard] Saving settings:', { minAmount, autoHours })
 
       // Save both settings
       const responses = await Promise.all([
@@ -566,8 +574,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            settingKey: 'login_button_enabled',
-            settingValue: loginButtonEnabled.toString(),
+            settingKey: 'auto_approve_hours',
+            settingValue: autoHours.toString(),
             telegramId: adminTelegramId
           })
         })
@@ -658,49 +666,21 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   return (
     <div className="flex flex-col bg-gray-50" style={{ height: '100vh', overflow: 'hidden' }}>
-      {/* Header Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="material-icons text-blue-600 text-3xl">admin_panel_settings</span>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-sm text-gray-500">Manage your platform</p>
-          </div>
-        </div>
-      </div>
-
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-4 overflow-x-auto sticky top-0 z-10">
-        <div className="flex gap-1">
-          {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
-            (tab) => {
-              const icons = {
-                overview: "dashboard",
-                users: "people",
-                transactions: "receipt_long",
-                analytics: "analytics",
-                referrals: "link",
-                payments: "payments",
-                countries: "public",
-                settings: "settings"
-              }
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex items-center gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap transition-all border-b-2 ${
-                    activeTab === tab 
-                      ? "text-blue-600 border-blue-600 bg-blue-50" 
-                      : "text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="material-icons text-lg">{icons[tab]}</span>
-                  {tab === "payments" ? "Payments" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              )
-            },
-          )}
-        </div>
+      <div className="bg-white border-b border-gray-200 flex overflow-x-auto sticky top-0 z-10">
+        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
+          (tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 font-semibold text-sm whitespace-nowrap transition-colors ${
+                activeTab === tab ? "text-blue-500 border-b-2 border-blue-500" : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              {tab === "payments" ? "Payment Requests" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ),
+        )}
       </div>
 
       {/* Content */}
@@ -708,104 +688,79 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         {activeTab === "overview" && (
           <div className="p-4 space-y-4">
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Total Users</span>
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <span className="material-icons text-blue-600">people</span>
-                  </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Users</span>
+                  <Users size={20} className="text-blue-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stats.totalUsers}</p>
-                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>trending_up</span>
-                  +12% this month
-                </p>
+                <p className="text-2xl font-bold text-gray-800">{stats.totalUsers}</p>
+                <p className="text-xs text-green-600 mt-1">+12% this month</p>
               </div>
 
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Active Users</span>
-                  <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
-                    <span className="material-icons text-green-600">trending_up</span>
-                  </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Active Users</span>
+                  <TrendingUp size={20} className="text-green-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stats.activeUsers}</p>
-                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>circle</span>
-                  Online now
-                </p>
+                <p className="text-2xl font-bold text-gray-800">{stats.activeUsers}</p>
+                <p className="text-xs text-green-600 mt-1">Online now</p>
               </div>
 
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Total Revenue</span>
-                  <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
-                    <span className="material-icons text-yellow-600">attach_money</span>
-                  </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Revenue</span>
+                  <BarChart3 size={20} className="text-orange-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">${stats.totalRevenue.toFixed(2)}</p>
-                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>trending_up</span>
-                  +8% this week
-                </p>
+                <p className="text-2xl font-bold text-gray-800">${stats.totalRevenue.toFixed(2)}</p>
+                <p className="text-xs text-green-600 mt-1">+8% this week</p>
               </div>
 
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Pending Withdrawals</span>
-                  <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
-                    <span className="material-icons text-red-600">account_balance_wallet</span>
-                  </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Pending Withdrawals</span>
+                  <Wallet size={20} className="text-red-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stats.pendingWithdrawals}</p>
-                <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>warning</span>
-                  Needs attention
-                </p>
+                <p className="text-2xl font-bold text-gray-800">{stats.pendingWithdrawals}</p>
+                <p className="text-xs text-red-600 mt-1">Needs attention</p>
               </div>
             </div>
 
             {/* Recent Transactions */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
-                <span className="material-icons text-blue-600">receipt_long</span>
-                <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
-              </div>
-              <div className="p-5">
-                <div className="space-y-2">
-                  {loading ? (
-                    <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
-                  ) : transactions.length === 0 ? (
-                    <p className="text-center text-gray-400 py-4">No transactions yet</p>
-                  ) : (
-                    transactions.slice(0, 3).map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{tx.userName || tx.userId.substring(0, 20) + '...'}</p>
-                        <p className="text-xs text-gray-500">{tx.date}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-800">${tx.amount}</p>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            tx.status === "completed"
-                              ? "bg-green-100 text-green-700"
-                              : tx.status === "pending"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {tx.status}
-                        </span>
-                      </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <h3 className="font-semibold text-gray-800 mb-3">Recent Transactions</h3>
+              <div className="space-y-2">
+                {loading ? (
+                  <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
+                ) : transactions.length === 0 ? (
+                  <p className="text-center text-gray-400 py-4">No transactions yet</p>
+                ) : (
+                  transactions.slice(0, 3).map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{tx.userName || tx.userId.substring(0, 20) + '...'}</p>
+                      <p className="text-xs text-gray-500">{tx.date}</p>
                     </div>
-                    ))
-                  )}
-                </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-800">${tx.amount}</p>
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          tx.status === "completed"
+                            ? "bg-green-100 text-green-700"
+                            : tx.status === "pending"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {tx.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+                )}
               </div>
             </div>
           </div>
@@ -1394,33 +1349,27 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         {activeTab === "countries" && (
           <div className="p-4 space-y-4">
             {/* Add New Country Section */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex items-center gap-2">
-                <span className="material-icons text-blue-600">add_location</span>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Add New Country</h3>
-                  <p className="text-xs text-gray-600 mt-0.5">Configure country-specific account purchase settings</p>
-                </div>
-              </div>
-              <div className="p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-r from-green-500 to-teal-500 rounded-lg p-4 md:p-6 text-white">
+              <h3 className="font-bold text-base md:text-lg mb-2">Add New Country</h3>
+              <p className="text-xs md:text-sm text-green-100 mb-3 md:mb-4">Configure country-specific account purchase settings</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input
                   type="text"
                   placeholder="Phone Code (e.g., +1, +91, +92)"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-code-input"
                 />
                 <input
                   type="text"
                   placeholder="Country Name (e.g., United States)"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-name-input"
                 />
                 <input
                   type="number"
                   placeholder="Max Capacity"
                   min="0"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-capacity-input"
                 />
                 <input
@@ -1428,15 +1377,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   placeholder="Prize Amount (USDT)"
                   step="0.01"
                   min="0"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-prize-input"
                 />
                 <input
                   type="number"
-                  placeholder="Auto-Approve Minutes (e.g., 1440, 2880, 4320)"
+                  placeholder="Auto-Approve Hours (e.g., 24, 48, 72)"
                   min="0"
-                  defaultValue="1440"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  defaultValue="24"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-auto-approve-input"
                 />
               </div>
@@ -1469,7 +1418,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         countryName: nameInput.value,
                         maxCapacity: parseInt(capacityInput.value) || 0,
                         prizeAmount: parseFloat(prizeInput.value) || 0,
-                        autoApproveMinutes: parseInt(autoApproveInput.value) || 1440,
+                        autoApproveHours: parseInt(autoApproveInput.value) || 24,
                         telegramId: adminTelegramId
                       })
                     })
@@ -1487,7 +1436,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       nameInput.value = ''
                       capacityInput.value = ''
                       prizeInput.value = ''
-                      autoApproveInput.value = '1440'
+                      autoApproveInput.value = '24'
                       fetchAllData()
                     }
                   } catch (err) {
@@ -1495,22 +1444,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     alert('Error creating country')
                   }
                 }}
-                className="mt-4 w-full px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                className="mt-3 w-full px-4 md:px-6 py-2 md:py-2.5 bg-white text-green-600 rounded-lg text-sm md:text-base font-semibold hover:bg-gray-100 transition-colors"
               >
-                <span className="material-icons" style={{ fontSize: '18px' }}>add</span>
                 Add Country
               </button>
-              </div>
             </div>
 
             {/* Countries Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex items-center gap-2">
-                <span className="material-icons text-blue-600">public</span>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Country Capacity Management</h3>
-                  <p className="text-xs text-gray-600 mt-0.5">Manage which countries can purchase accounts and set capacity limits</p>
-                </div>
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 px-4 py-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+                  <BarChart3 size={20} className="text-green-500" />
+                  Country Capacity Management
+                </h3>
+                <p className="text-sm text-gray-600">Manage which countries can purchase accounts and set capacity limits</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[800px]">
@@ -1522,7 +1469,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Used</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Available</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize (USDT)</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Auto-Approve (Min)</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Auto-Approve (Hrs)</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -1607,17 +1554,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues?.autoApproveMinutes ?? country.auto_approve_minutes ?? 1440}
-                                  onChange={(e) => setEditValues(prev => ({...prev!, autoApproveMinutes: parseInt(e.target.value) || 0}))}
-                                  min="0"
-                                  className="w-24 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
-                                />
-                              ) : (
-                                <span className="font-semibold text-blue-600">{country.auto_approve_minutes ?? 1440}min</span>
-                              )}
+                              <span className="font-semibold text-blue-600">{country.auto_approve_hours ?? 24}h</span>
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <button
@@ -1695,12 +1632,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
-                                action: 'update',
-                                countryId: country._id,
-                                maxCapacity: editValues.capacity,
-                                prizeAmount: editValues.prize,
-                                autoApproveMinutes: editValues.autoApproveMinutes,
-                                telegramId: adminTelegramId
+                                              action: 'update',
+                                              countryId: country._id,
+                                              maxCapacity: editValues.capacity,
+                                              prizeAmount: editValues.prize,
+                                              telegramId: adminTelegramId
                                             })
                                           })
                                           
@@ -1723,7 +1659,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       }}
                                       className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>save</span> Save
+                                      💾 Save
                                     </button>
                                     <button
                                       onClick={() => {
@@ -1732,7 +1668,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       }}
                                       className="px-3 py-1.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>close</span> Cancel
+                                      ✕ Cancel
                                     </button>
                                   </>
                                 ) : (
@@ -1743,12 +1679,56 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         setEditValues({
                                           capacity: country.max_capacity,
                                           prize: country.prize_amount,
-                                          autoApproveMinutes: country.auto_approve_minutes ?? 1440
+                                          autoApproveHours: 0
                                         })
                                       }}
                                       className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>edit</span> Edit
+                                      ✏️ Edit
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        console.log('[Reset] Country ID:', country._id)
+                                        console.log('[Reset] Admin Telegram ID:', adminTelegramId)
+                                        
+                                        if (!adminTelegramId) {
+                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
+                                          return
+                                        }
+                                        
+                                        if (confirm(`Reset used capacity for ${country.country_name}?`)) {
+                                          try {
+                                            console.log('[Reset] Sending reset request...')
+                                            const response = await fetch('/api/admin/countries', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                action: 'reset_capacity',
+                                                countryId: country._id,
+                                                telegramId: adminTelegramId
+                                              })
+                                            })
+                                            
+                                            const result = await response.json()
+                                            console.log('[Reset] Response:', response.status, result)
+                                            
+                                            if (response.ok) {
+                                              alert(`✅ ${country.country_name} capacity reset to 0!`)
+                                              await fetchAllData()
+                                            } else {
+                                              console.error('[Reset] Failed:', result)
+                                              alert(`❌ Failed to reset: ${result.error || 'Unknown error'}`)
+                                            }
+                                          } catch (err) {
+                                            console.error('[Reset] Error:', err)
+                                            alert(`❌ Error resetting capacity: ${err}`)
+                                          }
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium text-xs"
+                                      title="Reset used capacity to 0"
+                                    >
+                                      🔄 Reset
                                     </button>
                                     <button
                                       onClick={async () => {
@@ -1760,7 +1740,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           return
                                         }
                                         
-                                        if (confirm(`DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
+                                        if (confirm(`⚠️ DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
                                           try {
                                             console.log('[Delete] Sending delete request...')
                                             const response = await fetch('/api/admin/countries', {
@@ -1789,9 +1769,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           }
                                         }
                                       }}
-                                      className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-xs flex items-center gap-1"
+                                      className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>delete</span> Delete
+                                      🗑️ Delete
                                     </button>
                                   </>
                                 )}
@@ -1980,13 +1960,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
         {activeTab === "settings" && (
           <div className="p-4">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex items-center gap-2">
-                <span className="material-icons text-blue-600">settings</span>
-                <div>
-                  <h2 className="font-semibold text-gray-900">System Settings</h2>
-                  <p className="text-xs text-gray-600 mt-0.5">Configure system-wide settings</p>
-                </div>
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800">System Settings</h2>
+                <p className="text-sm text-gray-600 mt-1">Configure system-wide settings</p>
               </div>
 
               <div className="p-6 space-y-6">
@@ -2009,43 +1986,23 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   />
                 </div>
 
-                {/* Login Button Toggle */}
+                {/* Auto-Approve Hours */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Login Button Status
+                    Auto-Approve Time (Hours)
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Enable or disable the login button globally. When enabled, users can sell accounts.
+                    Accounts will be automatically approved after this many hours if login is successful
                   </p>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => setLoginButtonEnabled(true)}
-                      className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-all ${
-                        loginButtonEnabled
-                          ? 'bg-green-500 text-white border-green-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-green-300'
-                      }`}
-                    >
-                      <span className="material-icons text-xl mr-2 align-middle">check_circle</span>
-                      Enabled
-                    </button>
-                    <button
-                      onClick={() => setLoginButtonEnabled(false)}
-                      className={`flex-1 py-3 px-4 rounded-lg border-2 font-semibold transition-all ${
-                        !loginButtonEnabled
-                          ? 'bg-red-500 text-white border-red-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-red-300'
-                      }`}
-                    >
-                      <span className="material-icons text-xl mr-2 align-middle">cancel</span>
-                      Disabled
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {loginButtonEnabled 
-                      ? '✅ Login button is currently ENABLED - Users can sell accounts' 
-                      : '❌ Login button is currently DISABLED - Users cannot sell accounts'}
-                  </p>
+                  <input
+                    type="number"
+                    value={autoApproveHours}
+                    onChange={(e) => setAutoApproveHours(e.target.value)}
+                    step="1"
+                    min="0"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
+                    placeholder="Enter hours (e.g., 24)"
+                  />
                 </div>
 
                 {/* Save Button */}
@@ -2092,7 +2049,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     <p className={`text-sm ${
                       settingsSaved ? 'text-green-800' : 'text-blue-800'
                     }`}>
-                      <span className="font-medium">Login Button:</span> {loginButtonEnabled ? 'Enabled ✅' : 'Disabled ❌'}
+                      <span className="font-medium">Auto-Approve Time:</span> {autoApproveHours} hours
                     </p>
                   </div>
                 </div>
