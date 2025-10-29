@@ -150,11 +150,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     })
 
     return last7Days.map((date, idx) => {
-      const dayTransactions = transactions.filter(t => {
-        const txDate = new Date(t.date)
-        return txDate.toDateString() === date.toDateString() && t.status === 'completed'
+      // Use withdrawals as revenue indicator instead of transactions
+      const dayWithdrawals = withdrawals.filter(w => {
+        const wDate = new Date(w.date)
+        return wDate.toDateString() === date.toDateString() && w.status === 'confirmed'
       })
-      const revenue = dayTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
+      const revenue = dayWithdrawals.reduce((sum, w) => sum + Number(w.amount), 0)
       return {
         day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
         revenue: Math.round(revenue)
@@ -162,18 +163,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     })
   })()
 
-  const transactionStats = (() => {
-    const total = transactions.length || 1
-    const completed = transactions.filter(t => t.status === 'completed').length
-    const pending = transactions.filter(t => t.status === 'pending').length
-    const failed = transactions.filter(t => t.status === 'failed').length
-
-    return [
-      { status: 'Completed', count: completed, percentage: Math.round((completed / total) * 100) },
-      { status: 'Pending', count: pending, percentage: Math.round((pending / total) * 100) },
-      { status: 'Failed', count: failed, percentage: Math.round((failed / total) * 100) }
-    ]
-  })()
 
   const withdrawalStats = (() => {
     const total = withdrawals.length || 1
@@ -191,17 +180,18 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const topUsers = (() => {
     const userRevenue: { [key: string]: { name: string; revenue: number; transactions: number } } = {}
     
-    transactions.forEach(tx => {
-      if (tx.status === 'completed') {
-        if (!userRevenue[tx.userId]) {
-          userRevenue[tx.userId] = {
-            name: tx.userName || tx.userId.substring(0, 8) + '...',
+    // Use withdrawals to calculate top users
+    withdrawals.forEach(w => {
+      if (w.status === 'confirmed') {
+        if (!userRevenue[w.userId]) {
+          userRevenue[w.userId] = {
+            name: w.userName || w.userId.substring(0, 8) + '...',
             revenue: 0,
             transactions: 0
           }
         }
-        userRevenue[tx.userId].revenue += Number(tx.amount)
-        userRevenue[tx.userId].transactions += 1
+        userRevenue[w.userId].revenue += Number(w.amount)
+        userRevenue[w.userId].transactions += 1
       }
     })
 
@@ -739,44 +729,44 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
             </div>
 
-            {/* Recent Transactions */}
+            {/* Recent Withdrawals */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
-                <span className="material-icons text-blue-600">receipt_long</span>
-                <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
+                <span className="material-icons text-blue-600">account_balance_wallet</span>
+                <h3 className="font-semibold text-gray-900">Recent Withdrawals</h3>
               </div>
               <div className="p-5">
                 <div className="space-y-2">
                   {loading ? (
                     <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
-                  ) : transactions.length === 0 ? (
-                    <p className="text-center text-gray-400 py-4">No transactions yet</p>
+                  ) : withdrawals.length === 0 ? (
+                    <p className="text-center text-gray-400 py-4">No withdrawals yet</p>
                   ) : (
-                    transactions.slice(0, 3).map((tx) => (
+                    withdrawals.slice(0, 3).map((w) => (
                     <div
-                      key={tx.id}
+                      key={w.id}
                       className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
                     >
                       <div>
-                        <p className="text-sm font-medium text-gray-800">{tx.userName || tx.userId.substring(0, 20) + '...'}</p>
-                        <p className="text-xs text-gray-500">{tx.date}</p>
+                        <p className="text-sm font-medium text-gray-800">{w.userName || w.userId.substring(0, 20) + '...'}</p>
+                        <p className="text-xs text-gray-500">{w.date}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-800">${tx.amount}</p>
+                        <p className="text-sm font-semibold text-gray-800">${w.amount}</p>
                         <span
                           className={`text-xs px-2 py-1 rounded ${
-                            tx.status === "completed"
+                            w.status === "confirmed"
                               ? "bg-green-100 text-green-700"
-                              : tx.status === "pending"
+                              : w.status === "pending"
                                 ? "bg-yellow-100 text-yellow-700"
                                 : "bg-red-100 text-red-700"
                           }`}
                         >
-                          {tx.status}
+                          {w.status}
                         </span>
                       </div>
                     </div>
-                    ))
+                  ))
                   )}
                 </div>
               </div>
@@ -885,67 +875,34 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               )}
             </div>
 
-            {/* Transaction Status Distribution */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <PieChart size={20} className="text-green-500" />
-                  Transaction Status
-                </h3>
-                <div className="space-y-3">
-                  {transactionStats.map((stat, idx) => (
-                    <div key={idx}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-700">{stat.status}</span>
-                        <span className="text-sm font-semibold text-gray-800">{stat.count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            stat.status === "Completed"
-                              ? "bg-green-500"
-                              : stat.status === "Pending"
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                          }`}
-                          style={{ width: `${stat.percentage}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{stat.percentage}% of total</p>
+            {/* Withdrawal Status Distribution */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <PieChart size={20} className="text-orange-500" />
+                Withdrawal Status Distribution
+              </h3>
+              <div className="space-y-3">
+                {withdrawalStats.map((stat, idx) => (
+                  <div key={idx}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-gray-700">{stat.status}</span>
+                      <span className="text-sm font-semibold text-gray-800">{stat.count}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Withdrawal Status Distribution */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <PieChart size={20} className="text-orange-500" />
-                  Withdrawal Status
-                </h3>
-                <div className="space-y-3">
-                  {withdrawalStats.map((stat, idx) => (
-                    <div key={idx}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-700">{stat.status}</span>
-                        <span className="text-sm font-semibold text-gray-800">{stat.count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            stat.status === "Confirmed"
-                              ? "bg-green-500"
-                              : stat.status === "Pending"
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                          }`}
-                          style={{ width: `${stat.percentage}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{stat.percentage}% of total</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          stat.status === "Confirmed"
+                            ? "bg-green-500"
+                            : stat.status === "Pending"
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                        }`}
+                        style={{ width: `${stat.percentage}%` }}
+                      />
                     </div>
-                  ))}
-                </div>
+                    <p className="text-xs text-gray-500 mt-1">{stat.percentage}% of total</p>
+                  </div>
+                ))}
               </div>
             </div>
 
