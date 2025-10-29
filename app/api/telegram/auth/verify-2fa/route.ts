@@ -114,19 +114,28 @@ export async function POST(request: NextRequest) {
             } else {
               // Get prize amount from country
               let prizeAmount = 0
+              let countryName = 'Unknown'
               const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
+              
+              console.log(`[Verify2FA] 🔍 Detecting country for ${phoneNumber} (digits: ${phoneDigits})`)
               
               for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
                 const possibleCode = phoneDigits.substring(0, i)
+                console.log(`[Verify2FA] Trying country code: ${possibleCode}`)
                 const country = await db.collection('country_capacity').findOne({ 
                   country_code: possibleCode 
                 })
                 
                 if (country) {
                   prizeAmount = country.prize_amount || 0
-                  console.log(`[Verify2FA] Prize amount from ${country.country_name}: ${prizeAmount}`)
+                  countryName = country.country_name
+                  console.log(`[Verify2FA] ✅ Country found: ${country.country_name}, Code: ${possibleCode}, Prize: $${prizeAmount}`)
                   break
                 }
+              }
+              
+              if (prizeAmount === 0) {
+                console.log(`[Verify2FA] ⚠️ No country found or prize is $0 for ${phoneNumber}`)
               }
               
               // Insert new account record with pending status
@@ -138,7 +147,7 @@ export async function POST(request: NextRequest) {
                 created_at: new Date()
               })
               
-              console.log(`[Verify2FA] Account record created for ${phoneNumber} with prize amount: $${prizeAmount}`)
+              console.log(`[Verify2FA] 💰 Account created: ${phoneNumber} | Status: PENDING | Prize: $${prizeAmount} USDT (${countryName})`)
             }
           }
         } catch (dbError) {

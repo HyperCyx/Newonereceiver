@@ -278,7 +278,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
                   </p>
                   {transaction.status[0] === 'PENDING' && getTimeRemaining(transaction) && (
                     <p className="text-[12px] text-blue-600 mt-1 font-medium">
-                      ⏱️ Auto-approve in: {getTimeRemaining(transaction)}
+                      ⏱️ Auto-approve in: {getTimeRemaining(transaction)} | 💰 Prize: ${transaction.amount} USDT
                     </p>
                   )}
                 </div>
