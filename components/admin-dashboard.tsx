@@ -653,22 +653,78 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               />
               
               {/* Dropdown Menu */}
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-30">
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-30 max-h-[80vh] overflow-y-auto">
                 <div className="px-4 py-2 border-b border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Admin Sections</p>
                 </div>
                 
                 <button
                   onClick={() => {
-                    setActiveTab('sessions')
+                    setActiveTab('overview')
                     setShowMenu(false)
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
                 >
-                  <span className="material-icons text-purple-600 text-lg">download</span>
+                  <span className="material-icons text-blue-600 text-lg">dashboard</span>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Sessions</p>
-                    <p className="text-xs text-gray-500">Download session files</p>
+                    <p className="text-sm font-medium text-gray-900">Overview</p>
+                    <p className="text-xs text-gray-500">Dashboard statistics</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('users')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-indigo-600 text-lg">people</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Users</p>
+                    <p className="text-xs text-gray-500">Manage users</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('analytics')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-orange-600 text-lg">analytics</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Analytics</p>
+                    <p className="text-xs text-gray-500">Revenue & statistics</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('referrals')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-violet-600 text-lg">link</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Referrals</p>
+                    <p className="text-xs text-gray-500">Manage referral codes</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('payments')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-green-600 text-lg">payments</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Payments</p>
+                    <p className="text-xs text-gray-500">Review payment requests</p>
                   </div>
                 </button>
                 
@@ -688,15 +744,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 
                 <button
                   onClick={() => {
-                    setActiveTab('payments')
+                    setActiveTab('sessions')
                     setShowMenu(false)
                   }}
                   className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
                 >
-                  <span className="material-icons text-green-600 text-lg">payments</span>
+                  <span className="material-icons text-purple-600 text-lg">download</span>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Payments</p>
-                    <p className="text-xs text-gray-500">Review payment requests</p>
+                    <p className="text-sm font-medium text-gray-900">Sessions</p>
+                    <p className="text-xs text-gray-500">Download session files</p>
                   </div>
                 </button>
                 
@@ -1329,11 +1385,21 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           <td className="px-4 py-3 text-sm font-semibold text-gray-800">${request.amount}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
                             {request.walletAddress && request.walletAddress !== 'N/A' ? (
-                              <span title={request.walletAddress}>
-                                {request.walletAddress.length > 20 
-                                  ? `${request.walletAddress.substring(0, 10)}...${request.walletAddress.substring(request.walletAddress.length - 10)}`
-                                  : request.walletAddress}
-                              </span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(request.walletAddress)
+                                  alert('Wallet address copied to clipboard!')
+                                }}
+                                className="text-left hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1 group"
+                                title={`Click to copy: ${request.walletAddress}`}
+                              >
+                                <span className="text-blue-600 group-hover:text-blue-700">
+                                  {request.walletAddress.length > 20 
+                                    ? `${request.walletAddress.substring(0, 10)}...${request.walletAddress.substring(request.walletAddress.length - 10)}`
+                                    : request.walletAddress}
+                                </span>
+                                <span className="material-icons text-gray-400 group-hover:text-blue-600 transition-colors" style={{fontSize: '14px'}}>content_copy</span>
+                              </button>
                             ) : (
                               <span className="text-gray-400">N/A</span>
                             )}

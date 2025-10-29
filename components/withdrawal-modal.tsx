@@ -116,6 +116,30 @@ export default function WithdrawalModal({ isOpen, onClose, balance }: Withdrawal
         return
       }
 
+      // Check for pending withdrawals
+      const checkResponse = await fetch('/api/withdrawal/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: telegramUser.id })
+      })
+
+      if (checkResponse.ok) {
+        const checkResult = await checkResponse.json()
+        if (checkResult.success && checkResult.withdrawals) {
+          const pendingWithdrawal = checkResult.withdrawals.find((w: any) => w.status === 'pending')
+          if (pendingWithdrawal) {
+            toast({
+              title: "Pending Withdrawal Exists",
+              description: "Please wait for your current withdrawal to be confirmed or rejected before submitting another.",
+              variant: "destructive",
+              duration: 3000,
+            })
+            setIsSubmitting(false)
+            return
+          }
+        }
+      }
+
       const response = await fetch('/api/withdrawal/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
