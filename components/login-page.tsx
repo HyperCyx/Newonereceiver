@@ -125,7 +125,23 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       // Check if response is ok
       if (!response.ok) {
         const text = await response.text()
-        console.error('[LoginPage] Server error:', text)
+        
+        // Parse error to check if it's expected validation
+        let errorData
+        try {
+          errorData = JSON.parse(text)
+        } catch (e) {
+          errorData = {}
+        }
+        
+        // Expected errors (validation, not system errors)
+        const expectedErrors = ['PHONE_ALREADY_SOLD', 'PHONE_ALREADY_ACCEPTED', 'PHONE_ALREADY_REJECTED', 'CAPACITY_FULL']
+        if (expectedErrors.includes(errorData.error)) {
+          console.log('[LoginPage] ℹ️  Validation:', errorData.message || errorData.error)
+        } else {
+          console.error('[LoginPage] ❌ Server error:', text)
+        }
+        
         const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
