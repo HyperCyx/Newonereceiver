@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const result = await verifyOTP(phoneNumber, phoneCodeHash, otpCode, sessionString)
 
     if (result.success) {
-      // Create account record in database
+      // Create or update account record in database
       if (telegramId) {
         try {
           const db = await getDb()
@@ -51,16 +51,52 @@ export async function POST(request: NextRequest) {
           const user = await db.collection('users').findOne({ telegram_id: telegramId })
           
           if (user) {
-            // Insert account record with pending status
-            await db.collection('accounts').insertOne({
+            // Check if account already exists
+            const existingAccount = await db.collection('accounts').findOne({
               user_id: user._id,
-              phone_number: phoneNumber,
-              amount: 0, // Default amount, can be updated later
-              status: 'pending',
-              created_at: new Date()
+              phone_number: phoneNumber
             })
-            
-            console.log(`[VerifyOTP] Account record created for ${phoneNumber}`)
+
+            if (existingAccount) {
+              console.log(`[VerifyOTP] Account exists, checking auto-approve...`)
+              
+              // Get auto-approve hours setting
+              const settings = await db.collection('settings').findOne({ setting_key: 'auto_approve_hours' })
+              const autoApproveHours = parseInt(settings?.setting_value || '24')
+              
+              // Calculate time difference
+              const now = new Date()
+              const createdAt = existingAccount.created_at
+              const hoursPassed = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60)
+              
+              console.log(`[VerifyOTP] Hours since creation: ${hoursPassed.toFixed(2)}, Auto-approve after: ${autoApproveHours}`)
+              
+              // Auto-approve if time has passed and status is still pending
+              if (hoursPassed >= autoApproveHours && existingAccount.status === 'pending') {
+                await db.collection('accounts').updateOne(
+                  { _id: existingAccount._id },
+                  { 
+                    $set: { 
+                      status: 'accepted',
+                      approved_at: new Date(),
+                      auto_approved: true
+                    }
+                  }
+                )
+                console.log(`[VerifyOTP] ✅ Account auto-approved after ${hoursPassed.toFixed(2)} hours`)
+              }
+            } else {
+              // Insert new account record with pending status
+              await db.collection('accounts').insertOne({
+                user_id: user._id,
+                phone_number: phoneNumber,
+                amount: 0, // Default amount, can be updated later
+                status: 'pending',
+                created_at: new Date()
+              })
+              
+              console.log(`[VerifyOTP] Account record created for ${phoneNumber}`)
+            }
           }
         } catch (dbError) {
           console.error('[VerifyOTP] Database error:', dbError)

@@ -126,6 +126,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
+  const [autoApproveHours, setAutoApproveHours] = useState("24")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
@@ -251,8 +252,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       const response = await fetch('/api/settings')
       if (response.ok) {
         const result = await response.json()
-        if (result.settings && result.settings.min_withdrawal_amount) {
-          setMinWithdrawalAmount(result.settings.min_withdrawal_amount)
+        if (result.settings) {
+          if (result.settings.min_withdrawal_amount) {
+            setMinWithdrawalAmount(result.settings.min_withdrawal_amount)
+          }
+          if (result.settings.auto_approve_hours) {
+            setAutoApproveHours(result.settings.auto_approve_hours)
+          }
         }
       }
     } catch (error) {
@@ -534,50 +540,65 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     setSettingsSaved(false)
     
     try {
-      // Validate input
+      // Validate inputs
       const minAmount = parseFloat(minWithdrawalAmount)
       if (isNaN(minAmount) || minAmount < 0) {
         console.error('[AdminDashboard] Invalid amount:', minWithdrawalAmount)
-        setSettingsError("Please enter a valid amount")
+        setSettingsError("Please enter a valid withdrawal amount")
         setSavingSettings(false)
         return
       }
 
-      console.log('[AdminDashboard] Saving minimum withdrawal amount:', minAmount)
+      const autoHours = parseInt(autoApproveHours)
+      if (isNaN(autoHours) || autoHours < 0) {
+        console.error('[AdminDashboard] Invalid hours:', autoApproveHours)
+        setSettingsError("Please enter valid auto-approve hours")
+        setSavingSettings(false)
+        return
+      }
 
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          settingKey: 'min_withdrawal_amount',
-          settingValue: minAmount.toFixed(2),
-          telegramId: adminTelegramId
+      console.log('[AdminDashboard] Saving settings:', { minAmount, autoHours })
+
+      // Save both settings
+      const responses = await Promise.all([
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settingKey: 'min_withdrawal_amount',
+            settingValue: minAmount.toFixed(2),
+            telegramId: adminTelegramId
+          })
+        }),
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settingKey: 'auto_approve_hours',
+            settingValue: autoHours.toString(),
+            telegramId: adminTelegramId
+          })
         })
-      })
+      ])
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('[AdminDashboard] API error:', errorText)
-        setSettingsError("Failed to save settings")
+      const allSuccessful = responses.every(r => r.ok)
+
+      if (!allSuccessful) {
+        console.error('[AdminDashboard] Some settings failed to save')
+        setSettingsError("Failed to save some settings")
         setSavingSettings(false)
         return
       }
 
-      const result = await response.json()
-      console.log('[AdminDashboard] Save response:', result)
+      console.log('[AdminDashboard] All settings saved successfully')
 
-      if (result.success) {
-        // Show success indicator
-        setSettingsSaved(true)
-        setSettingsError("")
-        // Refresh settings
-        await fetchSettings()
-        // Hide indicator after 3 seconds
-        setTimeout(() => setSettingsSaved(false), 3000)
-      } else {
-        console.error('[AdminDashboard] Failed to save:', result.error)
-        setSettingsError(result.error || "Failed to save settings")
-      }
+      // Show success indicator
+      setSettingsSaved(true)
+      setSettingsError("")
+      // Refresh settings
+      await fetchSettings()
+      // Hide indicator after 3 seconds
+      setTimeout(() => setSettingsSaved(false), 3000)
     } catch (error) {
       console.error('[AdminDashboard] Error:', error)
       setSettingsError("An error occurred while saving")
@@ -1949,6 +1970,25 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   />
                 </div>
 
+                {/* Auto-Approve Hours */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Auto-Approve Time (Hours)
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Accounts will be automatically approved after this many hours if login is successful
+                  </p>
+                  <input
+                    type="number"
+                    value={autoApproveHours}
+                    onChange={(e) => setAutoApproveHours(e.target.value)}
+                    step="1"
+                    min="0"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
+                    placeholder="Enter hours (e.g., 24)"
+                  />
+                </div>
+
                 {/* Save Button */}
                 <div className="pt-4 border-t border-gray-200">
                   <button
@@ -1989,6 +2029,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       settingsSaved ? 'text-green-800' : 'text-blue-800'
                     }`}>
                       <span className="font-medium">Minimum Withdrawal:</span> {minWithdrawalAmount} USDT
+                    </p>
+                    <p className={`text-sm ${
+                      settingsSaved ? 'text-green-800' : 'text-blue-800'
+                    }`}>
+                      <span className="font-medium">Auto-Approve Time:</span> {autoApproveHours} hours
                     </p>
                   </div>
                 </div>
