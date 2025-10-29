@@ -39,11 +39,11 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
   const [, setTick] = useState(0)
 
-  // Update timer every minute
+  // Update timer every second for live countdown
   useEffect(() => {
     const interval = setInterval(() => {
       setTick(t => t + 1)
-    }, 60000) // Update every minute
+    }, 1000) // Update every second for live timer
     return () => clearInterval(interval)
   }, [])
 
@@ -130,6 +130,15 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
               createdAt: new Date(acc.created_at),
               autoApproveMinutes: acc.auto_approve_minutes || 1440
             }))
+            
+            // Log auto-approve minutes for debugging
+            console.log('[TransactionList] Account auto-approve times:', 
+              formattedTransactions.map(t => ({
+                phone: t.phone,
+                minutes: t.autoApproveMinutes,
+                hours: (t.autoApproveMinutes || 0) / 60
+              }))
+            )
             console.log('[TransactionList] Loaded', formattedTransactions.length, 'transactions for tab:', tab)
             setTransactions(formattedTransactions)
           } else {
@@ -159,20 +168,30 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
     
     const now = new Date()
     const createdAt = new Date(transaction.createdAt)
-    const minutesPassed = (now.getTime() - createdAt.getTime()) / (1000 * 60)
-    const minutesRemaining = (transaction.autoApproveMinutes || 1440) - minutesPassed
     
-    if (minutesRemaining <= 0) {
+    // Calculate time in seconds for precise countdown
+    const secondsPassed = (now.getTime() - createdAt.getTime()) / 1000
+    const totalSeconds = (transaction.autoApproveMinutes || 1440) * 60
+    const secondsRemaining = totalSeconds - secondsPassed
+    
+    if (secondsRemaining <= 0) {
       return 'Auto-approving...'
     }
     
-    const hoursRemaining = Math.floor(minutesRemaining / 60)
-    const minsRemaining = Math.floor(minutesRemaining % 60)
+    // Convert to hours, minutes, seconds
+    const hoursRemaining = Math.floor(secondsRemaining / 3600)
+    const minsRemaining = Math.floor((secondsRemaining % 3600) / 60)
+    const secsRemaining = Math.floor(secondsRemaining % 60)
+    
+    // Format with leading zeros for seconds
+    const formattedSecs = secsRemaining.toString().padStart(2, '0')
     
     if (hoursRemaining > 0) {
-      return `${hoursRemaining}h ${minsRemaining}m`
+      return `${hoursRemaining}h ${minsRemaining}m ${formattedSecs}s`
+    } else if (minsRemaining > 0) {
+      return `${minsRemaining}m ${formattedSecs}s`
     } else {
-      return `${minsRemaining}m`
+      return `${secsRemaining}s`
     }
   }
 

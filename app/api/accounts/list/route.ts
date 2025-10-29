@@ -28,12 +28,15 @@ export async function POST(request: NextRequest) {
         const phoneDigits = acc.phone_number.replace(/[^\d]/g, '')
         let countryFound = false
         
+        console.log(`[AccountsList] Detecting country for ${acc.phone_number}, digits: ${phoneDigits}`)
+        
         for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
           const possibleCode = phoneDigits.substring(0, i)
           const country = await countryCapacity.findOne({ country_code: possibleCode })
           
           if (country) {
             autoApproveMinutes = country.auto_approve_minutes ?? 1440
+            console.log(`[AccountsList] ✅ Country found: ${country.country_name}, code: ${possibleCode}, auto-approve: ${autoApproveMinutes} minutes`)
             countryFound = true
           }
         }
@@ -42,6 +45,7 @@ export async function POST(request: NextRequest) {
           // Fallback to global setting
           const globalSettings = await settings.findOne({ setting_key: 'auto_approve_minutes' })
           autoApproveMinutes = parseInt(globalSettings?.setting_value || '1440')
+          console.log(`[AccountsList] No country found for ${acc.phone_number}, using global: ${autoApproveMinutes} minutes`)
         }
         
         return {
