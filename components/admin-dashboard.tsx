@@ -2023,47 +2023,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
 
               <div className="p-6">
-                {/* Quick Download Options */}
-                <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
-                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="material-icons text-purple-600">flash_on</span>
-                    Quick Downloads
+                {/* Quick Actions */}
+                <div className="mb-6 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <span className="material-icons text-blue-600">access_time</span>
+                    Recent Sessions
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <button
-                      onClick={async () => {
-                        if (!adminTelegramId) return
-                        setDownloadingSession(true)
-                        try {
-                          const response = await fetch('/api/admin/sessions/download', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ telegramId: adminTelegramId, filter: 'latest', limit: 10 })
-                          })
-                          if (response.ok) {
-                            const blob = await response.blob()
-                            const url = window.URL.createObjectURL(blob)
-                            const a = document.createElement('a')
-                            a.href = url
-                            a.download = `latest_10_sessions_${new Date().toISOString().split('T')[0]}.zip`
-                            document.body.appendChild(a)
-                            a.click()
-                            window.URL.revokeObjectURL(url)
-                            document.body.removeChild(a)
-                          }
-                        } catch (error) {
-                          console.error('Download error:', error)
-                        }
-                        setDownloadingSession(false)
-                      }}
-                      disabled={downloadingSession}
-                      className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-purple-50 rounded-lg border-2 border-purple-300 hover:border-purple-500 transition-all disabled:opacity-50"
-                    >
-                      <span className="material-icons text-3xl text-purple-600">newest</span>
-                      <span className="font-semibold text-gray-900">Latest 10</span>
-                      <span className="text-xs text-gray-600">Most recent sessions</span>
-                    </button>
-
+                  <div className="flex gap-2">
                     <button
                       onClick={async () => {
                         if (!adminTelegramId) return
@@ -2091,13 +2057,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setDownloadingSession(false)
                       }}
                       disabled={downloadingSession}
-                      className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-blue-50 rounded-lg border-2 border-blue-300 hover:border-blue-500 transition-all disabled:opacity-50"
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
-                      <span className="material-icons text-3xl text-blue-600">cloud_download</span>
-                      <span className="font-semibold text-gray-900">Download All</span>
-                      <span className="text-xs text-gray-600">All session files</span>
+                      <span className="material-icons text-sm">cloud_download</span>
+                      Download All
                     </button>
-
                     <button
                       onClick={async () => {
                         if (!adminTelegramId) return
@@ -2116,13 +2080,117 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setLoadingSessions(false)
                       }}
                       disabled={loadingSessions}
-                      className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-green-50 rounded-lg border-2 border-green-300 hover:border-green-500 transition-all disabled:opacity-50"
+                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
-                      <span className="material-icons text-3xl text-green-600">refresh</span>
-                      <span className="font-semibold text-gray-900">Refresh List</span>
-                      <span className="text-xs text-gray-600">Update session list</span>
+                      <span className="material-icons text-sm">refresh</span>
+                      Refresh
                     </button>
                   </div>
+                </div>
+
+                {/* Recent Sessions List (Latest 10) */}
+                <div className="mb-6 bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  {loadingSessions ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">Loading sessions...</p>
+                    </div>
+                  ) : sessions.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50">
+                      <span className="material-icons text-5xl text-gray-300 mb-3">folder_off</span>
+                      <p className="text-gray-500">No sessions found. Click "Refresh" to load.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border-b border-gray-200">
+                        <p className="text-sm font-medium text-gray-700">
+                          Showing {Math.min(10, sessions.length)} most recent session{sessions.length !== 1 ? 's' : ''} from all countries
+                        </p>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {sessions.slice(0, 10).map((session: any, idx: number) => (
+                          <div key={idx} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="flex-shrink-0">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                                    {idx + 1}
+                                  </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-medium text-sm text-gray-900">{session.phone}</p>
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                      {session.country}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {session.fileName} • {(session.size / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                  session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                  session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                  session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {session.status.toUpperCase()}
+                                </span>
+                                <span className="text-xs text-gray-400 hidden md:inline">
+                                  {new Date(session.createdAt).toLocaleDateString()}
+                                </span>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    if (!adminTelegramId) return
+                                    setDownloadingSingleSession(session.fileName)
+                                    try {
+                                      const response = await fetch('/api/admin/sessions/download', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ 
+                                          telegramId: adminTelegramId, 
+                                          filter: 'single',
+                                          fileName: session.fileName
+                                        })
+                                      })
+                                      if (response.ok) {
+                                        const blob = await response.blob()
+                                        const url = window.URL.createObjectURL(blob)
+                                        const a = document.createElement('a')
+                                        a.href = url
+                                        a.download = session.fileName
+                                        document.body.appendChild(a)
+                                        a.click()
+                                        window.URL.revokeObjectURL(url)
+                                        document.body.removeChild(a)
+                                      }
+                                    } catch (error) {
+                                      console.error('Download error:', error)
+                                    }
+                                    setDownloadingSingleSession(null)
+                                  }}
+                                  disabled={downloadingSingleSession === session.fileName}
+                                  className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  <span className="material-icons text-sm">download</span>
+                                  <span className="hidden sm:inline">Download</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {sessions.length > 10 && (
+                        <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
+                          <p className="text-xs text-gray-500">
+                            +{sessions.length - 10} more sessions available below in country groups
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Sessions by Country */}
