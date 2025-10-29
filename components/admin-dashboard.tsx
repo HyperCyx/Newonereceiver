@@ -1108,10 +1108,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Code Name</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Referral Code</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Used Count</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Max Uses</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Created</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Bot Link</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1143,9 +1143,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               {code.used_count}
                             </span>
                           </td>
-                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-600">
-                            {code.max_uses || '∞'}
-                          </td>
                           <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
                             {code.is_active ? (
                               <span className="bg-green-100 text-green-700 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-sm font-semibold">
@@ -1167,10 +1164,41 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                 navigator.clipboard.writeText(link)
                                 alert('Bot link copied to clipboard!')
                               }}
-                              className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                              className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 text-[10px] md:text-xs"
                             >
                               <Link2 size={14} />
                               Copy
+                            </button>
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Are you sure you want to delete the referral code "${code.name || code.code}"?\n\nThis action cannot be undone.`)) return
+                                
+                                try {
+                                  const response = await fetch('/api/referral-codes', {
+                                    method: 'DELETE',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ codeId: code._id })
+                                  })
+                                  
+                                  const result = await response.json()
+                                  
+                                  if (response.ok && result.success) {
+                                    alert('Referral code deleted successfully!')
+                                    fetchAllData()
+                                  } else {
+                                    alert('Error: ' + (result.error || 'Failed to delete referral code'))
+                                  }
+                                } catch (err) {
+                                  console.error('Error:', err)
+                                  alert('Error deleting referral code')
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-700 font-medium flex items-center gap-1 text-[10px] md:text-xs"
+                            >
+                              <span className="material-icons" style={{fontSize: '14px'}}>delete</span>
+                              Delete
                             </button>
                           </td>
                         </tr>

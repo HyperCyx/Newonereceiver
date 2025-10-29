@@ -69,3 +69,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+// DELETE - Delete a referral code
+export async function DELETE(request: NextRequest) {
+  try {
+    // Check if user is admin
+    await requireAdmin()
+
+    const body = await request.json()
+    const { codeId } = body
+
+    if (!codeId) {
+      return NextResponse.json({ error: 'Code ID is required' }, { status: 400 })
+    }
+
+    const referralCodes = await getCollection(Collections.REFERRAL_CODES)
+
+    // Delete the referral code
+    const result = await referralCodes.deleteOne({ _id: codeId })
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json({ error: 'Referral code not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Referral code deleted successfully'
+    })
+  } catch (error: any) {
+    console.error('[ReferralCodes] DELETE error:', error)
+    if (error.message === 'Unauthorized' || error.message?.includes('Forbidden')) {
+      return NextResponse.json({ error: error.message }, { status: error.message === 'Unauthorized' ? 401 : 403 })
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
