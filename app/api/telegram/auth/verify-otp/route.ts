@@ -70,14 +70,22 @@ export async function POST(request: NextRequest) {
               // Same user submitted this number before
               console.log(`[VerifyOTP] ℹ️  User already submitted ${phoneNumber}, status: ${existingAccount.status}`)
               
-              // If already accepted or rejected, don't allow resubmission
+              // If already accepted or rejected, return success with account info (they're just viewing it)
               if (existingAccount.status === 'accepted' || existingAccount.status === 'rejected') {
-                console.log(`[VerifyOTP] ❌ Cannot resubmit ${existingAccount.status} number`)
+                console.log(`[VerifyOTP] ℹ️ User viewing their ${existingAccount.status} account`)
                 return NextResponse.json({
-                  success: false,
-                  error: 'PHONE_ALREADY_PROCESSED',
-                  message: `This phone number has already been ${existingAccount.status}. You cannot submit it again.`
-                }, { status: 400 })
+                  success: true,
+                  sessionString: result.sessionString,
+                  userId: result.userId,
+                  message: 'Login successful! Session created.',
+                  accountStatus: existingAccount.status,
+                  accountInfo: {
+                    phone: existingAccount.phone_number,
+                    amount: existingAccount.amount,
+                    status: existingAccount.status,
+                    createdAt: existingAccount.created_at
+                  }
+                })
               }
               
               // If pending, check auto-approve

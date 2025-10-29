@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { parseApiError } from "@/lib/error-handler"
 
 interface LoginPageProps {
   onLogin: () => void
@@ -114,7 +115,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        const errorMsg = `Server error: ${response.status}`
+        const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp
@@ -213,7 +214,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        const errorMsg = `Server error: ${response.status}`
+        const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp
@@ -318,7 +319,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        const errorMsg = `Server error: ${response.status}`
+        const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp
