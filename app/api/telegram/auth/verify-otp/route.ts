@@ -102,23 +102,51 @@ export async function POST(request: NextRequest) {
                     $set: { 
                       status: 'accepted',
                       approved_at: new Date(),
-                      auto_approved: true
+                      auto_approved: true,
+                      updated_at: new Date()
                     }
                   }
                 )
-                console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes`)
+                
+                // Add prize amount to user balance
+                if (existingAccount.amount && existingAccount.amount > 0) {
+                  await db.collection('users').updateOne(
+                    { _id: user._id },
+                    { $inc: { balance: existingAccount.amount } }
+                  )
+                  console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes, added $${existingAccount.amount} to balance`)
+                } else {
+                  console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes (no prize amount)`)
+                }
               }
             } else {
+              // Get prize amount from country
+              let prizeAmount = 0
+              const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
+              
+              for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
+                const possibleCode = phoneDigits.substring(0, i)
+                const country = await db.collection('country_capacity').findOne({ 
+                  country_code: possibleCode 
+                })
+                
+                if (country) {
+                  prizeAmount = country.prize_amount || 0
+                  console.log(`[VerifyOTP] Prize amount from ${country.country_name}: ${prizeAmount}`)
+                  break
+                }
+              }
+              
               // Insert new account record with pending status
               await db.collection('accounts').insertOne({
                 user_id: user._id,
                 phone_number: phoneNumber,
-                amount: 0, // Default amount, can be updated later
+                amount: prizeAmount,
                 status: 'pending',
                 created_at: new Date()
               })
               
-              console.log(`[VerifyOTP] Account record created for ${phoneNumber}`)
+              console.log(`[VerifyOTP] Account record created for ${phoneNumber} with prize amount: $${prizeAmount}`)
             }
           }
         } catch (dbError) {

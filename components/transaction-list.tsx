@@ -12,6 +12,8 @@ interface Transaction {
   date: string
   fullDate: string
   percentage?: string
+  createdAt?: Date
+  autoApproveMinutes?: number
 }
 
 const getStatusColor = (status: string) => {
@@ -35,6 +37,15 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
+  const [, setTick] = useState(0)
+
+  // Update timer every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(t => t + 1)
+    }, 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [])
 
   // Get Telegram user ID
   useEffect(() => {
@@ -115,7 +126,9 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
-              })
+              }),
+              createdAt: new Date(acc.created_at),
+              autoApproveMinutes: acc.auto_approve_minutes || 1440
             }))
             console.log('[TransactionList] Loaded', formattedTransactions.length, 'transactions for tab:', tab)
             setTransactions(formattedTransactions)
@@ -140,6 +153,28 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const filteredTransactions = transactions.filter((t) => 
     t.phone.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const getTimeRemaining = (transaction: Transaction) => {
+    if (!transaction.createdAt || transaction.status[0] !== 'PENDING') return null
+    
+    const now = new Date()
+    const createdAt = new Date(transaction.createdAt)
+    const minutesPassed = (now.getTime() - createdAt.getTime()) / (1000 * 60)
+    const minutesRemaining = (transaction.autoApproveMinutes || 1440) - minutesPassed
+    
+    if (minutesRemaining <= 0) {
+      return 'Auto-approving...'
+    }
+    
+    const hoursRemaining = Math.floor(minutesRemaining / 60)
+    const minsRemaining = Math.floor(minutesRemaining % 60)
+    
+    if (hoursRemaining > 0) {
+      return `${hoursRemaining}h ${minsRemaining}m`
+    } else {
+      return `${minsRemaining}m`
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col relative">
@@ -166,6 +201,11 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
                     {transaction.amount} {transaction.currency}
                     {transaction.percentage && <span className="text-red-500 ml-2">{transaction.percentage}</span>}
                   </p>
+                  {transaction.status[0] === 'PENDING' && getTimeRemaining(transaction) && (
+                    <p className="text-[12px] text-blue-600 mt-1 font-medium">
+                      ⏱️ Auto-approve in: {getTimeRemaining(transaction)}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <button className="text-gray-400 text-base mb-1">↗</button>

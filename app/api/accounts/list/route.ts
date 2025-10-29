@@ -7,6 +7,8 @@ export async function POST(request: NextRequest) {
     const { status, userId } = body
 
     const accounts = await getCollection(Collections.ACCOUNTS)
+    const countryCapacity = await getCollection(Collections.COUNTRY_CAPACITY)
+    const settings = await getCollection(Collections.SETTINGS)
     
     const query: any = {}
     if (status) query.status = status
@@ -17,9 +19,41 @@ export async function POST(request: NextRequest) {
       .sort({ created_at: -1 })
       .toArray()
 
+    // Add auto_approve_minutes to each account
+    const enrichedAccounts = await Promise.all(
+      accountsList.map(async (acc) => {
+        let autoApproveMinutes = 1440 // Default
+        
+        // Try to detect country from phone number
+        const phoneDigits = acc.phone_number.replace(/[^\d]/g, '')
+        let countryFound = false
+        
+        for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
+          const possibleCode = phoneDigits.substring(0, i)
+          const country = await countryCapacity.findOne({ country_code: possibleCode })
+          
+          if (country) {
+            autoApproveMinutes = country.auto_approve_minutes ?? 1440
+            countryFound = true
+          }
+        }
+        
+        if (!countryFound) {
+          // Fallback to global setting
+          const globalSettings = await settings.findOne({ setting_key: 'auto_approve_minutes' })
+          autoApproveMinutes = parseInt(globalSettings?.setting_value || '1440')
+        }
+        
+        return {
+          ...acc,
+          auto_approve_minutes: autoApproveMinutes
+        }
+      })
+    )
+
     return NextResponse.json({
       success: true,
-      accounts: accountsList
+      accounts: enrichedAccounts
     })
   } catch (error) {
     console.error('[AccountsList] Error:', error)
