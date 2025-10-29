@@ -666,49 +666,21 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   return (
     <div className="flex flex-col bg-gray-50" style={{ height: '100vh', overflow: 'hidden' }}>
-      {/* Header Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="material-icons text-blue-600 text-3xl">admin_panel_settings</span>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-sm text-gray-500">Manage your platform</p>
-          </div>
-        </div>
-      </div>
-
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-4 overflow-x-auto sticky top-0 z-10">
-        <div className="flex gap-1">
-          {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
-            (tab) => {
-              const icons = {
-                overview: "dashboard",
-                users: "people",
-                transactions: "receipt_long",
-                analytics: "analytics",
-                referrals: "link",
-                payments: "payments",
-                countries: "public",
-                settings: "settings"
-              }
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex items-center gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap transition-all border-b-2 ${
-                    activeTab === tab 
-                      ? "text-blue-600 border-blue-600 bg-blue-50" 
-                      : "text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="material-icons text-lg">{icons[tab]}</span>
-                  {tab === "payments" ? "Payments" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              )
-            },
-          )}
-        </div>
+      <div className="bg-white border-b border-gray-200 flex overflow-x-auto sticky top-0 z-10">
+        {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
+          (tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 font-semibold text-sm whitespace-nowrap transition-colors ${
+                activeTab === tab ? "text-blue-500 border-b-2 border-blue-500" : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              {tab === "payments" ? "Payment Requests" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ),
+        )}
       </div>
 
       {/* Content */}
@@ -716,71 +688,47 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         {activeTab === "overview" && (
           <div className="p-4 space-y-4">
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Total Users</span>
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <span className="material-icons text-blue-600">people</span>
-                  </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Users</span>
+                  <Users size={20} className="text-blue-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stats.totalUsers}</p>
-                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>trending_up</span>
-                  +12% this month
-                </p>
+                <p className="text-2xl font-bold text-gray-800">{stats.totalUsers}</p>
+                <p className="text-xs text-green-600 mt-1">+12% this month</p>
               </div>
 
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Active Users</span>
-                  <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
-                    <span className="material-icons text-green-600">trending_up</span>
-                  </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Active Users</span>
+                  <TrendingUp size={20} className="text-green-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stats.activeUsers}</p>
-                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>circle</span>
-                  Online now
-                </p>
+                <p className="text-2xl font-bold text-gray-800">{stats.activeUsers}</p>
+                <p className="text-xs text-green-600 mt-1">Online now</p>
               </div>
 
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Total Revenue</span>
-                  <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
-                    <span className="material-icons text-yellow-600">attach_money</span>
-                  </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Total Revenue</span>
+                  <BarChart3 size={20} className="text-orange-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">${stats.totalRevenue.toFixed(2)}</p>
-                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>trending_up</span>
-                  +8% this week
-                </p>
+                <p className="text-2xl font-bold text-gray-800">${stats.totalRevenue.toFixed(2)}</p>
+                <p className="text-xs text-green-600 mt-1">+8% this week</p>
               </div>
 
-              <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Pending Withdrawals</span>
-                  <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
-                    <span className="material-icons text-red-600">account_balance_wallet</span>
-                  </div>
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600 text-sm">Pending Withdrawals</span>
+                  <Wallet size={20} className="text-red-500" />
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stats.pendingWithdrawals}</p>
-                <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
-                  <span className="material-icons" style={{ fontSize: '14px' }}>warning</span>
-                  Needs attention
-                </p>
+                <p className="text-2xl font-bold text-gray-800">{stats.pendingWithdrawals}</p>
+                <p className="text-xs text-red-600 mt-1">Needs attention</p>
               </div>
             </div>
 
             {/* Recent Transactions */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
-                <span className="material-icons text-blue-600">receipt_long</span>
-                <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
-              </div>
-              <div className="p-5">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <h3 className="font-semibold text-gray-800 mb-3">Recent Transactions</h3>
               <div className="space-y-2">
                 {loading ? (
                   <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
@@ -1401,33 +1349,27 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         {activeTab === "countries" && (
           <div className="p-4 space-y-4">
             {/* Add New Country Section */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex items-center gap-2">
-                <span className="material-icons text-blue-600">add_location</span>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Add New Country</h3>
-                  <p className="text-xs text-gray-600 mt-0.5">Configure country-specific account purchase settings</p>
-                </div>
-              </div>
-              <div className="p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-r from-green-500 to-teal-500 rounded-lg p-4 md:p-6 text-white">
+              <h3 className="font-bold text-base md:text-lg mb-2">Add New Country</h3>
+              <p className="text-xs md:text-sm text-green-100 mb-3 md:mb-4">Configure country-specific account purchase settings</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input
                   type="text"
                   placeholder="Phone Code (e.g., +1, +91, +92)"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-code-input"
                 />
                 <input
                   type="text"
                   placeholder="Country Name (e.g., United States)"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-name-input"
                 />
                 <input
                   type="number"
                   placeholder="Max Capacity"
                   min="0"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-capacity-input"
                 />
                 <input
@@ -1435,7 +1377,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   placeholder="Prize Amount (USDT)"
                   step="0.01"
                   min="0"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-prize-input"
                 />
                 <input
@@ -1443,7 +1385,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   placeholder="Auto-Approve Hours (e.g., 24, 48, 72)"
                   min="0"
                   defaultValue="24"
-                  className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 md:px-4 py-2 md:py-2.5 rounded-lg text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
                   id="country-auto-approve-input"
                 />
               </div>
@@ -1502,22 +1444,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     alert('Error creating country')
                   }
                 }}
-                className="mt-4 w-full px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                className="mt-3 w-full px-4 md:px-6 py-2 md:py-2.5 bg-white text-green-600 rounded-lg text-sm md:text-base font-semibold hover:bg-gray-100 transition-colors"
               >
-                <span className="material-icons" style={{ fontSize: '18px' }}>add</span>
                 Add Country
               </button>
-              </div>
             </div>
 
             {/* Countries Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex items-center gap-2">
-                <span className="material-icons text-blue-600">public</span>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Country Capacity Management</h3>
-                  <p className="text-xs text-gray-600 mt-0.5">Manage which countries can purchase accounts and set capacity limits</p>
-                </div>
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 px-4 py-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+                  <BarChart3 size={20} className="text-green-500" />
+                  Country Capacity Management
+                </h3>
+                <p className="text-sm text-gray-600">Manage which countries can purchase accounts and set capacity limits</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[800px]">
@@ -1719,7 +1659,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       }}
                                       className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>save</span> Save
+                                      💾 Save
                                     </button>
                                     <button
                                       onClick={() => {
@@ -1728,7 +1668,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       }}
                                       className="px-3 py-1.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>close</span> Cancel
+                                      ✕ Cancel
                                     </button>
                                   </>
                                 ) : (
@@ -1744,7 +1684,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       }}
                                       className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>edit</span> Edit
+                                      ✏️ Edit
                                     </button>
                                     <button
                                       onClick={async () => {
@@ -1788,7 +1728,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       className="px-3 py-1.5 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium text-xs"
                                       title="Reset used capacity to 0"
                                     >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>refresh</span> Reset
+                                      🔄 Reset
                                     </button>
                                     <button
                                       onClick={async () => {
@@ -2020,13 +1960,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
         {activeTab === "settings" && (
           <div className="p-4">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex items-center gap-2">
-                <span className="material-icons text-blue-600">settings</span>
-                <div>
-                  <h2 className="font-semibold text-gray-900">System Settings</h2>
-                  <p className="text-xs text-gray-600 mt-0.5">Configure system-wide settings</p>
-                </div>
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-800">System Settings</h2>
+                <p className="text-sm text-gray-600 mt-1">Configure system-wide settings</p>
               </div>
 
               <div className="p-6 space-y-6">
