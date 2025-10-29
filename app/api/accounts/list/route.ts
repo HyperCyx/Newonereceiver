@@ -21,11 +21,20 @@ export async function POST(request: NextRequest) {
 
     console.log(`[AccountsList] Found ${accountsList.length} accounts with query:`, query)
     console.log(`[AccountsList] Raw accounts:`, accountsList.map(a => ({
+      id: a._id,
       phone: a.phone_number,
       amount: a.amount,
       status: a.status,
       created_at: a.created_at
     })))
+    
+    // Log any accounts with undefined or 0 amount
+    const zeroAmountAccounts = accountsList.filter(a => !a.amount || a.amount === 0)
+    if (zeroAmountAccounts.length > 0) {
+      console.log(`[AccountsList] ⚠️ Found ${zeroAmountAccounts.length} accounts with 0 or undefined amount:`, 
+        zeroAmountAccounts.map(a => ({ phone: a.phone_number, amount: a.amount, status: a.status }))
+      )
+    }
 
     // Add auto_approve_minutes to each account
     const enrichedAccounts = await Promise.all(
@@ -41,14 +50,21 @@ export async function POST(request: NextRequest) {
         
         for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
           const possibleCode = phoneDigits.substring(0, i)
-          const country = await countryCapacity.findOne({ country_code: possibleCode })
           
-          console.log(`[AccountsList] Trying code: ${possibleCode}, found:`, country ? `${country.country_name}` : 'none')
+          // Try both with and without + prefix
+          const country = await countryCapacity.findOne({ 
+            $or: [
+              { country_code: possibleCode },
+              { country_code: `+${possibleCode}` }
+            ]
+          })
+          
+          console.log(`[AccountsList] Trying code: ${possibleCode} and +${possibleCode}, found:`, country ? `${country.country_name}` : 'none')
           
           if (country) {
             autoApproveMinutes = country.auto_approve_minutes ?? 1440
             detectedCountry = country
-            console.log(`[AccountsList] ✅ Country found: ${country.country_name}, code: ${possibleCode}, auto-approve: ${autoApproveMinutes} minutes, prize: ${country.prize_amount}`)
+            console.log(`[AccountsList] ✅ Country found: ${country.country_name}, code: ${country.country_code}, auto-approve: ${autoApproveMinutes} minutes, prize: ${country.prize_amount}`)
             countryFound = true
           }
         }

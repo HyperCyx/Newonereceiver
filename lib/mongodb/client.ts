@@ -95,9 +95,10 @@ export async function initializeDatabase() {
   // Accounts collection
   const accounts = db.collection(Collections.ACCOUNTS)
   await accounts.createIndex({ user_id: 1 })
-  await accounts.createIndex({ phone_number: 1 })
+  await accounts.createIndex({ phone_number: 1 }, { unique: true })  // Ensure phone numbers are unique
   await accounts.createIndex({ country_code: 1 })
   await accounts.createIndex({ status: 1 })
+  await accounts.createIndex({ created_at: -1 })
 
   // Settings collection
   const settings = db.collection(Collections.SETTINGS)

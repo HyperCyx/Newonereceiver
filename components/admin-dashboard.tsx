@@ -29,15 +29,6 @@ interface DashboardStats {
   pendingWithdrawals: number
 }
 
-interface Transaction {
-  id: string
-  userId: string
-  userName?: string
-  amount: string
-  status: "completed" | "pending" | "failed"
-  date: string
-}
-
 interface Withdrawal {
   id: string
   userId: string
@@ -95,16 +86,9 @@ interface Country {
   updated_at: string
 }
 
-interface CountryStat {
-  phoneCode: string
-  countryName: string
-  count: number
-  users: any[]
-}
-
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "settings"
+    "overview" | "users" | "analytics" | "referrals" | "payments" | "countries" | "sessions" | "settings"
   >("overview")
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -117,12 +101,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   })
 
   const [users, setUsers] = useState<User[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
   const [referralCodes, setReferralCodes] = useState<ReferralCode[]>([])
   const [countries, setCountries] = useState<Country[]>([])
-  const [countryStats, setCountryStats] = useState<CountryStat[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
@@ -134,6 +116,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveMinutes: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
+  
+  // Sessions state
+  const [sessions, setSessions] = useState<any[]>([])
+  const [sessionsByCountry, setSessionsByCountry] = useState<any>({})
+  const [countrySessionStats, setCountrySessionStats] = useState<any[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(new Set())
+  const [downloadingSingleSession, setDownloadingSingleSession] = useState<string | null>(null)
 
   // Get Telegram ID on mount
   useEffect(() => {
@@ -160,11 +150,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     })
 
     return last7Days.map((date, idx) => {
-      const dayTransactions = transactions.filter(t => {
-        const txDate = new Date(t.date)
-        return txDate.toDateString() === date.toDateString() && t.status === 'completed'
+      // Use withdrawals as revenue indicator instead of transactions
+      const dayWithdrawals = withdrawals.filter(w => {
+        const wDate = new Date(w.date)
+        return wDate.toDateString() === date.toDateString() && w.status === 'confirmed'
       })
-      const revenue = dayTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
+      const revenue = dayWithdrawals.reduce((sum, w) => sum + Number(w.amount), 0)
       return {
         day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
         revenue: Math.round(revenue)
@@ -172,18 +163,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     })
   })()
 
-  const transactionStats = (() => {
-    const total = transactions.length || 1
-    const completed = transactions.filter(t => t.status === 'completed').length
-    const pending = transactions.filter(t => t.status === 'pending').length
-    const failed = transactions.filter(t => t.status === 'failed').length
-
-    return [
-      { status: 'Completed', count: completed, percentage: Math.round((completed / total) * 100) },
-      { status: 'Pending', count: pending, percentage: Math.round((pending / total) * 100) },
-      { status: 'Failed', count: failed, percentage: Math.round((failed / total) * 100) }
-    ]
-  })()
 
   const withdrawalStats = (() => {
     const total = withdrawals.length || 1
@@ -201,17 +180,18 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const topUsers = (() => {
     const userRevenue: { [key: string]: { name: string; revenue: number; transactions: number } } = {}
     
-    transactions.forEach(tx => {
-      if (tx.status === 'completed') {
-        if (!userRevenue[tx.userId]) {
-          userRevenue[tx.userId] = {
-            name: tx.userName || tx.userId.substring(0, 8) + '...',
+    // Use withdrawals to calculate top users
+    withdrawals.forEach(w => {
+      if (w.status === 'confirmed') {
+        if (!userRevenue[w.userId]) {
+          userRevenue[w.userId] = {
+            name: w.userName || w.userId.substring(0, 8) + '...',
             revenue: 0,
             transactions: 0
           }
         }
-        userRevenue[tx.userId].revenue += Number(tx.amount)
-        userRevenue[tx.userId].transactions += 1
+        userRevenue[w.userId].revenue += Number(w.amount)
+        userRevenue[w.userId].transactions += 1
       }
     })
 
@@ -298,7 +278,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       setLoadingStep('fetching stats')
       console.log('[AdminDashboard] Fetching stats...')
       try {
-        const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
+        const [usersResponse, withdrawalsResponse] = await Promise.all([
           fetch('/api/admin/users').catch(err => {
             console.error('[AdminDashboard] Users API error:', err)
             return { ok: false, json: () => Promise.resolve({ count: 0 }) }
@@ -306,24 +286,19 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           fetch('/api/admin/withdrawals').catch(err => {
             console.error('[AdminDashboard] Withdrawals API error:', err)
             return { ok: false, json: () => Promise.resolve({ withdrawals: [] }) }
-          }),
-          fetch('/api/transactions/list').catch(err => {
-            console.error('[AdminDashboard] Transactions API error:', err)
-            return { ok: false, json: () => Promise.resolve({ transactions: [] }) }
           })
         ])
 
         const usersCount = await usersResponse.json()
         const withdrawalsResult = await withdrawalsResponse.json()
-        const transactionsResult = await transactionsResponse.json()
 
         const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
-        const totalRevenue = transactionsResult.transactions?.reduce((sum: number, t: any) => 
-          t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
+        const totalRevenue = withdrawalsResult.withdrawals?.reduce((sum: number, w: any) => 
+          w.status === 'confirmed' ? sum + Number(w.amount) : sum, 0) || 0
 
         setStats({
           totalUsers: usersCount.count || 0,
-          totalTransactions: transactionsResult.transactions?.length || 0,
+          totalTransactions: 0, // No longer tracking transactions
           totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
           totalRevenue,
           activeUsers: usersCount.count || 0,
@@ -343,29 +318,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         })
       }
 
-      // Fetch transactions
-      if (activeTab === 'transactions' || activeTab === 'overview' || activeTab === 'analytics') {
-        try {
-          const response = await fetch('/api/transactions/list')
-          if (response.ok) {
-            const result = await response.json()
-            if (result.success && result.transactions) {
-              const formattedTx: Transaction[] = result.transactions.map((tx: any) => ({
-                id: tx._id,
-                userId: tx.user_id,
-                userName: tx.users?.telegram_username || 'Unknown',
-                amount: Number(tx.amount).toFixed(2),
-                status: tx.status as "completed" | "pending" | "failed",
-                date: new Date(tx.created_at).toLocaleDateString()
-              }))
-              setTransactions(formattedTx)
-            }
-          }
-        } catch (err) {
-          console.error('[AdminDashboard] Error fetching transactions:', err)
-          setTransactions([])
-        }
-      }
 
       // Fetch withdrawals with user info (only for analytics and overview)
       if (activeTab === 'overview' || activeTab === 'analytics') {
@@ -375,7 +327,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const result = await response.json()
             if (result.withdrawals) {
               const formattedWd: Withdrawal[] = result.withdrawals.map((wd: any) => ({
-                id: wd.id,
+                id: wd._id || wd.id,
                 userId: wd.user_id,
                 userName: wd.users?.telegram_username || `${wd.users?.first_name || ''} ${wd.users?.last_name || ''}`.trim() || 'Unknown',
                 amount: Number(wd.amount).toFixed(2),
@@ -479,21 +431,29 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           setCountries([])
         }
 
-        // Fetch country statistics
-        if (adminTelegramId) {
-          try {
-            const statsResponse = await fetch(`/api/admin/country-stats?telegramId=${adminTelegramId}`)
-            if (statsResponse.ok) {
-              const statsResult = await statsResponse.json()
-              if (statsResult.success && statsResult.stats) {
-                setCountryStats(statsResult.stats)
-                console.log('[AdminDashboard] Loaded country stats:', statsResult.stats.length)
-              }
+      }
+
+      // Fetch sessions when sessions tab is active
+      if (activeTab === 'sessions' && adminTelegramId) {
+        try {
+          setLoadingSessions(true)
+          const response = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success) {
+              setSessions(result.allSessions || [])
+              setSessionsByCountry(result.sessionsByCountry || {})
+              setCountrySessionStats(result.countryStats || [])
+              console.log('[AdminDashboard] Loaded sessions:', result.totalSessions)
             }
-          } catch (err) {
-            console.error('[AdminDashboard] Error fetching country stats:', err)
-            setCountryStats([])
           }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching sessions:', err)
+          setSessions([])
+          setSessionsByCountry({})
+          setCountrySessionStats([])
+        } finally {
+          setLoadingSessions(false)
         }
       }
 
@@ -501,12 +461,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       console.error('[AdminDashboard] Critical error in fetchAllData:', error)
       // Set default states on critical error
       setUsers([])
-      setTransactions([])
       setWithdrawals([])
       setPaymentRequests([])
       setReferralCodes([])
       setCountries([])
-      setCountryStats([])
     } finally {
       // Always clear loading state
       setLoadingStep('completed')
@@ -672,16 +630,16 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 px-4 overflow-x-auto sticky top-0 z-10">
         <div className="flex gap-1">
-          {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
+          {(["overview", "users", "analytics", "referrals", "payments", "countries", "sessions", "settings"] as const).map(
             (tab) => {
               const icons = {
                 overview: "dashboard",
                 users: "people",
-                transactions: "receipt_long",
                 analytics: "analytics",
                 referrals: "link",
                 payments: "payments",
                 countries: "public",
+                sessions: "download",
                 settings: "settings"
               }
               return (
@@ -766,43 +724,43 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
             </div>
 
-            {/* Recent Transactions */}
+            {/* Recent Withdrawals */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
-                <span className="material-icons text-blue-600">receipt_long</span>
-                <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
+                <span className="material-icons text-blue-600">account_balance_wallet</span>
+                <h3 className="font-semibold text-gray-900">Recent Withdrawals</h3>
               </div>
               <div className="p-5">
                 <div className="space-y-2">
                   {loading ? (
                     <p className="text-center text-gray-400 py-4">Loading... ({loadingStep})</p>
-                  ) : transactions.length === 0 ? (
-                    <p className="text-center text-gray-400 py-4">No transactions yet</p>
+                  ) : withdrawals.length === 0 ? (
+                    <p className="text-center text-gray-400 py-4">No withdrawals yet</p>
                   ) : (
-                    transactions.slice(0, 3).map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{tx.userName || tx.userId.substring(0, 20) + '...'}</p>
-                        <p className="text-xs text-gray-500">{tx.date}</p>
+                    withdrawals.slice(0, 3).map((w, idx) => (
+                      <div
+                        key={w.id || `withdrawal-${idx}`}
+                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{w.userName || w.userId.substring(0, 20) + '...'}</p>
+                          <p className="text-xs text-gray-500">{w.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-800">${w.amount}</p>
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${
+                              w.status === "confirmed"
+                                ? "bg-green-100 text-green-700"
+                                : w.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {w.status}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-800">${tx.amount}</p>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            tx.status === "completed"
-                              ? "bg-green-100 text-green-700"
-                              : tx.status === "pending"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {tx.status}
-                        </span>
-                      </div>
-                    </div>
                     ))
                   )}
                 </div>
@@ -872,60 +830,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         )}
 
-        {activeTab === "transactions" && (
-          <div className="p-4">
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">User ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Amount</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr key="loading-transactions">
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          Loading transactions...
-                        </td>
-                      </tr>
-                    ) : transactions.length === 0 ? (
-                      <tr key="no-transactions">
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          No transactions found
-                        </td>
-                      </tr>
-                    ) : (
-                      transactions.map((tx) => (
-                        <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800">{tx.userName || tx.userId}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-800">${tx.amount}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-semibold ${
-                              tx.status === "completed"
-                                ? "bg-green-100 text-green-700"
-                                : tx.status === "pending"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {tx.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{tx.date}</td>
-                      </tr>
-                    ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
 
 
         {activeTab === "analytics" && (
@@ -966,67 +870,34 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               )}
             </div>
 
-            {/* Transaction Status Distribution */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <PieChart size={20} className="text-green-500" />
-                  Transaction Status
-                </h3>
-                <div className="space-y-3">
-                  {transactionStats.map((stat, idx) => (
-                    <div key={idx}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-700">{stat.status}</span>
-                        <span className="text-sm font-semibold text-gray-800">{stat.count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            stat.status === "Completed"
-                              ? "bg-green-500"
-                              : stat.status === "Pending"
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                          }`}
-                          style={{ width: `${stat.percentage}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{stat.percentage}% of total</p>
+            {/* Withdrawal Status Distribution */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <PieChart size={20} className="text-orange-500" />
+                Withdrawal Status Distribution
+              </h3>
+              <div className="space-y-3">
+                {withdrawalStats.map((stat, idx) => (
+                  <div key={idx}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-gray-700">{stat.status}</span>
+                      <span className="text-sm font-semibold text-gray-800">{stat.count}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Withdrawal Status Distribution */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <PieChart size={20} className="text-orange-500" />
-                  Withdrawal Status
-                </h3>
-                <div className="space-y-3">
-                  {withdrawalStats.map((stat, idx) => (
-                    <div key={idx}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-700">{stat.status}</span>
-                        <span className="text-sm font-semibold text-gray-800">{stat.count}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            stat.status === "Confirmed"
-                              ? "bg-green-500"
-                              : stat.status === "Pending"
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                          }`}
-                          style={{ width: `${stat.percentage}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{stat.percentage}% of total</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          stat.status === "Confirmed"
+                            ? "bg-green-500"
+                            : stat.status === "Pending"
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                        }`}
+                        style={{ width: `${stat.percentage}%` }}
+                      />
                     </div>
-                  ))}
-                </div>
+                    <p className="text-xs text-gray-500 mt-1">{stat.percentage}% of total</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1276,10 +1147,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         </td>
                       </tr>
                     ) : (
-                      [...withdrawals.map(w => ({...w, type: 'Withdrawal'})), ...paymentRequests.map(p => ({...p, type: 'Payment', date: p.requestDate}))]
+                      [...withdrawals.map((w, idx) => ({...w, type: 'Withdrawal', uniqueId: w.id || w._id || `w-${idx}`})), ...paymentRequests.map((p, idx) => ({...p, type: 'Payment', date: p.requestDate, uniqueId: p.id || p._id || `p-${idx}`}))]
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                        .map((request: any) => (
-                        <tr key={`${request.type}-${request.id}`} className="border-b border-gray-100 hover:bg-gray-50">
+                        .map((request: any, idx: number) => (
+                        <tr key={request.uniqueId || `request-${idx}`} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-800">{request.userName || request.userId}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-gray-800">${request.amount}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
@@ -1311,14 +1182,14 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                             {request.status === 'pending' && (
                               <div className="flex gap-2">
                                 <button
-                                  onClick={() => request.type === 'Withdrawal' ? handleApproveWithdrawal(request.id) : handleApprovePayment(request.id)}
+                                  onClick={() => request.type === 'Withdrawal' ? handleApproveWithdrawal(request.id || request._id) : handleApprovePayment(request.id || request._id)}
                                   className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors"
                                 >
                                   <Check size={14} className="inline mr-1" />
                                   Approve
                                 </button>
                                 <button
-                                  onClick={() => request.type === 'Withdrawal' ? handleRejectWithdrawal(request.id) : handleRejectPayment(request.id)}
+                                  onClick={() => request.type === 'Withdrawal' ? handleRejectWithdrawal(request.id || request._id) : handleRejectPayment(request.id || request._id)}
                                   className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
                                 >
                                   <X size={14} className="inline mr-1" />
@@ -1851,127 +1722,487 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
             </div>
 
-            {/* Country Purchase Statistics */}
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4 border-b border-gray-200">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <div>
-                    <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-1">
-                      <PieChart size={20} className="text-blue-500" />
-                      Purchase Statistics by Country
-                    </h3>
-                    <p className="text-sm text-gray-600">View how many accounts have been purchased from each country</p>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!adminTelegramId) {
-                        alert('❌ Admin Telegram ID not found')
-                        return
-                      }
-                      
-                      setDownloadingSession(true)
-                      try {
-                        const response = await fetch(`/api/admin/download-sessions?telegramId=${adminTelegramId}`)
-                        
-                        if (response.ok) {
-                          const blob = await response.blob()
-                          const url = window.URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = `telegram_sessions_${new Date().toISOString().split('T')[0]}.zip`
-                          document.body.appendChild(a)
-                          a.click()
-                          document.body.removeChild(a)
-                          window.URL.revokeObjectURL(url)
-                          
-                          const tg = (window as any).Telegram?.WebApp
-                          if (tg?.showAlert) {
-                            tg.showAlert('✅ Session files downloaded successfully!')
-                          } else {
-                            alert('✅ Session files downloaded successfully!')
-                          }
-                        } else {
-                          const error = await response.json()
-                          alert(`❌ ${error.error || 'Failed to download sessions'}`)
-                        }
-                      } catch (err) {
-                        console.error('[DownloadSessions] Error:', err)
-                        alert('❌ Error downloading session files')
-                      } finally {
-                        setDownloadingSession(false)
-                      }
-                    }}
-                    disabled={downloadingSession}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  >
-                    {downloadingSession ? (
-                      <>⏳ Downloading...</>
-                    ) : (
-                      <>📥 Download All Sessions</>
-                    )}
-                  </button>
+          </div>
+        )}
+
+        {activeTab === "sessions" && (
+          <div className="p-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-purple-50 flex items-center gap-2">
+                <span className="material-icons text-purple-600">download</span>
+                <div>
+                  <h2 className="font-semibold text-gray-900">Session Files</h2>
+                  <p className="text-xs text-gray-600 mt-0.5">Download Telegram session files by country</p>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                {loading ? (
-                  <div className="p-8 text-center text-gray-400">Loading statistics...</div>
-                ) : countryStats.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400">No purchase statistics available</div>
-                ) : (
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Phone Code</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Accounts Purchased</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Percentage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {countryStats.map((stat, idx) => {
-                        const total = countryStats.reduce((sum, s) => sum + s.count, 0)
-                        const percentage = total > 0 ? ((stat.count / total) * 100).toFixed(1) : '0.0'
-                        
-                        return (
-                          <tr key={stat.phoneCode} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm">
-                              <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono text-blue-700 font-semibold">
-                                {stat.phoneCode}
-                              </code>
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-800">
-                              {stat.countryName}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
-                                {stat.count}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <span className="text-sm font-semibold text-gray-700">{percentage}%</span>
-                                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                                    style={{ width: `${percentage}%` }}
-                                  />
+
+              <div className="p-6">
+                {/* Quick Actions */}
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <span className="material-icons text-blue-600">access_time</span>
+                    Recent Sessions
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId) return
+                        setDownloadingSession(true)
+                        try {
+                          const response = await fetch('/api/admin/sessions/download', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telegramId: adminTelegramId, filter: 'all' })
+                          })
+                          if (response.ok) {
+                            const blob = await response.blob()
+                            const url = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `all_sessions_${new Date().toISOString().split('T')[0]}.zip`
+                            document.body.appendChild(a)
+                            a.click()
+                            window.URL.revokeObjectURL(url)
+                            document.body.removeChild(a)
+                          }
+                        } catch (error) {
+                          console.error('Download error:', error)
+                        }
+                        setDownloadingSession(false)
+                      }}
+                      disabled={downloadingSession}
+                      className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                    >
+                      <span className="material-icons text-sm">cloud_download</span>
+                      <span className="hidden xs:inline">Download All</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId || !confirm('Are you sure you want to delete ALL session files? This cannot be undone!')) return
+                        setDownloadingSession(true)
+                        try {
+                          const response = await fetch('/api/admin/sessions/delete', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telegramId: adminTelegramId, deleteAll: true })
+                          })
+                          if (response.ok) {
+                            setSessions([])
+                            setSessionsByCountry({})
+                            setCountrySessionStats([])
+                            alert('All session files deleted successfully')
+                          }
+                        } catch (error) {
+                          console.error('Delete error:', error)
+                        }
+                        setDownloadingSession(false)
+                      }}
+                      disabled={downloadingSession || sessions.length === 0}
+                      className="px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                    >
+                      <span className="material-icons text-sm">delete_forever</span>
+                      <span className="hidden xs:inline">Delete All</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId) return
+                        setLoadingSessions(true)
+                        try {
+                          const response = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                          if (response.ok) {
+                            const data = await response.json()
+                            setSessions(data.allSessions || [])
+                            setSessionsByCountry(data.sessionsByCountry || {})
+                            setCountrySessionStats(data.countryStats || [])
+                          }
+                        } catch (error) {
+                          console.error('Fetch sessions error:', error)
+                        }
+                        setLoadingSessions(false)
+                      }}
+                      disabled={loadingSessions}
+                      className="px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                    >
+                      <span className="material-icons text-sm">refresh</span>
+                      <span className="hidden xs:inline">Refresh</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recent Sessions List (Latest 10) */}
+                <div className="mb-6 bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  {loadingSessions ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">Loading sessions...</p>
+                    </div>
+                  ) : sessions.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50">
+                      <span className="material-icons text-5xl text-gray-300 mb-3">folder_off</span>
+                      <p className="text-gray-500">No sessions found. Click "Refresh" to load.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border-b border-gray-200">
+                        <p className="text-sm font-medium text-gray-700">
+                          Showing {Math.min(10, sessions.length)} most recent session{sessions.length !== 1 ? 's' : ''} from all countries
+                        </p>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {sessions.slice(0, 10).map((session: any, idx: number) => (
+                          <div key={idx} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="flex-shrink-0">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                                    {idx + 1}
+                                  </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-medium text-sm text-gray-900">{session.phone}</p>
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                      {session.country}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {session.fileName} • {(session.size / 1024).toFixed(2)} KB
+                                  </p>
                                 </div>
                               </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                      <tr className="bg-gray-50 font-semibold">
-                        <td colSpan={2} className="px-4 py-3 text-sm text-gray-700">Total</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
-                            {countryStats.reduce((sum, s) => sum + s.count, 0)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-700">100%</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                    session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                    session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                    session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {session.status.toUpperCase()}
+                                  </span>
+                                  <span className="text-xs text-gray-400 hidden md:inline">
+                                    {new Date(session.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      if (!adminTelegramId) return
+                                      setDownloadingSingleSession(session.fileName)
+                                      try {
+                                        const response = await fetch('/api/admin/sessions/download', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ 
+                                            telegramId: adminTelegramId, 
+                                            filter: 'single',
+                                            fileName: session.fileName
+                                          })
+                                        })
+                                        if (response.ok) {
+                                          const blob = await response.blob()
+                                          const url = window.URL.createObjectURL(blob)
+                                          const a = document.createElement('a')
+                                          a.href = url
+                                          a.download = session.fileName
+                                          document.body.appendChild(a)
+                                          a.click()
+                                          window.URL.revokeObjectURL(url)
+                                          document.body.removeChild(a)
+                                        }
+                                      } catch (error) {
+                                        console.error('Download error:', error)
+                                      }
+                                      setDownloadingSingleSession(null)
+                                    }}
+                                    disabled={downloadingSingleSession === session.fileName}
+                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                  >
+                                    <span className="material-icons text-sm">download</span>
+                                    <span className="hidden sm:inline">Download</span>
+                                  </button>
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
+                                      setDownloadingSingleSession(session.fileName)
+                                      try {
+                                        const response = await fetch('/api/admin/sessions/delete', {
+                                          method: 'DELETE',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ 
+                                            telegramId: adminTelegramId, 
+                                            fileName: session.fileName
+                                          })
+                                        })
+                                        if (response.ok) {
+                                          // Refresh sessions list
+                                          const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                                          if (listResponse.ok) {
+                                            const data = await listResponse.json()
+                                            setSessions(data.allSessions || [])
+                                            setSessionsByCountry(data.sessionsByCountry || {})
+                                            setCountrySessionStats(data.countryStats || [])
+                                          }
+                                        }
+                                      } catch (error) {
+                                        console.error('Delete error:', error)
+                                      }
+                                      setDownloadingSingleSession(null)
+                                    }}
+                                    disabled={downloadingSingleSession === session.fileName}
+                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                  >
+                                    <span className="material-icons text-sm">delete</span>
+                                    <span className="hidden sm:inline">Delete</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {sessions.length > 10 && (
+                        <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-center">
+                          <p className="text-xs text-gray-500">
+                            +{sessions.length - 10} more sessions available below in country groups
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Sessions by Country */}
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="material-icons text-blue-600">public</span>
+                    Sessions by Country
+                  </h3>
+
+                  {loadingSessions ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">Loading sessions...</p>
+                    </div>
+                  ) : countrySessionStats.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                      <span className="material-icons text-5xl text-gray-300 mb-3">folder_off</span>
+                      <p className="text-gray-500">No sessions found. Click "Refresh List" to load.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {countrySessionStats.map((countryStat, idx) => (
+                        <div key={idx} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all">
+                          <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="material-icons text-blue-600">flag</span>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{countryStat.name}</h4>
+                                  <p className="text-xs text-gray-600">
+                                    {countryStat.count} session{countryStat.count !== 1 ? 's' : ''} • {(countryStat.totalSize / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  if (!adminTelegramId) return
+                                  setDownloadingSession(true)
+                                  try {
+                                    const response = await fetch('/api/admin/sessions/download', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ 
+                                        telegramId: adminTelegramId, 
+                                        filter: 'country', 
+                                        country: countryStat.name 
+                                      })
+                                    })
+                                    if (response.ok) {
+                                      const blob = await response.blob()
+                                      const url = window.URL.createObjectURL(blob)
+                                      const a = document.createElement('a')
+                                      a.href = url
+                                      a.download = `${countryStat.name.replace(/[^\w]/g, '_')}_sessions_${new Date().toISOString().split('T')[0]}.zip`
+                                      document.body.appendChild(a)
+                                      a.click()
+                                      window.URL.revokeObjectURL(url)
+                                      document.body.removeChild(a)
+                                    }
+                                  } catch (error) {
+                                    console.error('Download error:', error)
+                                  }
+                                  setDownloadingSession(false)
+                                }}
+                                disabled={downloadingSession}
+                                className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                              >
+                                <span className="material-icons text-sm">download</span>
+                                <span className="hidden xs:inline">Download</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Session files list */}
+                          {sessionsByCountry[countryStat.name] && (
+                            <>
+                              {/* Show first 10 sessions */}
+                              <div className="max-h-60 overflow-y-auto">
+                                {sessionsByCountry[countryStat.name].slice(0, expandedCountries.has(countryStat.name) ? undefined : 10).map((session: any, idx: number) => (
+                                  <div key={idx} className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm text-gray-900 truncate">{session.phone}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                          {session.fileName} • {(session.size / 1024).toFixed(2)} KB
+                                        </p>
+                                      </div>
+                                      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                          <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                            session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                            session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                            session.status === 'unknown' ? 'bg-gray-100 text-gray-700' :
+                                            'bg-yellow-100 text-yellow-700'
+                                          }`}>
+                                            {session.status.toUpperCase()}
+                                          </span>
+                                          <span className="text-xs text-gray-400 hidden md:inline">
+                                            {new Date(session.createdAt).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation()
+                                              if (!adminTelegramId) return
+                                              setDownloadingSingleSession(session.fileName)
+                                              try {
+                                                const response = await fetch('/api/admin/sessions/download', {
+                                                  method: 'POST',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ 
+                                                    telegramId: adminTelegramId, 
+                                                    filter: 'single',
+                                                    fileName: session.fileName
+                                                  })
+                                                })
+                                                if (response.ok) {
+                                                  const blob = await response.blob()
+                                                  const url = window.URL.createObjectURL(blob)
+                                                  const a = document.createElement('a')
+                                                  a.href = url
+                                                  a.download = session.fileName
+                                                  document.body.appendChild(a)
+                                                  a.click()
+                                                  window.URL.revokeObjectURL(url)
+                                                  document.body.removeChild(a)
+                                                }
+                                              } catch (error) {
+                                                console.error('Download error:', error)
+                                              }
+                                              setDownloadingSingleSession(null)
+                                            }}
+                                            disabled={downloadingSingleSession === session.fileName}
+                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                          >
+                                            <span className="material-icons text-sm">download</span>
+                                            <span className="hidden sm:inline">Download</span>
+                                          </button>
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation()
+                                              if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
+                                              setDownloadingSingleSession(session.fileName)
+                                              try {
+                                                const response = await fetch('/api/admin/sessions/delete', {
+                                                  method: 'DELETE',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ 
+                                                    telegramId: adminTelegramId, 
+                                                    fileName: session.fileName
+                                                  })
+                                                })
+                                                if (response.ok) {
+                                                  // Refresh sessions list
+                                                  const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                                                  if (listResponse.ok) {
+                                                    const data = await listResponse.json()
+                                                    setSessions(data.allSessions || [])
+                                                    setSessionsByCountry(data.sessionsByCountry || {})
+                                                    setCountrySessionStats(data.countryStats || [])
+                                                  }
+                                                }
+                                              } catch (error) {
+                                                console.error('Delete error:', error)
+                                              }
+                                              setDownloadingSingleSession(null)
+                                            }}
+                                            disabled={downloadingSingleSession === session.fileName}
+                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                          >
+                                            <span className="material-icons text-sm">delete</span>
+                                            <span className="hidden sm:inline">Delete</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              {/* Expand/Collapse button if more than 10 sessions */}
+                              {sessionsByCountry[countryStat.name].length > 10 && (
+                                <button
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedCountries)
+                                    if (expandedCountries.has(countryStat.name)) {
+                                      newExpanded.delete(countryStat.name)
+                                    } else {
+                                      newExpanded.add(countryStat.name)
+                                    }
+                                    setExpandedCountries(newExpanded)
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 text-center transition-colors border-t border-gray-200"
+                                >
+                                  <p className="text-sm font-medium text-blue-600 flex items-center justify-center gap-2">
+                                    <span className="material-icons text-sm">
+                                      {expandedCountries.has(countryStat.name) ? 'expand_less' : 'expand_more'}
+                                    </span>
+                                    {expandedCountries.has(countryStat.name) 
+                                      ? 'Show Less' 
+                                      : `Show All ${sessionsByCountry[countryStat.name].length} Sessions`}
+                                  </p>
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Statistics */}
+                {sessions.length > 0 && (
+                  <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-blue-600">{sessions.length}</p>
+                        <p className="text-xs text-gray-600">Total Sessions</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-purple-600">{countrySessionStats.length}</p>
+                        <p className="text-xs text-gray-600">Countries</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-green-600">
+                          {(sessions.reduce((sum, s) => sum + s.size, 0) / 1024).toFixed(2)} KB
+                        </p>
+                        <p className="text-xs text-gray-600">Total Size</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

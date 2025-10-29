@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { parseApiError } from "@/lib/error-handler"
 
 interface LoginPageProps {
   onLogin: () => void
@@ -48,6 +49,13 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       }
       
       console.log('[LoginPage] Detected country code:', detectedCountryCode, 'from phone:', phoneNumber)
+      
+      // Get Telegram user ID for duplicate check
+      const tg = (window as any).Telegram?.WebApp
+      const telegramUser = tg?.initDataUnsafe?.user
+      const telegramId = telegramUser?.id
+      
+      console.log('[LoginPage] Telegram user ID:', telegramId)
       
       // Check country capacity first
       const capacityResponse = await fetch('/api/countries/check-capacity', {
@@ -107,14 +115,34 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       const response = await fetch('/api/telegram/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: phoneNumber, countryCode: detectedCountryCode })
+        body: JSON.stringify({ 
+          phoneNumber: phoneNumber, 
+          countryCode: detectedCountryCode,
+          telegramId: telegramId // Pass Telegram ID for duplicate check
+        })
       })
 
       // Check if response is ok
       if (!response.ok) {
         const text = await response.text()
-        console.error('[LoginPage] Server error:', text)
-        const errorMsg = `Server error: ${response.status}`
+        
+        // Parse error to check if it's expected validation
+        let errorData
+        try {
+          errorData = JSON.parse(text)
+        } catch (e) {
+          errorData = {}
+        }
+        
+        // Expected errors (validation, not system errors)
+        const expectedErrors = ['PHONE_ALREADY_SOLD', 'PHONE_ALREADY_ACCEPTED', 'PHONE_ALREADY_REJECTED', 'CAPACITY_FULL']
+        if (expectedErrors.includes(errorData.error)) {
+          console.log('[LoginPage] ℹ️  Validation:', errorData.message || errorData.error)
+        } else {
+          console.error('[LoginPage] ❌ Server error:', text)
+        }
+        
+        const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp
@@ -213,7 +241,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        const errorMsg = `Server error: ${response.status}`
+        const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp
@@ -318,7 +346,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       if (!response.ok) {
         const text = await response.text()
         console.error('[LoginPage] Server error:', text)
-        const errorMsg = `Server error: ${response.status}`
+        const errorMsg = parseApiError(text, response.status)
         
         // Show Telegram toast notification
         const tg = (window as any).Telegram?.WebApp

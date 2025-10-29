@@ -80,31 +80,38 @@ export async function POST(request: NextRequest) {
       let prizeAmount = 0
       let countryFound = false
       
+      console.log('[AdminAccounts] Detecting country for phone:', account.phone_number, 'digits:', phoneDigits)
+      
       // Try to match country code (1-4 digits)
       for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
         const possibleCode = phoneDigits.substring(0, i)
-        const country = await countryCapacity.findOne({ country_code: possibleCode })
+        console.log('[AdminAccounts] Trying code:', possibleCode, 'and +' + possibleCode)
+        
+        // Try both with and without + prefix
+        const country = await countryCapacity.findOne({ 
+          $or: [
+            { country_code: possibleCode },
+            { country_code: `+${possibleCode}` }
+          ]
+        })
         
         if (country) {
           prizeAmount = country.prize_amount || 0
-          console.log('[AdminAccounts] Country found:', country.country_name, 'Prize:', prizeAmount)
+          console.log('[AdminAccounts] ✅ Country found:', country.country_name, 'Code:', country.country_code, 'Prize:', prizeAmount)
           
-          // Increment used capacity
-          await countryCapacity.updateOne(
-            { _id: country._id },
-            { $inc: { used_capacity: 1 } }
-          )
+          // NOTE: We don't increment capacity here anymore - it's already incremented when account was created
           
           countryFound = true
         }
       }
       
       if (!countryFound) {
-        console.log('[AdminAccounts] No country found, using 0 prize')
+        console.log('[AdminAccounts] ❌ No country found for phone:', account.phone_number, '(digits:', phoneDigits, '), using 0 prize')
+        console.log('[AdminAccounts] 💡 Tip: Add country code to Country Management in admin panel')
       }
 
       // Update account status
-      await accounts.updateOne(
+      const updateResult = await accounts.updateOne(
         { _id: accountId },
         { 
           $set: { 
@@ -116,13 +123,22 @@ export async function POST(request: NextRequest) {
         }
       )
 
+      console.log('[AdminAccounts] ✅ Account updated:', {
+        accountId,
+        phone: account.phone_number,
+        prizeAmount,
+        updateResult: updateResult.modifiedCount
+      })
+
       // Add prize amount to user's balance
       if (prizeAmount > 0) {
-        await users.updateOne(
+        const balanceUpdate = await users.updateOne(
           { _id: account.user_id },
           { $inc: { balance: prizeAmount } }
         )
-        console.log('[AdminAccounts] ✅ Added $', prizeAmount, 'to user balance')
+        console.log('[AdminAccounts] ✅ Added $', prizeAmount, 'to user balance, modified:', balanceUpdate.modifiedCount)
+      } else {
+        console.log('[AdminAccounts] ⚠️ Prize amount is 0, no balance added')
       }
 
       return NextResponse.json({
