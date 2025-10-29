@@ -58,14 +58,25 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
     }
   }, [])
 
+  // Auto-refresh every 10 seconds to check for updates
   useEffect(() => {
-    const fetchTransactions = async () => {
-      if (!telegramUserId) {
-        console.log('[TransactionList] No Telegram user ID yet, waiting...')
-        return
+    const refreshInterval = setInterval(() => {
+      if (telegramUserId && tab === 'pending') {
+        console.log('[TransactionList] Auto-refreshing pending accounts...')
+        fetchTransactions()
       }
+    }, 10000) // Refresh every 10 seconds for pending tab
+    
+    return () => clearInterval(refreshInterval)
+  }, [telegramUserId, tab])
 
-      setLoading(true)
+  const fetchTransactions = async () => {
+    if (!telegramUserId) {
+      console.log('[TransactionList] No Telegram user ID yet, waiting...')
+      return
+    }
+
+    setLoading(true)
       try {
         // First get user ID from telegram ID
         const userResponse = await fetch('/api/user/me', {
@@ -158,8 +169,9 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         setTransactions([])
       }
       setLoading(false)
-    }
-    
+  }
+
+  useEffect(() => {
     fetchTransactions()
   }, [tab, telegramUserId])
 
