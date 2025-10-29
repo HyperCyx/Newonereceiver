@@ -8,13 +8,13 @@ export async function GET(request: NextRequest) {
     const settings = await getCollection(Collections.SETTINGS)
     
     const minWithdrawal = await settings.findOne({ setting_key: 'min_withdrawal_amount' })
-    const autoApproveHours = await settings.findOne({ setting_key: 'auto_approve_hours' })
+    const autoApproveMinutes = await settings.findOne({ setting_key: 'auto_approve_minutes' })
 
     return NextResponse.json({
       success: true,
       settings: {
         min_withdrawal_amount: minWithdrawal?.setting_value || '5.00',
-        auto_approve_hours: autoApproveHours?.setting_value || '24'
+        auto_approve_minutes: autoApproveMinutes?.setting_value || '1440'
       }
     })
   } catch (error) {

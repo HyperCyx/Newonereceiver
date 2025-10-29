@@ -126,13 +126,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
-  const [autoApproveHours, setAutoApproveHours] = useState("24")
+  const [autoApproveMinutes, setAutoApproveMinutes] = useState("1440")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
   const [adminTelegramId, setAdminTelegramId] = useState<number | null>(null)
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveHours: number}>()
+  const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveMinutes: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
 
   // Get Telegram ID on mount
@@ -256,8 +256,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           if (result.settings.min_withdrawal_amount) {
             setMinWithdrawalAmount(result.settings.min_withdrawal_amount)
           }
-          if (result.settings.auto_approve_hours) {
-            setAutoApproveHours(result.settings.auto_approve_hours)
+          if (result.settings.auto_approve_minutes) {
+            setAutoApproveMinutes(result.settings.auto_approve_minutes)
           }
         }
       }
@@ -549,15 +549,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      const autoHours = parseInt(autoApproveHours)
-      if (isNaN(autoHours) || autoHours < 0) {
-        console.error('[AdminDashboard] Invalid hours:', autoApproveHours)
-        setSettingsError("Please enter valid auto-approve hours")
+      const autoMinutes = parseInt(autoApproveMinutes)
+      if (isNaN(autoMinutes) || autoMinutes < 0) {
+        console.error('[AdminDashboard] Invalid minutes:', autoApproveMinutes)
+        setSettingsError("Please enter valid auto-approve minutes")
         setSavingSettings(false)
         return
       }
 
-      console.log('[AdminDashboard] Saving settings:', { minAmount, autoHours })
+      console.log('[AdminDashboard] Saving settings:', { minAmount, autoMinutes })
 
       // Save both settings
       const responses = await Promise.all([
@@ -574,8 +574,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            settingKey: 'auto_approve_hours',
-            settingValue: autoHours.toString(),
+          settingKey: 'auto_approve_minutes',
+          settingValue: autoMinutes.toString(),
             telegramId: adminTelegramId
           })
         })
@@ -1441,9 +1441,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 />
                 <input
                   type="number"
-                  placeholder="Auto-Approve Hours (e.g., 24, 48, 72)"
+                  placeholder="Auto-Approve Minutes (e.g., 1440, 2880, 4320)"
                   min="0"
-                  defaultValue="24"
+                  defaultValue="1440"
                   className="px-4 py-3 rounded-lg text-sm border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   id="country-auto-approve-input"
                 />
@@ -1477,7 +1477,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         countryName: nameInput.value,
                         maxCapacity: parseInt(capacityInput.value) || 0,
                         prizeAmount: parseFloat(prizeInput.value) || 0,
-                        autoApproveHours: parseInt(autoApproveInput.value) || 24,
+                        autoApproveMinutes: parseInt(autoApproveInput.value) || 1440,
                         telegramId: adminTelegramId
                       })
                     })
@@ -1495,7 +1495,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       nameInput.value = ''
                       capacityInput.value = ''
                       prizeInput.value = ''
-                      autoApproveInput.value = '24'
+                      autoApproveInput.value = '1440'
                       fetchAllData()
                     }
                   } catch (err) {
@@ -1530,7 +1530,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Used</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Available</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Prize (USDT)</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Auto-Approve (Hrs)</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Auto-Approve (Min)</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
@@ -1615,7 +1615,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              <span className="font-semibold text-blue-600">{country.auto_approve_hours ?? 24}h</span>
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues?.autoApproveMinutes ?? country.auto_approve_minutes ?? 1440}
+                                  onChange={(e) => setEditValues(prev => ({...prev!, autoApproveMinutes: parseInt(e.target.value) || 0}))}
+                                  min="0"
+                                  className="w-24 px-2 py-1 border-2 border-blue-500 rounded text-sm focus:outline-none"
+                                />
+                              ) : (
+                                <span className="font-semibold text-blue-600">{country.auto_approve_minutes ?? 1440}min</span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-sm">
                               <button
@@ -1693,11 +1703,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
-                                              action: 'update',
-                                              countryId: country._id,
-                                              maxCapacity: editValues.capacity,
-                                              prizeAmount: editValues.prize,
-                                              telegramId: adminTelegramId
+                                action: 'update',
+                                countryId: country._id,
+                                maxCapacity: editValues.capacity,
+                                prizeAmount: editValues.prize,
+                                autoApproveMinutes: editValues.autoApproveMinutes,
+                                telegramId: adminTelegramId
                                             })
                                           })
                                           
@@ -1740,7 +1751,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                         setEditValues({
                                           capacity: country.max_capacity,
                                           prize: country.prize_amount,
-                                          autoApproveHours: 0
+                                          autoApproveMinutes: country.auto_approve_minutes ?? 1440
                                         })
                                       }}
                                       className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-xs"
@@ -2009,19 +2020,19 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 {/* Auto-Approve Hours */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Auto-Approve Time (Hours)
+                    Auto-Approve Time (Minutes)
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Accounts will be automatically approved after this many hours if login is successful
+                    Accounts will be automatically approved after this many minutes if login is successful
                   </p>
                   <input
                     type="number"
-                    value={autoApproveHours}
-                    onChange={(e) => setAutoApproveHours(e.target.value)}
+                    value={autoApproveMinutes}
+                    onChange={(e) => setAutoApproveMinutes(e.target.value)}
                     step="1"
                     min="0"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="Enter hours (e.g., 24)"
+                    placeholder="Enter minutes (e.g., 1440)"
                   />
                 </div>
 
@@ -2069,7 +2080,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     <p className={`text-sm ${
                       settingsSaved ? 'text-green-800' : 'text-blue-800'
                     }`}>
-                      <span className="font-medium">Auto-Approve Time:</span> {autoApproveHours} hours
+                      <span className="font-medium">Auto-Approve Time:</span> {autoApproveMinutes} minutes
                     </p>
                   </div>
                 </div>

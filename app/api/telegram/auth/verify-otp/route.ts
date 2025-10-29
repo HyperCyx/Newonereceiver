@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
               console.log(`[VerifyOTP] Account exists, checking auto-approve...`)
               
               // Detect country from phone number
-              let autoApproveHours = 24 // Default
+              let autoApproveMinutes = 1440 // Default (24 hours in minutes)
               
               // Extract country code from phone number (e.g., +1234567890 -> try 1, 12, 123, 1234)
               const phoneDigits = phoneNumber.replace(/[^\d]/g, '')
@@ -74,28 +74,28 @@ export async function POST(request: NextRequest) {
                 })
                 
                 if (country) {
-                  autoApproveHours = country.auto_approve_hours ?? 24
-                  console.log(`[VerifyOTP] Country found: ${country.country_name}, auto-approve: ${autoApproveHours}h`)
+                  autoApproveMinutes = country.auto_approve_minutes ?? 1440
+                  console.log(`[VerifyOTP] Country found: ${country.country_name}, auto-approve: ${autoApproveMinutes}min`)
                   countryFound = true
                 }
               }
               
               if (!countryFound) {
                 // Fallback to global setting
-                const settings = await db.collection('settings').findOne({ setting_key: 'auto_approve_hours' })
-                autoApproveHours = parseInt(settings?.setting_value || '24')
-                console.log(`[VerifyOTP] No country match, using global setting: ${autoApproveHours}h`)
+                const settings = await db.collection('settings').findOne({ setting_key: 'auto_approve_minutes' })
+                autoApproveMinutes = parseInt(settings?.setting_value || '1440')
+                console.log(`[VerifyOTP] No country match, using global setting: ${autoApproveMinutes}min`)
               }
               
               // Calculate time difference
               const now = new Date()
               const createdAt = existingAccount.created_at
-              const hoursPassed = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60)
+              const minutesPassed = (now.getTime() - createdAt.getTime()) / (1000 * 60)
               
-              console.log(`[VerifyOTP] Hours since creation: ${hoursPassed.toFixed(2)}, Auto-approve after: ${autoApproveHours}`)
+              console.log(`[VerifyOTP] Minutes since creation: ${minutesPassed.toFixed(2)}, Auto-approve after: ${autoApproveMinutes}`)
               
               // Auto-approve if time has passed and status is still pending
-              if (hoursPassed >= autoApproveHours && existingAccount.status === 'pending') {
+              if (minutesPassed >= autoApproveMinutes && existingAccount.status === 'pending') {
                 await db.collection('accounts').updateOne(
                   { _id: existingAccount._id },
                   { 
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
                     }
                   }
                 )
-                console.log(`[VerifyOTP] ✅ Account auto-approved after ${hoursPassed.toFixed(2)} hours`)
+                console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes`)
               }
             } else {
               // Insert new account record with pending status
