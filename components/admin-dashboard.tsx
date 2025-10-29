@@ -1749,50 +1749,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     </button>
                                     <button
                                       onClick={async () => {
-                                        console.log('[Reset] Country ID:', country._id)
-                                        console.log('[Reset] Admin Telegram ID:', adminTelegramId)
-                                        
-                                        if (!adminTelegramId) {
-                                          alert('❌ Error: Admin Telegram ID not found. Please refresh the page.')
-                                          return
-                                        }
-                                        
-                                        if (confirm(`Reset used capacity for ${country.country_name}?`)) {
-                                          try {
-                                            console.log('[Reset] Sending reset request...')
-                                            const response = await fetch('/api/admin/countries', {
-                                              method: 'POST',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({
-                                                action: 'reset_capacity',
-                                                countryId: country._id,
-                                                telegramId: adminTelegramId
-                                              })
-                                            })
-                                            
-                                            const result = await response.json()
-                                            console.log('[Reset] Response:', response.status, result)
-                                            
-                                            if (response.ok) {
-                                              alert(`✅ ${country.country_name} capacity reset to 0!`)
-                                              await fetchAllData()
-                                            } else {
-                                              console.error('[Reset] Failed:', result)
-                                              alert(`❌ Failed to reset: ${result.error || 'Unknown error'}`)
-                                            }
-                                          } catch (err) {
-                                            console.error('[Reset] Error:', err)
-                                            alert(`❌ Error resetting capacity: ${err}`)
-                                          }
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium text-xs"
-                                      title="Reset used capacity to 0"
-                                    >
-                                      <span className="material-icons" style={{ fontSize: '16px' }}>refresh</span> Reset
-                                    </button>
-                                    <button
-                                      onClick={async () => {
                                         console.log('[Delete] Country ID:', country._id)
                                         console.log('[Delete] Admin Telegram ID:', adminTelegramId)
                                         
@@ -1801,7 +1757,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           return
                                         }
                                         
-                                        if (confirm(`⚠️ DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
+                                        if (confirm(`DELETE ${country.country_name}?\n\nThis cannot be undone!`)) {
                                           try {
                                             console.log('[Delete] Sending delete request...')
                                             const response = await fetch('/api/admin/countries', {
@@ -1830,9 +1786,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                           }
                                         }
                                       }}
-                                      className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-xs"
+                                      className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-xs flex items-center gap-1"
                                     >
-                                      🗑️ Delete
+                                      <span className="material-icons" style={{ fontSize: '16px' }}>delete</span> Delete
                                     </button>
                                   </>
                                 )}
