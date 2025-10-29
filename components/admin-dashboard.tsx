@@ -967,43 +967,48 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </div>
                 </div>
               ) : (
-                <div className="relative">
-                  <div className="flex items-end justify-between h-48 gap-2 mb-2">
+                <div className="relative pt-8">
+                  {/* Chart container with proper spacing */}
+                  <div className="flex items-end justify-between gap-1 sm:gap-2 mb-3" style={{ height: '180px' }}>
                     {dailyRevenue.map((item, idx) => {
                       const maxRevenue = Math.max(...dailyRevenue.map(d => d.revenue), 1)
-                      const heightPercent = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0
+                      const heightPercent = maxRevenue > 0 ? (item.revenue / maxRevenue) * 85 : 0 // Max 85% to leave space for tooltip
                       
                       return (
-                        <div key={idx} className="flex-1 flex flex-col items-center group relative">
-                          <div className="w-full flex items-end h-48">
+                        <div key={idx} className="flex-1 flex flex-col items-center">
+                          {/* Bar container */}
+                          <div className="w-full flex items-end relative group" style={{ height: '180px' }}>
                             <div
-                              className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500 cursor-pointer w-full relative"
-                              style={{ height: `${heightPercent}%`, minHeight: item.revenue > 0 ? '8px' : '2px' }}
+                              className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500 cursor-pointer w-full"
+                              style={{ 
+                                height: `${heightPercent}%`, 
+                                minHeight: item.revenue > 0 ? '4px' : '2px',
+                                maxHeight: '85%'
+                              }}
                             >
-                              {/* Tooltip */}
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-800 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none shadow-lg">
-                                <div className="font-semibold">${item.revenue.toFixed(2)}</div>
-                                <div className="text-gray-300 text-[10px]">{item.fullDate}</div>
-                                {/* Arrow */}
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                              {/* Tooltip - positioned absolutely to not overlap */}
+                              <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none shadow-xl">
+                                <div className="font-bold text-center">${item.revenue.toFixed(2)}</div>
+                                <div className="text-gray-300 text-[9px] text-center mt-0.5">{item.fullDate}</div>
                               </div>
                             </div>
                           </div>
-                          <div className="text-center mt-2">
-                            <p className="text-xs font-semibold text-gray-700">{item.day}</p>
-                            <p className="text-[10px] text-gray-500">{item.date}</p>
+                          {/* Labels - with proper spacing to avoid overlap */}
+                          <div className="text-center mt-2 px-0.5">
+                            <p className="text-[10px] sm:text-xs font-semibold text-gray-700 leading-tight">{item.day}</p>
+                            <p className="text-[8px] sm:text-[10px] text-gray-500 mt-0.5 leading-tight">{item.date}</p>
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                  {/* Legend */}
-                  <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                  {/* Legend - properly spaced */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mt-4 pt-4 border-t border-gray-200">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-gradient-to-t from-blue-500 to-blue-400 rounded"></div>
-                      <span className="text-xs text-gray-600">Daily Revenue (USDT)</span>
+                      <div className="w-3 h-3 bg-gradient-to-t from-blue-500 to-blue-400 rounded flex-shrink-0"></div>
+                      <span className="text-[10px] sm:text-xs text-gray-600 whitespace-nowrap">Daily Revenue (USDT)</span>
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-[10px] sm:text-xs text-gray-700 font-semibold whitespace-nowrap">
                       Total: ${dailyRevenue.reduce((sum, d) => sum + d.revenue, 0).toFixed(2)}
                     </div>
                   </div>
@@ -1940,10 +1945,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setDownloadingSession(false)
                       }}
                       disabled={downloadingSession}
-                      className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                     >
-                      <span className="material-icons text-sm">cloud_download</span>
-                      <span className="hidden xs:inline">Download All</span>
+                      <span className="material-icons" style={{fontSize: '16px'}}>cloud_download</span>
+                      <span>Download All</span>
                     </button>
                     <button
                       onClick={async () => {
@@ -1967,10 +1972,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setDownloadingSession(false)
                       }}
                       disabled={downloadingSession || sessions.length === 0}
-                      className="px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-red-500 hover:bg-red-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                     >
-                      <span className="material-icons text-sm">delete_forever</span>
-                      <span className="hidden xs:inline">Delete All</span>
+                      <span className="material-icons" style={{fontSize: '16px'}}>delete_forever</span>
+                      <span>Delete All</span>
                     </button>
                     <button
                       onClick={async () => {
@@ -1990,10 +1995,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setLoadingSessions(false)
                       }}
                       disabled={loadingSessions}
-                      className="px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-500 hover:bg-green-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                     >
-                      <span className="material-icons text-sm">refresh</span>
-                      <span className="hidden xs:inline">Refresh</span>
+                      <span className="material-icons" style={{fontSize: '16px'}}>refresh</span>
+                      <span>Refresh</span>
                     </button>
                   </div>
                 </div>
@@ -2156,7 +2161,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   ) : countrySessionStats.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
                       <span className="material-icons text-5xl text-gray-300 mb-3">folder_off</span>
-                      <p className="text-gray-500">No sessions found. Click "Refresh List" to load.</p>
+                      <p className="text-gray-500">No sessions found. Click "Refresh" to load.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -2204,10 +2209,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                   setDownloadingSession(false)
                                 }}
                                 disabled={downloadingSession}
-                                className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                                className="px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                               >
-                                <span className="material-icons text-sm">download</span>
-                                <span className="hidden xs:inline">Download</span>
+                                <span className="material-icons" style={{fontSize: '14px'}}>download</span>
+                                <span>Download</span>
                               </button>
                             </div>
                           </div>
