@@ -6,11 +6,18 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth()
     const body = await request.json()
-    const { amount, walletAddress } = body
+    const { amount, walletAddress, network } = body
 
-    if (!amount || !walletAddress) {
+    if (!amount || !walletAddress || !network) {
       return NextResponse.json(
-        { error: 'Amount and wallet address are required' },
+        { error: 'Amount, wallet address, and network are required' },
+        { status: 400 }
+      )
+    }
+
+    if (network !== 'TRC20' && network !== 'Polygon') {
+      return NextResponse.json(
+        { error: 'Invalid network. Must be TRC20 or Polygon' },
         { status: 400 }
       )
     }
@@ -51,6 +58,7 @@ export async function POST(request: NextRequest) {
       amount: amount,
       currency: 'USDT',
       wallet_address: walletAddress,
+      network: network,
       status: 'pending',
       created_at: new Date(),
       updated_at: new Date()
