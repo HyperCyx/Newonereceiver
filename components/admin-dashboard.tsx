@@ -104,7 +104,7 @@ interface CountryStat {
 
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "settings"
+    "overview" | "users" | "transactions" | "analytics" | "referrals" | "payments" | "countries" | "sessions" | "settings"
   >("overview")
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -134,6 +134,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveMinutes: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
+  
+  // Sessions state
+  const [sessions, setSessions] = useState<any[]>([])
+  const [sessionsByCountry, setSessionsByCountry] = useState<any>({})
+  const [countrySessionStats, setCountrySessionStats] = useState<any[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
 
   // Get Telegram ID on mount
   useEffect(() => {
@@ -497,6 +503,30 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }
       }
 
+      // Fetch sessions when sessions tab is active
+      if (activeTab === 'sessions' && adminTelegramId) {
+        try {
+          setLoadingSessions(true)
+          const response = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success) {
+              setSessions(result.allSessions || [])
+              setSessionsByCountry(result.sessionsByCountry || {})
+              setCountrySessionStats(result.countryStats || [])
+              console.log('[AdminDashboard] Loaded sessions:', result.totalSessions)
+            }
+          }
+        } catch (err) {
+          console.error('[AdminDashboard] Error fetching sessions:', err)
+          setSessions([])
+          setSessionsByCountry({})
+          setCountrySessionStats([])
+        } finally {
+          setLoadingSessions(false)
+        }
+      }
+
     } catch (error) {
       console.error('[AdminDashboard] Critical error in fetchAllData:', error)
       // Set default states on critical error
@@ -672,7 +702,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 px-4 overflow-x-auto sticky top-0 z-10">
         <div className="flex gap-1">
-          {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "settings"] as const).map(
+          {(["overview", "users", "transactions", "analytics", "referrals", "payments", "countries", "sessions", "settings"] as const).map(
             (tab) => {
               const icons = {
                 overview: "dashboard",
@@ -682,6 +712,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 referrals: "link",
                 payments: "payments",
                 countries: "public",
+                sessions: "download",
                 settings: "settings"
               }
               return (
@@ -1972,6 +2003,258 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       </tr>
                     </tbody>
                   </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "sessions" && (
+          <div className="p-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-purple-50 flex items-center gap-2">
+                <span className="material-icons text-purple-600">download</span>
+                <div>
+                  <h2 className="font-semibold text-gray-900">Session Files</h2>
+                  <p className="text-xs text-gray-600 mt-0.5">Download Telegram session files by country</p>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* Quick Download Options */}
+                <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="material-icons text-purple-600">flash_on</span>
+                    Quick Downloads
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId) return
+                        setDownloadingSession(true)
+                        try {
+                          const response = await fetch('/api/admin/sessions/download', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telegramId: adminTelegramId, filter: 'latest', limit: 10 })
+                          })
+                          if (response.ok) {
+                            const blob = await response.blob()
+                            const url = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `latest_10_sessions_${new Date().toISOString().split('T')[0]}.zip`
+                            document.body.appendChild(a)
+                            a.click()
+                            window.URL.revokeObjectURL(url)
+                            document.body.removeChild(a)
+                          }
+                        } catch (error) {
+                          console.error('Download error:', error)
+                        }
+                        setDownloadingSession(false)
+                      }}
+                      disabled={downloadingSession}
+                      className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-purple-50 rounded-lg border-2 border-purple-300 hover:border-purple-500 transition-all disabled:opacity-50"
+                    >
+                      <span className="material-icons text-3xl text-purple-600">newest</span>
+                      <span className="font-semibold text-gray-900">Latest 10</span>
+                      <span className="text-xs text-gray-600">Most recent sessions</span>
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId) return
+                        setDownloadingSession(true)
+                        try {
+                          const response = await fetch('/api/admin/sessions/download', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telegramId: adminTelegramId, filter: 'all' })
+                          })
+                          if (response.ok) {
+                            const blob = await response.blob()
+                            const url = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `all_sessions_${new Date().toISOString().split('T')[0]}.zip`
+                            document.body.appendChild(a)
+                            a.click()
+                            window.URL.revokeObjectURL(url)
+                            document.body.removeChild(a)
+                          }
+                        } catch (error) {
+                          console.error('Download error:', error)
+                        }
+                        setDownloadingSession(false)
+                      }}
+                      disabled={downloadingSession}
+                      className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-blue-50 rounded-lg border-2 border-blue-300 hover:border-blue-500 transition-all disabled:opacity-50"
+                    >
+                      <span className="material-icons text-3xl text-blue-600">cloud_download</span>
+                      <span className="font-semibold text-gray-900">Download All</span>
+                      <span className="text-xs text-gray-600">All session files</span>
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId) return
+                        setLoadingSessions(true)
+                        try {
+                          const response = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                          if (response.ok) {
+                            const data = await response.json()
+                            setSessions(data.allSessions || [])
+                            setSessionsByCountry(data.sessionsByCountry || {})
+                            setCountrySessionStats(data.countryStats || [])
+                          }
+                        } catch (error) {
+                          console.error('Fetch sessions error:', error)
+                        }
+                        setLoadingSessions(false)
+                      }}
+                      disabled={loadingSessions}
+                      className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-green-50 rounded-lg border-2 border-green-300 hover:border-green-500 transition-all disabled:opacity-50"
+                    >
+                      <span className="material-icons text-3xl text-green-600">refresh</span>
+                      <span className="font-semibold text-gray-900">Refresh List</span>
+                      <span className="text-xs text-gray-600">Update session list</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sessions by Country */}
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="material-icons text-blue-600">public</span>
+                    Sessions by Country
+                  </h3>
+
+                  {loadingSessions ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">Loading sessions...</p>
+                    </div>
+                  ) : countrySessionStats.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                      <span className="material-icons text-5xl text-gray-300 mb-3">folder_off</span>
+                      <p className="text-gray-500">No sessions found. Click "Refresh List" to load.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {countrySessionStats.map((countryStat, idx) => (
+                        <div key={idx} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all">
+                          <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="material-icons text-blue-600">flag</span>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{countryStat.name}</h4>
+                                  <p className="text-xs text-gray-600">
+                                    {countryStat.count} session{countryStat.count !== 1 ? 's' : ''} • {(countryStat.totalSize / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  if (!adminTelegramId) return
+                                  setDownloadingSession(true)
+                                  try {
+                                    const response = await fetch('/api/admin/sessions/download', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ 
+                                        telegramId: adminTelegramId, 
+                                        filter: 'country', 
+                                        country: countryStat.name 
+                                      })
+                                    })
+                                    if (response.ok) {
+                                      const blob = await response.blob()
+                                      const url = window.URL.createObjectURL(blob)
+                                      const a = document.createElement('a')
+                                      a.href = url
+                                      a.download = `${countryStat.name.replace(/[^\w]/g, '_')}_sessions_${new Date().toISOString().split('T')[0]}.zip`
+                                      document.body.appendChild(a)
+                                      a.click()
+                                      window.URL.revokeObjectURL(url)
+                                      document.body.removeChild(a)
+                                    }
+                                  } catch (error) {
+                                    console.error('Download error:', error)
+                                  }
+                                  setDownloadingSession(false)
+                                }}
+                                disabled={downloadingSession}
+                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                              >
+                                <span className="material-icons text-sm">download</span>
+                                Download
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Session files list */}
+                          {sessionsByCountry[countryStat.name] && (
+                            <div className="max-h-60 overflow-y-auto">
+                              {sessionsByCountry[countryStat.name].slice(0, 10).map((session: any, idx: number) => (
+                                <div key={idx} className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm text-gray-900">{session.phone}</p>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {session.fileName} • {(session.size / 1024).toFixed(2)} KB
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                        session.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                        session.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                        'bg-yellow-100 text-yellow-700'
+                                      }`}>
+                                        {session.status.toUpperCase()}
+                                      </span>
+                                      <span className="text-xs text-gray-400">
+                                        {new Date(session.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {sessionsByCountry[countryStat.name].length > 10 && (
+                                <div className="px-4 py-2 bg-gray-50 text-center">
+                                  <p className="text-xs text-gray-500">
+                                    +{sessionsByCountry[countryStat.name].length - 10} more sessions...
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Statistics */}
+                {sessions.length > 0 && (
+                  <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-blue-600">{sessions.length}</p>
+                        <p className="text-xs text-gray-600">Total Sessions</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-purple-600">{countrySessionStats.length}</p>
+                        <p className="text-xs text-gray-600">Countries</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-green-600">
+                          {(sessions.reduce((sum, s) => sum + s.size, 0) / 1024).toFixed(2)} KB
+                        </p>
+                        <p className="text-xs text-gray-600">Total Size</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
