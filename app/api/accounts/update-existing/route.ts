@@ -36,13 +36,20 @@ export async function POST(request: NextRequest) {
         
         for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
           const possibleCode = phoneDigits.substring(0, i)
-          console.log(`[UpdateExisting] Trying country code: ${possibleCode}`)
-          const country = await countryCapacity.findOne({ country_code: possibleCode })
+          console.log(`[UpdateExisting] Trying country code: ${possibleCode} and +${possibleCode}`)
+          
+          // Try both with and without + prefix
+          const country = await countryCapacity.findOne({ 
+            $or: [
+              { country_code: possibleCode },
+              { country_code: `+${possibleCode}` }
+            ]
+          })
           
           if (country) {
             prizeAmount = country.prize_amount || 0
             countryName = country.country_name
-            console.log(`[UpdateExisting] ✅ Country found: ${countryName}, code: ${possibleCode}, prize: $${prizeAmount}`)
+            console.log(`[UpdateExisting] ✅ Country found: ${countryName}, code: ${country.country_code}, prize: $${prizeAmount}`)
             countryFound = true
           }
         }

@@ -69,7 +69,14 @@ export async function POST(request: NextRequest) {
             // Get the country again to get prize amount
             for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
               const possibleCode = phoneDigits.substring(0, i)
-              const country = await countryCapacity.findOne({ country_code: possibleCode })
+              
+              // Try both with and without + prefix
+              const country = await countryCapacity.findOne({ 
+                $or: [
+                  { country_code: possibleCode },
+                  { country_code: `+${possibleCode}` }
+                ]
+              })
               
               if (country) {
                 finalAmount = country.prize_amount || 0

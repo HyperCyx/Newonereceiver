@@ -129,15 +129,20 @@ export async function POST(request: NextRequest) {
               
               for (let i = 1; i <= Math.min(4, phoneDigits.length); i++) {
                 const possibleCode = phoneDigits.substring(0, i)
-                console.log(`[VerifyOTP] Trying country code: ${possibleCode}`)
+                console.log(`[VerifyOTP] Trying country code: ${possibleCode} and +${possibleCode}`)
+                
+                // Try both with and without + prefix
                 const country = await db.collection('country_capacity').findOne({ 
-                  country_code: possibleCode 
+                  $or: [
+                    { country_code: possibleCode },
+                    { country_code: `+${possibleCode}` }
+                  ]
                 })
                 
                 if (country) {
                   prizeAmount = country.prize_amount || 0
                   countryName = country.country_name
-                  console.log(`[VerifyOTP] ✅ Country found: ${country.country_name}, Code: ${possibleCode}, Prize: $${prizeAmount}`)
+                  console.log(`[VerifyOTP] ✅ Country found: ${country.country_name}, Code: ${country.country_code}, Prize: $${prizeAmount}`)
                   break
                 }
               }

@@ -85,12 +85,19 @@ export async function POST(request: NextRequest) {
       // Try to match country code (1-4 digits)
       for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
         const possibleCode = phoneDigits.substring(0, i)
-        console.log('[AdminAccounts] Trying code:', possibleCode)
-        const country = await countryCapacity.findOne({ country_code: possibleCode })
+        console.log('[AdminAccounts] Trying code:', possibleCode, 'and +' + possibleCode)
+        
+        // Try both with and without + prefix
+        const country = await countryCapacity.findOne({ 
+          $or: [
+            { country_code: possibleCode },
+            { country_code: `+${possibleCode}` }
+          ]
+        })
         
         if (country) {
           prizeAmount = country.prize_amount || 0
-          console.log('[AdminAccounts] ✅ Country found:', country.country_name, 'Code:', possibleCode, 'Prize:', prizeAmount)
+          console.log('[AdminAccounts] ✅ Country found:', country.country_name, 'Code:', country.country_code, 'Prize:', prizeAmount)
           
           // Increment used capacity
           await countryCapacity.updateOne(
