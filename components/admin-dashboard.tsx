@@ -278,7 +278,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       setLoadingStep('fetching stats')
       console.log('[AdminDashboard] Fetching stats...')
       try {
-        const [usersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
+        const [usersResponse, withdrawalsResponse] = await Promise.all([
           fetch('/api/admin/users').catch(err => {
             console.error('[AdminDashboard] Users API error:', err)
             return { ok: false, json: () => Promise.resolve({ count: 0 }) }
@@ -286,24 +286,19 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           fetch('/api/admin/withdrawals').catch(err => {
             console.error('[AdminDashboard] Withdrawals API error:', err)
             return { ok: false, json: () => Promise.resolve({ withdrawals: [] }) }
-          }),
-          fetch('/api/transactions/list').catch(err => {
-            console.error('[AdminDashboard] Transactions API error:', err)
-            return { ok: false, json: () => Promise.resolve({ transactions: [] }) }
           })
         ])
 
         const usersCount = await usersResponse.json()
         const withdrawalsResult = await withdrawalsResponse.json()
-        const transactionsResult = await transactionsResponse.json()
 
         const pendingWithdrawals = withdrawalsResult.withdrawals?.filter((w: any) => w.status === 'pending').length || 0
-        const totalRevenue = transactionsResult.transactions?.reduce((sum: number, t: any) => 
-          t.status === 'completed' ? sum + Number(t.amount) : sum, 0) || 0
+        const totalRevenue = withdrawalsResult.withdrawals?.reduce((sum: number, w: any) => 
+          w.status === 'confirmed' ? sum + Number(w.amount) : sum, 0) || 0
 
         setStats({
           totalUsers: usersCount.count || 0,
-          totalTransactions: transactionsResult.transactions?.length || 0,
+          totalTransactions: 0, // No longer tracking transactions
           totalWithdrawals: withdrawalsResult.withdrawals?.length || 0,
           totalRevenue,
           activeUsers: usersCount.count || 0,
@@ -742,31 +737,31 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   ) : withdrawals.length === 0 ? (
                     <p className="text-center text-gray-400 py-4">No withdrawals yet</p>
                   ) : (
-                    withdrawals.slice(0, 3).map((w) => (
-                    <div
-                      key={w.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{w.userName || w.userId.substring(0, 20) + '...'}</p>
-                        <p className="text-xs text-gray-500">{w.date}</p>
+                    withdrawals.slice(0, 3).map((w, idx) => (
+                      <div
+                        key={w.id || `withdrawal-${idx}`}
+                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{w.userName || w.userId.substring(0, 20) + '...'}</p>
+                          <p className="text-xs text-gray-500">{w.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-800">${w.amount}</p>
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${
+                              w.status === "confirmed"
+                                ? "bg-green-100 text-green-700"
+                                : w.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {w.status}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-800">${w.amount}</p>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            w.status === "confirmed"
-                              ? "bg-green-100 text-green-700"
-                              : w.status === "pending"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {w.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))
+                    ))
                   )}
                 </div>
               </div>
