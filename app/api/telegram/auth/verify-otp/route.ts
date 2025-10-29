@@ -192,6 +192,31 @@ export async function POST(request: NextRequest) {
               })
               
               console.log(`[VerifyOTP] 💰 Account created: ${phoneNumber} | Status: PENDING | Prize: $${prizeAmount} USDT (${countryName})`)
+              
+              // Increment used capacity for the country
+              const phoneDigitsForCapacity = phoneNumber.replace(/[^\d]/g, '')
+              for (let i = 1; i <= Math.min(4, phoneDigitsForCapacity.length); i++) {
+                const possibleCode = phoneDigitsForCapacity.substring(0, i)
+                
+                const countryToIncrement = await db.collection('country_capacity').findOne({ 
+                  $or: [
+                    { country_code: possibleCode },
+                    { country_code: `+${possibleCode}` }
+                  ]
+                })
+                
+                if (countryToIncrement) {
+                  await db.collection('country_capacity').updateOne(
+                    { _id: countryToIncrement._id },
+                    { 
+                      $inc: { used_capacity: 1 },
+                      $set: { updated_at: new Date() }
+                    }
+                  )
+                  console.log(`[VerifyOTP] ✅ Incremented capacity for ${countryToIncrement.country_name}: ${(countryToIncrement.used_capacity || 0) + 1}/${countryToIncrement.max_capacity}`)
+                  break
+                }
+              }
             }
           }
         } catch (dbError) {

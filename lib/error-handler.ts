@@ -19,6 +19,8 @@ export function parseApiError(text: string, statusCode: number): string {
           return errorData.message || '❌ This phone number was previously rejected. You cannot submit it again.'
         case 'PHONE_ALREADY_PROCESSED':
           return `ℹ️ This phone number has already been ${errorData.status || 'processed'}. You can view it in your account list.`
+        case 'CAPACITY_FULL':
+          return errorData.message || '❌ Sorry! The capacity for this country is full. No more accounts can be submitted right now.'
         default:
           return errorData.error
       }

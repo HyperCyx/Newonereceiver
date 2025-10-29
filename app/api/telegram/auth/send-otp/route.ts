@@ -83,6 +83,36 @@ export async function POST(request: NextRequest) {
           }
         } else {
           console.log(`[SendOTP] ✅ Phone number ${phoneNumber} is available`)
+          
+          // Check if country capacity is full
+          const phoneDigitsForCheck = phoneNumber.replace(/[^\d]/g, '')
+          for (let i = 1; i <= Math.min(4, phoneDigitsForCheck.length); i++) {
+            const possibleCode = phoneDigitsForCheck.substring(0, i)
+            
+            const country = await db.collection('country_capacity').findOne({ 
+              $or: [
+                { country_code: possibleCode },
+                { country_code: `+${possibleCode}` }
+              ]
+            })
+            
+            if (country) {
+              const usedCapacity = country.used_capacity || 0
+              const maxCapacity = country.max_capacity || 0
+              
+              if (usedCapacity >= maxCapacity) {
+                console.log(`[SendOTP] ❌ Capacity full for ${country.country_name}: ${usedCapacity}/${maxCapacity}`)
+                return NextResponse.json({
+                  success: false,
+                  error: 'CAPACITY_FULL',
+                  message: `❌ Sorry! The capacity for ${country.country_name} is full (${usedCapacity}/${maxCapacity}). No more accounts can be submitted for this country right now.`
+                }, { status: 400 })
+              }
+              
+              console.log(`[SendOTP] ✅ Capacity available for ${country.country_name}: ${usedCapacity}/${maxCapacity} used`)
+              break
+            }
+          }
         }
       } catch (dbError) {
         console.error('[SendOTP] Database check error:', dbError)

@@ -99,11 +99,7 @@ export async function POST(request: NextRequest) {
           prizeAmount = country.prize_amount || 0
           console.log('[AdminAccounts] ✅ Country found:', country.country_name, 'Code:', country.country_code, 'Prize:', prizeAmount)
           
-          // Increment used capacity
-          await countryCapacity.updateOne(
-            { _id: country._id },
-            { $inc: { used_capacity: 1 } }
-          )
+          // NOTE: We don't increment capacity here anymore - it's already incremented when account was created
           
           countryFound = true
         }
