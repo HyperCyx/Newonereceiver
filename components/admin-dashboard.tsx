@@ -711,7 +711,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <button
                     onClick={() => {
                       if (confirm('Are you sure you want to logout?')) {
-                        onNavigate('login')
+                        // Clear admin login state
+                        if (typeof window !== 'undefined') {
+                          localStorage.removeItem('admin_logged_in')
+                          document.cookie = 'admin_mode=; max-age=0; path=/'
+                        }
+                        onNavigate('menu')
                       }
                       setShowMenu(false)
                     }}

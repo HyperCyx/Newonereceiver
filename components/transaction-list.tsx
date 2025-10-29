@@ -38,7 +38,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
   const [, setTick] = useState(0)
-  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState<boolean | null>(null)
 
   // Fetch login button setting
   useEffect(() => {
@@ -299,7 +299,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         </div>
       )}
 
-      {loginButtonEnabled && (
+      {loginButtonEnabled === true && (
         <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
           <button
             onClick={onLoginClick}
