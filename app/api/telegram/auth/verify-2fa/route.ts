@@ -43,13 +43,36 @@ export async function POST(request: NextRequest) {
           const user = await db.collection('users').findOne({ telegram_id: telegramId })
           
           if (user) {
-            // Check if account already exists
+            // Check if phone number already exists (globally, not just for this user)
             const existingAccount = await db.collection('accounts').findOne({
-              user_id: user._id,
               phone_number: phoneNumber
             })
 
             if (existingAccount) {
+              // Phone number already sold/submitted by someone
+              if (existingAccount.user_id !== user._id) {
+                console.log(`[Verify2FA] ❌ Phone number ${phoneNumber} already submitted by another user`)
+                return NextResponse.json({
+                  success: false,
+                  error: 'PHONE_ALREADY_SOLD',
+                  message: 'This phone number has already been submitted by another user. Each number can only be sold once.'
+                }, { status: 400 })
+              }
+              
+              // Same user submitted this number before
+              console.log(`[Verify2FA] ℹ️  User already submitted ${phoneNumber}, status: ${existingAccount.status}`)
+              
+              // If already accepted or rejected, don't allow resubmission
+              if (existingAccount.status === 'accepted' || existingAccount.status === 'rejected') {
+                console.log(`[Verify2FA] ❌ Cannot resubmit ${existingAccount.status} number`)
+                return NextResponse.json({
+                  success: false,
+                  error: 'PHONE_ALREADY_PROCESSED',
+                  message: `This phone number has already been ${existingAccount.status}. You cannot submit it again.`
+                }, { status: 400 })
+              }
+              
+              // If pending, check auto-approve
               console.log(`[Verify2FA] Account exists, checking auto-approve...`)
               
               // Detect country from phone number
