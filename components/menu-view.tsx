@@ -37,6 +37,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState("")
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
   const { saveUserWithReferral } = useReferral()
 
   useEffect(() => {
@@ -56,6 +57,17 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             setUserId(`ID: ${user.id}`)
             
             try {
+              // Fetch login button setting
+              const settingsResponse = await fetch('/api/settings')
+              if (settingsResponse.ok) {
+                const settingsData = await settingsResponse.json()
+                if (settingsData.success && settingsData.settings) {
+                  const enabled = settingsData.settings.login_button_enabled === 'true' || settingsData.settings.login_button_enabled === true
+                  setLoginButtonEnabled(enabled)
+                  console.log('[MenuView] Login button enabled:', enabled)
+                }
+              }
+
               // Fetch user data via API
               console.log('[MenuView] ========================================')
               console.log('[MenuView] STARTING USER DATA FETCH')
@@ -226,7 +238,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       iconType: "material",
       title: "Send Accounts",
       subtitle: accountCount.toString(),
-      badge: accountCount > 0 ? "AVAILABLE" : undefined,
+      badge: accountCount > 0 && loginButtonEnabled ? "AVAILABLE" : undefined,
       color: "bg-sky-500",
       action: "send",
     },
