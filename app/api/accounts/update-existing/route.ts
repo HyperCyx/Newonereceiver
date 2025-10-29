@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     console.log(`[UpdateExisting] Found ${accountsToUpdate.length} accounts with amount = 0`)
     
     let updatedCount = 0
+    let skippedCount = 0
     
     for (const account of accountsToUpdate) {
       try {
@@ -29,51 +30,54 @@ export async function POST(request: NextRequest) {
         const phoneDigits = account.phone_number.replace(/[^\d]/g, '')
         let prizeAmount = 0
         let countryFound = false
+        let countryName = 'Unknown'
         
         console.log(`[UpdateExisting] Processing ${account.phone_number}, digits: ${phoneDigits}`)
         
         for (let i = 1; i <= Math.min(4, phoneDigits.length) && !countryFound; i++) {
           const possibleCode = phoneDigits.substring(0, i)
+          console.log(`[UpdateExisting] Trying country code: ${possibleCode}`)
           const country = await countryCapacity.findOne({ country_code: possibleCode })
           
           if (country) {
             prizeAmount = country.prize_amount || 0
-            console.log(`[UpdateExisting] ✅ Country found: ${country.country_name}, prize: ${prizeAmount}`)
+            countryName = country.country_name
+            console.log(`[UpdateExisting] ✅ Country found: ${countryName}, code: ${possibleCode}, prize: $${prizeAmount}`)
             countryFound = true
           }
         }
         
         if (!countryFound) {
-          console.log(`[UpdateExisting] ❌ No country found for ${account.phone_number}, skipping`)
+          console.log(`[UpdateExisting] ❌ No country found for ${account.phone_number}, skipping (add country code first!)`)
+          skippedCount++
           continue
         }
         
-        if (prizeAmount > 0) {
-          // Update account with prize amount
-          await accounts.updateOne(
-            { _id: account._id },
-            { 
-              $set: { 
-                amount: prizeAmount,
-                updated_at: new Date()
-              } 
-            }
-          )
-          
-          console.log(`[UpdateExisting] ✅ Updated ${account.phone_number} with prize: $${prizeAmount}`)
-          updatedCount++
-        }
+        // Update account with prize amount (even if 0, to mark it as processed)
+        await accounts.updateOne(
+          { _id: account._id },
+          { 
+            $set: { 
+              amount: prizeAmount,
+              updated_at: new Date()
+            } 
+          }
+        )
+        
+        console.log(`[UpdateExisting] ✅ Updated ${account.phone_number} with prize: $${prizeAmount}`)
+        updatedCount++
       } catch (error) {
         console.error(`[UpdateExisting] Error processing account ${account._id}:`, error)
       }
     }
     
-    console.log(`[UpdateExisting] ✅ Updated ${updatedCount} accounts`)
+    console.log(`[UpdateExisting] Summary: Updated=${updatedCount}, Skipped=${skippedCount}, Total=${accountsToUpdate.length}`)
     
     return NextResponse.json({
       success: true,
-      message: `Updated ${updatedCount} accounts with prize amounts`,
+      message: `Updated ${updatedCount} accounts, skipped ${skippedCount} (country not found)`,
       updatedCount: updatedCount,
+      skippedCount: skippedCount,
       totalChecked: accountsToUpdate.length
     })
   } catch (error: any) {

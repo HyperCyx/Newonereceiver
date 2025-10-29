@@ -79,14 +79,14 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
     }
   }, [])
 
-  // Auto-refresh every 10 seconds to check for updates
+  // Auto-refresh every 5 seconds to check for updates and auto-approvals
   useEffect(() => {
     const refreshInterval = setInterval(() => {
-      if (telegramUserId && tab === 'pending') {
-        console.log('[TransactionList] Auto-refreshing pending accounts...')
+      if (telegramUserId) {
+        console.log('[TransactionList] Auto-refreshing accounts for tab:', tab)
         fetchTransactions()
       }
-    }, 10000) // Refresh every 10 seconds for pending tab
+    }, 5000) // Refresh every 5 seconds for all tabs
     
     return () => clearInterval(refreshInterval)
   }, [telegramUserId, tab])
@@ -116,6 +116,20 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         const userData = await userResponse.json()
         const userId = userData.user._id
         console.log('[TransactionList] User ID:', userId)
+
+        // Check for auto-approvals if viewing pending tab
+        if (tab === 'pending') {
+          try {
+            console.log('[TransactionList] Checking for auto-approvals...')
+            await fetch('/api/accounts/check-auto-approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: userId })
+            })
+          } catch (error) {
+            console.error('[TransactionList] Error checking auto-approvals:', error)
+          }
+        }
 
         // Map tab to status for accounts table
         const statusMap = {
