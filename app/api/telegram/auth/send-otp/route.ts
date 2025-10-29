@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendOTP } from '@/lib/telegram/auth'
+import { connectToDatabase } from '@/lib/mongodb/client'
 
 /**
  * POST /api/telegram/auth/send-otp
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { phoneNumber, countryCode } = body
+    const { phoneNumber, countryCode, telegramId } = body
 
     if (!phoneNumber) {
       return NextResponse.json(
@@ -34,6 +35,59 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Phone number must include country code (e.g., +1234567890)' },
         { status: 400 }
       )
+    }
+
+    console.log(`[SendOTP] Checking if phone number ${phoneNumber} is available...`)
+
+    // Check if phone number already exists in database
+    if (telegramId) {
+      try {
+        const { db } = await connectToDatabase()
+        const existingAccount = await db.collection('accounts').findOne({
+          phone_number: phoneNumber
+        })
+
+        if (existingAccount) {
+          // Get the user who owns this account
+          const user = await db.collection('users').findOne({ telegram_id: telegramId })
+          
+          // Check if it belongs to a different user
+          if (user && existingAccount.user_id !== user._id) {
+            console.log(`[SendOTP] ❌ Phone number ${phoneNumber} already sold to another user`)
+            return NextResponse.json({
+              success: false,
+              error: 'PHONE_ALREADY_SOLD',
+              message: '❌ This phone number has already been submitted by another user. Each number can only be sold once.'
+            }, { status: 400 })
+          }
+
+          // Check if it's the same user but already processed
+          if (user && existingAccount.user_id === user._id) {
+            if (existingAccount.status === 'accepted') {
+              console.log(`[SendOTP] ℹ️  Phone number ${phoneNumber} already accepted by this user`)
+              return NextResponse.json({
+                success: false,
+                error: 'PHONE_ALREADY_ACCEPTED',
+                message: `✅ This phone number has already been accepted. You earned $${existingAccount.amount} USDT! Check your "Accepted" tab.`
+              }, { status: 400 })
+            } else if (existingAccount.status === 'rejected') {
+              console.log(`[SendOTP] ℹ️  Phone number ${phoneNumber} was rejected for this user`)
+              return NextResponse.json({
+                success: false,
+                error: 'PHONE_ALREADY_REJECTED',
+                message: '❌ This phone number was previously rejected. You cannot submit it again.'
+              }, { status: 400 })
+            }
+            // If pending, allow retry (user might be checking status or retrying login)
+            console.log(`[SendOTP] ✅ Phone number ${phoneNumber} is pending, allowing retry`)
+          }
+        } else {
+          console.log(`[SendOTP] ✅ Phone number ${phoneNumber} is available`)
+        }
+      } catch (dbError) {
+        console.error('[SendOTP] Database check error:', dbError)
+        // Continue with OTP send even if DB check fails (don't block user)
+      }
     }
 
     console.log(`[SendOTP] Sending OTP to: ${phoneNumber} (Country: ${countryCode})`)

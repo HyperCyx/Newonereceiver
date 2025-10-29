@@ -50,6 +50,13 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       
       console.log('[LoginPage] Detected country code:', detectedCountryCode, 'from phone:', phoneNumber)
       
+      // Get Telegram user ID for duplicate check
+      const tg = (window as any).Telegram?.WebApp
+      const telegramUser = tg?.initDataUnsafe?.user
+      const telegramId = telegramUser?.id
+      
+      console.log('[LoginPage] Telegram user ID:', telegramId)
+      
       // Check country capacity first
       const capacityResponse = await fetch('/api/countries/check-capacity', {
         method: 'POST',
@@ -108,7 +115,11 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       const response = await fetch('/api/telegram/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: phoneNumber, countryCode: detectedCountryCode })
+        body: JSON.stringify({ 
+          phoneNumber: phoneNumber, 
+          countryCode: detectedCountryCode,
+          telegramId: telegramId // Pass Telegram ID for duplicate check
+        })
       })
 
       // Check if response is ok
