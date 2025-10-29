@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check admin
-    const isAdmin = await checkAdminByTelegramId(telegramId)
+    const isAdmin = await checkAdminByTelegramId(Number(telegramId))
     if (!isAdmin) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },

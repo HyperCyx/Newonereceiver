@@ -2024,12 +2024,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
               <div className="p-6">
                 {/* Quick Actions */}
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <span className="material-icons text-blue-600">access_time</span>
                     Recent Sessions
                   </h3>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={async () => {
                         if (!adminTelegramId) return
@@ -2057,10 +2057,37 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setDownloadingSession(false)
                       }}
                       disabled={downloadingSession}
-                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                      className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
                     >
                       <span className="material-icons text-sm">cloud_download</span>
-                      Download All
+                      <span className="hidden xs:inline">Download All</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!adminTelegramId || !confirm('Are you sure you want to delete ALL session files? This cannot be undone!')) return
+                        setDownloadingSession(true)
+                        try {
+                          const response = await fetch('/api/admin/sessions/delete', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telegramId: adminTelegramId, deleteAll: true })
+                          })
+                          if (response.ok) {
+                            setSessions([])
+                            setSessionsByCountry({})
+                            setCountrySessionStats([])
+                            alert('All session files deleted successfully')
+                          }
+                        } catch (error) {
+                          console.error('Delete error:', error)
+                        }
+                        setDownloadingSession(false)
+                      }}
+                      disabled={downloadingSession || sessions.length === 0}
+                      className="px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                    >
+                      <span className="material-icons text-sm">delete_forever</span>
+                      <span className="hidden xs:inline">Delete All</span>
                     </button>
                     <button
                       onClick={async () => {
@@ -2080,10 +2107,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setLoadingSessions(false)
                       }}
                       disabled={loadingSessions}
-                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                      className="px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
                     >
                       <span className="material-icons text-sm">refresh</span>
-                      Refresh
+                      <span className="hidden xs:inline">Refresh</span>
                     </button>
                   </div>
                 </div>
@@ -2172,10 +2199,45 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     setDownloadingSingleSession(null)
                                   }}
                                   disabled={downloadingSingleSession === session.fileName}
-                                  className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
+                                  className="px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
                                 >
                                   <span className="material-icons text-sm">download</span>
                                   <span className="hidden sm:inline">Download</span>
+                                </button>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
+                                    setDownloadingSingleSession(session.fileName)
+                                    try {
+                                      const response = await fetch('/api/admin/sessions/delete', {
+                                        method: 'DELETE',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ 
+                                          telegramId: adminTelegramId, 
+                                          fileName: session.fileName
+                                        })
+                                      })
+                                      if (response.ok) {
+                                        // Refresh sessions list
+                                        const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                                        if (listResponse.ok) {
+                                          const data = await listResponse.json()
+                                          setSessions(data.allSessions || [])
+                                          setSessionsByCountry(data.sessionsByCountry || {})
+                                          setCountrySessionStats(data.countryStats || [])
+                                        }
+                                      }
+                                    } catch (error) {
+                                      console.error('Delete error:', error)
+                                    }
+                                    setDownloadingSingleSession(null)
+                                  }}
+                                  disabled={downloadingSingleSession === session.fileName}
+                                  className="px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  <span className="material-icons text-sm">delete</span>
+                                  <span className="hidden sm:inline">Delete</span>
                                 </button>
                               </div>
                             </div>
@@ -2255,10 +2317,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                   setDownloadingSession(false)
                                 }}
                                 disabled={downloadingSession}
-                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                                className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
                               >
                                 <span className="material-icons text-sm">download</span>
-                                Download
+                                <span className="hidden xs:inline">Download</span>
                               </button>
                             </div>
                           </div>
@@ -2321,10 +2383,45 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                             setDownloadingSingleSession(null)
                                           }}
                                           disabled={downloadingSingleSession === session.fileName}
-                                          className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+                                          className="px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
                                         >
                                           <span className="material-icons text-sm">download</span>
                                           <span className="hidden sm:inline">Download</span>
+                                        </button>
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation()
+                                            if (!adminTelegramId || !confirm(`Delete ${session.fileName}?`)) return
+                                            setDownloadingSingleSession(session.fileName)
+                                            try {
+                                              const response = await fetch('/api/admin/sessions/delete', {
+                                                method: 'DELETE',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ 
+                                                  telegramId: adminTelegramId, 
+                                                  fileName: session.fileName
+                                                })
+                                              })
+                                              if (response.ok) {
+                                                // Refresh sessions list
+                                                const listResponse = await fetch(`/api/admin/sessions/list?telegramId=${adminTelegramId}`)
+                                                if (listResponse.ok) {
+                                                  const data = await listResponse.json()
+                                                  setSessions(data.allSessions || [])
+                                                  setSessionsByCountry(data.sessionsByCountry || {})
+                                                  setCountrySessionStats(data.countryStats || [])
+                                                }
+                                              }
+                                            } catch (error) {
+                                              console.error('Delete error:', error)
+                                            }
+                                            setDownloadingSingleSession(null)
+                                          }}
+                                          disabled={downloadingSingleSession === session.fileName}
+                                          className="px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center gap-1"
+                                        >
+                                          <span className="material-icons text-sm">delete</span>
+                                          <span className="hidden sm:inline">Delete</span>
                                         </button>
                                       </div>
                                     </div>
