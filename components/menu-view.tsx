@@ -172,7 +172,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   fetch('/api/accounts/count', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'pending' })
+                    body: JSON.stringify({}) // Get ALL accounts, not just pending
                   }).then(r => r.ok ? r.json() : { count: 0 }),
                   
                   saveUserWithReferral(user.id.toString(), undefined, {
@@ -238,7 +238,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       iconType: "material",
       title: "Send Accounts",
       subtitle: accountCount.toString(),
-      badge: accountCount > 0 && loginButtonEnabled ? "AVAILABLE" : undefined,
+      badge: loginButtonEnabled ? "AVAILABLE" : undefined,
       color: "bg-sky-500",
       action: "send",
     },
