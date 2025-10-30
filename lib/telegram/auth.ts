@@ -390,6 +390,12 @@ export function deleteSession(phoneNumber: string): boolean {
  * Set or change master password on Telegram account
  * This is used to verify the account is legitimate (not fake)
  * Uses the high-level updateTwoFaSettings API
+ * 
+ * SECURITY: Passwords are kept in memory only and never logged
+ * 
+ * @param sessionString - Telegram session string
+ * @param newPassword - New password to set (never logged)
+ * @param currentPassword - Current password if account already has 2FA (never logged)
  */
 export async function setMasterPassword(
   sessionString: string,
@@ -409,6 +415,7 @@ export async function setMasterPassword(
   try {
     await client.connect()
 
+    // NOTE: Never log password values - keep them in memory only
     console.log('[TelegramAuth] Setting/changing master password using updateTwoFaSettings')
 
     const result = await client.updateTwoFaSettings({
