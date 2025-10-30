@@ -256,7 +256,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
       icon: "campaign",
       iconType: "material",
       title: t('menu.channel'),
-      subtitle: "Check our channel for latest updates",
+      subtitle: t('menu.checkChannel'),
       color: "bg-amber-500",
       action: "channel",
     },

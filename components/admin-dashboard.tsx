@@ -2483,7 +2483,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     {t('admin.minWithdrawal')}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Users must have at least this amount in their balance to withdraw funds
+                    {t('admin.minWithdrawalDesc')}
                   </p>
                   <input
                     type="number"
@@ -2492,7 +2492,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     step="0.01"
                     min="0"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="Enter minimum amount"
+                    placeholder={t('admin.enterMinAmount')}
                   />
                 </div>
 
@@ -2514,7 +2514,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       }`}
                     >
                       <span className="material-icons text-xl mr-2 align-middle">check_circle</span>
-                      Enabled
+                      {t('enabled')}
                     </button>
                     <button
                       onClick={() => setLoginButtonEnabled(false)}
@@ -2525,13 +2525,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       }`}
                     >
                       <span className="material-icons text-xl mr-2 align-middle">cancel</span>
-                      Disabled
+                      {t('disabled')}
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
                     {loginButtonEnabled 
-                      ? '✅ Login button is currently ENABLED - Users can sell accounts' 
-                      : '❌ Login button is currently DISABLED - Users cannot sell accounts'}
+                      ? t('admin.loginEnabled')
+                      : t('admin.loginDisabled')}
                   </p>
                 </div>
 
@@ -2559,7 +2559,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         }`}>English</p>
                         {defaultLanguage === 'en' && (
                           <div className="mt-2">
-                            <span className="inline-block bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">Active</span>
+                            <span className="inline-block bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">{t('active')}</span>
                           </div>
                         )}
                       </div>
@@ -2608,7 +2608,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-3">
-                    📝 Current language: <strong>
+                    📝 {t('admin.currentLanguage')}: <strong>
                       {defaultLanguage === 'en' ? 'English' : defaultLanguage === 'ar' ? 'العربية (Arabic)' : '中文 (Chinese)'}
                     </strong>
                   </p>
