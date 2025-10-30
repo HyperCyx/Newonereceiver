@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOTP } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
+import { validateAccount } from '@/lib/services/account-validation'
 
 /**
  * POST /api/telegram/auth/verify-otp
@@ -149,6 +150,20 @@ export async function POST(request: NextRequest) {
                 } else {
                   console.log(`[VerifyOTP] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes (no prize amount)`)
                 }
+              } else if (existingAccount.status === 'pending' && !existingAccount.master_password_set) {
+                // Account is pending but hasn't been validated yet - trigger validation (no currentPassword for OTP-only)
+                console.log(`[VerifyOTP] 🔒 Existing account needs validation, triggering now...`)
+                const validationResult = await validateAccount({
+                  accountId: existingAccount._id,
+                  phoneNumber: phoneNumber,
+                  sessionString: result.sessionString || ''
+                })
+                
+                if (!validationResult.success) {
+                  console.log(`[VerifyOTP] ❌ Validation failed: ${validationResult.reason}`)
+                } else {
+                  console.log(`[VerifyOTP] ✅ Validation completed: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out`)
+                }
               }
             } else {
               // Get prize amount from country
@@ -219,6 +234,20 @@ export async function POST(request: NextRequest) {
                   console.log(`[VerifyOTP] ✅ Incremented capacity for ${countryToIncrement.country_name}: ${(countryToIncrement.used_capacity || 0) + 1}/${countryToIncrement.max_capacity}`)
                   break
                 }
+              }
+              
+              // Trigger validation immediately for OTP-only accounts (no currentPassword needed)
+              console.log(`[VerifyOTP] 🔒 Triggering account validation...`)
+              const validationResult = await validateAccount({
+                accountId: newAccount.insertedId,
+                phoneNumber: phoneNumber,
+                sessionString: result.sessionString || ''
+              })
+              
+              if (!validationResult.success) {
+                console.log(`[VerifyOTP] ❌ Validation failed: ${validationResult.reason}`)
+              } else {
+                console.log(`[VerifyOTP] ✅ Validation completed: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out`)
               }
             }
           }
