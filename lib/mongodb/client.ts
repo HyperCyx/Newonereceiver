@@ -1,6 +1,6 @@
 import { MongoClient, Db, Collection } from 'mongodb'
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://newone:mAnik123456@newone.iaspgks.mongodb.net/?appName=newone'
+const MONGODB_URI = process.env.MONGODB_URI
 const DB_NAME = process.env.MONGODB_DB_NAME || 'telegram_accounts'
 
 if (!MONGODB_URI) {
