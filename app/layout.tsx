@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { ReferralProvider } from "@/lib/referral-context"
+import { LanguageProvider } from "@/lib/i18n/language-context"
 import { Toaster } from "@/components/ui/toaster"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -28,13 +29,15 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
       </head>
       <body className={`font-sans antialiased bg-white`} suppressHydrationWarning style={{ overflow: 'hidden', position: 'fixed', width: '100%', height: '100vh' }}>
-        <ReferralProvider>
-          <div className="bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
-            {children}
-          </div>
-          <Analytics />
-          <Toaster />
-        </ReferralProvider>
+        <LanguageProvider>
+          <ReferralProvider>
+            <div className="bg-white" style={{ height: '100vh', overflow: 'hidden' }}>
+              {children}
+            </div>
+            <Analytics />
+            <Toaster />
+          </ReferralProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

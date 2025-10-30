@@ -15,6 +15,7 @@ import {
   X,
   DollarSign,
 } from "lucide-react"
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface AdminDashboardProps {
   onNavigate: (view: string) => void
@@ -87,6 +88,7 @@ interface Country {
 }
 
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
+  const { t, refreshLanguage } = useLanguage()
   const [activeTab, setActiveTab] = useState<
     "overview" | "users" | "analytics" | "referrals" | "payments" | "countries" | "sessions" | "settings"
   >("overview")
@@ -109,6 +111,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+  const [defaultLanguage, setDefaultLanguage] = useState<"en" | "ar" | "zh">("en")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
@@ -116,6 +119,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [editingCountry, setEditingCountry] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{capacity: number, prize: number, autoApproveMinutes: number}>()
   const [downloadingSession, setDownloadingSession] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   
   // Sessions state
   const [sessions, setSessions] = useState<any[]>([])
@@ -142,23 +146,30 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // Computed analytics data
   const dailyRevenue = (() => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date()
       date.setDate(date.getDate() - (6 - i))
       return date
     })
 
-    return last7Days.map((date, idx) => {
+    return last7Days.map((date) => {
       // Use withdrawals as revenue indicator instead of transactions
       const dayWithdrawals = withdrawals.filter(w => {
         const wDate = new Date(w.date)
         return wDate.toDateString() === date.toDateString() && w.status === 'confirmed'
       })
       const revenue = dayWithdrawals.reduce((sum, w) => sum + Number(w.amount), 0)
+      
+      // Format day as "Mon 12/25"
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const dayName = dayNames[date.getDay()]
+      const monthDay = `${date.getMonth() + 1}/${date.getDate()}`
+      
       return {
-        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
-        revenue: Math.round(revenue)
+        day: dayName,
+        date: monthDay,
+        fullDate: date.toLocaleDateString(),
+        revenue: Math.round(revenue * 100) / 100 // Round to 2 decimal places
       }
     })
   })()
@@ -238,6 +249,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           }
           if (result.settings.login_button_enabled !== undefined) {
             setLoginButtonEnabled(result.settings.login_button_enabled === 'true' || result.settings.login_button_enabled === true)
+          }
+          if (result.settings.default_language) {
+            setDefaultLanguage(result.settings.default_language)
           }
         }
       }
@@ -507,9 +521,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled })
+      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled, defaultLanguage })
 
-      // Save both settings
+      // Save all settings
       const responses = await Promise.all([
         fetch('/api/settings', {
           method: 'POST',
@@ -526,6 +540,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           body: JSON.stringify({
             settingKey: 'login_button_enabled',
             settingValue: loginButtonEnabled.toString(),
+            telegramId: adminTelegramId
+          })
+        }),
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settingKey: 'default_language',
+            settingValue: defaultLanguage,
             telegramId: adminTelegramId
           })
         })
@@ -545,8 +568,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       // Show success indicator
       setSettingsSaved(true)
       setSettingsError("")
-      // Refresh settings
+      // Refresh settings and language
       await fetchSettings()
+      await refreshLanguage()
       // Hide indicator after 3 seconds
       setTimeout(() => setSettingsSaved(false), 3000)
     } catch (error) {
@@ -621,9 +645,172 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         <div className="flex items-center gap-3">
           <span className="material-icons text-blue-600 text-3xl">admin_panel_settings</span>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-sm text-gray-500">Manage your platform</p>
+            <h1 className="text-xl font-bold text-gray-900">{t('admin.title')}</h1>
+            <p className="text-sm text-gray-500">{t('admin.subtitle')}</p>
           </div>
+        </div>
+        
+        {/* Menu Button */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Menu"
+          >
+            <Menu className="w-6 h-6 text-gray-700" />
+          </button>
+          
+          {showMenu && (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 z-20" 
+                onClick={() => setShowMenu(false)}
+              />
+              
+              {/* Dropdown Menu */}
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-30 max-h-[80vh] overflow-y-auto">
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Admin Sections</p>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('overview')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-blue-600 text-lg">dashboard</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Overview</p>
+                    <p className="text-xs text-gray-500">Dashboard statistics</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('users')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-indigo-600 text-lg">people</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Users</p>
+                    <p className="text-xs text-gray-500">Manage users</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('analytics')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-orange-600 text-lg">analytics</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Analytics</p>
+                    <p className="text-xs text-gray-500">Revenue & statistics</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('referrals')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-violet-600 text-lg">link</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Referrals</p>
+                    <p className="text-xs text-gray-500">Manage referral codes</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('payments')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-green-600 text-lg">payments</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Payments</p>
+                    <p className="text-xs text-gray-500">Review payment requests</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('countries')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-blue-600 text-lg">public</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Countries</p>
+                    <p className="text-xs text-gray-500">Manage country settings</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('sessions')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-purple-600 text-lg">download</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Sessions</p>
+                    <p className="text-xs text-gray-500">Download session files</p>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab('settings')
+                    setShowMenu(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                >
+                  <span className="material-icons text-gray-600 text-lg">settings</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Settings</p>
+                    <p className="text-xs text-gray-500">Configure system settings</p>
+                  </div>
+                </button>
+                
+                <div className="border-t border-gray-100 mt-2 pt-2">
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to logout?')) {
+                        // Clear admin login state
+                        if (typeof window !== 'undefined') {
+                          localStorage.removeItem('admin_logged_in')
+                          document.cookie = 'admin_mode=; max-age=0; path=/'
+                        }
+                        onNavigate('menu')
+                      }
+                      setShowMenu(false)
+                    }}
+                    className="w-full px-4 py-2.5 text-left hover:bg-red-50 transition-colors flex items-center gap-3"
+                  >
+                    <span className="material-icons text-red-600 text-lg">logout</span>
+                    <div>
+                      <p className="text-sm font-medium text-red-600">{t('admin.logout')}</p>
+                      <p className="text-xs text-gray-500">{t('admin.exitPanel')}</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -653,7 +840,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   }`}
                 >
                   <span className="material-icons text-lg">{icons[tab]}</span>
-                  {tab === "payments" ? "Payments" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {t(`admin.${tab}`)}
                 </button>
               )
             },
@@ -669,7 +856,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Total Users</span>
+                  <span className="text-gray-600 text-sm font-medium">{t('admin.totalUsers')}</span>
                   <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                     <span className="material-icons text-blue-600">people</span>
                   </div>
@@ -844,28 +1031,59 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <div className="flex items-center justify-center h-40">
                   <p className="text-gray-400">Loading chart data...</p>
                 </div>
+              ) : dailyRevenue.length === 0 ? (
+                <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-gray-400 mb-1">No revenue data available</p>
+                    <p className="text-xs text-gray-500">Revenue will appear here once withdrawals are confirmed</p>
+                  </div>
+                </div>
               ) : (
-                <div className="flex items-end justify-between h-40 gap-2">
-                  {dailyRevenue.map((item, idx) => {
-                    const maxRevenue = Math.max(...dailyRevenue.map(d => d.revenue), 1)
-                    const heightPercent = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0
-                    
-                    return (
-                      <div key={idx} className="flex-1 flex flex-col items-center">
-                        <div className="w-full bg-blue-100 rounded-t relative group h-full flex items-end">
-                          <div
-                            className="bg-blue-500 rounded-t transition-all hover:bg-blue-600 cursor-pointer w-full"
-                            style={{ height: `${heightPercent}%`, minHeight: item.revenue > 0 ? '4px' : '0' }}
-                          >
-                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              ${item.revenue}
+                <div className="relative pt-8">
+                  {/* Chart container with proper spacing */}
+                  <div className="flex items-end justify-between gap-1 sm:gap-2 mb-3" style={{ height: '180px' }}>
+                    {dailyRevenue.map((item, idx) => {
+                      const maxRevenue = Math.max(...dailyRevenue.map(d => d.revenue), 1)
+                      const heightPercent = maxRevenue > 0 ? (item.revenue / maxRevenue) * 85 : 0 // Max 85% to leave space for tooltip
+                      
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center">
+                          {/* Bar container */}
+                          <div className="w-full flex items-end relative group" style={{ height: '180px' }}>
+                            <div
+                              className="bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500 cursor-pointer w-full"
+                              style={{ 
+                                height: `${heightPercent}%`, 
+                                minHeight: item.revenue > 0 ? '4px' : '2px',
+                                maxHeight: '85%'
+                              }}
+                            >
+                              {/* Tooltip - positioned absolutely to not overlap */}
+                              <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none shadow-xl">
+                                <div className="font-bold text-center">${item.revenue.toFixed(2)}</div>
+                                <div className="text-gray-300 text-[9px] text-center mt-0.5">{item.fullDate}</div>
+                              </div>
                             </div>
                           </div>
+                          {/* Labels - with proper spacing to avoid overlap */}
+                          <div className="text-center mt-2 px-0.5">
+                            <p className="text-[10px] sm:text-xs font-semibold text-gray-700 leading-tight">{item.day}</p>
+                            <p className="text-[8px] sm:text-[10px] text-gray-500 mt-0.5 leading-tight">{item.date}</p>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-2">{item.day}</p>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
+                  {/* Legend - properly spaced */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gradient-to-t from-blue-500 to-blue-400 rounded flex-shrink-0"></div>
+                      <span className="text-[10px] sm:text-xs text-gray-600 whitespace-nowrap">Daily Revenue (USDT)</span>
+                    </div>
+                    <div className="text-[10px] sm:text-xs text-gray-700 font-semibold whitespace-nowrap">
+                      Total: ${dailyRevenue.reduce((sum, d) => sum + d.revenue, 0).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1000,10 +1218,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Code Name</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Referral Code</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Used Count</th>
-                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Max Uses</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Status</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Created</th>
                       <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Bot Link</th>
+                      <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1035,9 +1253,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                               {code.used_count}
                             </span>
                           </td>
-                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-600">
-                            {code.max_uses || '∞'}
-                          </td>
                           <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
                             {code.is_active ? (
                               <span className="bg-green-100 text-green-700 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-sm font-semibold">
@@ -1059,10 +1274,41 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                 navigator.clipboard.writeText(link)
                                 alert('Bot link copied to clipboard!')
                               }}
-                              className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                              className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 text-[10px] md:text-xs"
                             >
                               <Link2 size={14} />
                               Copy
+                            </button>
+                          </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm">
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Are you sure you want to delete the referral code "${code.name || code.code}"?\n\nThis action cannot be undone.`)) return
+                                
+                                try {
+                                  const response = await fetch('/api/referral-codes', {
+                                    method: 'DELETE',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ codeId: code._id })
+                                  })
+                                  
+                                  const result = await response.json()
+                                  
+                                  if (response.ok && result.success) {
+                                    alert('Referral code deleted successfully!')
+                                    fetchAllData()
+                                  } else {
+                                    alert('Error: ' + (result.error || 'Failed to delete referral code'))
+                                  }
+                                } catch (err) {
+                                  console.error('Error:', err)
+                                  alert('Error deleting referral code')
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-700 font-medium flex items-center gap-1 text-[10px] md:text-xs"
+                            >
+                              <span className="material-icons" style={{fontSize: '14px'}}>delete</span>
+                              Delete
                             </button>
                           </td>
                         </tr>
@@ -1155,11 +1401,21 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           <td className="px-4 py-3 text-sm font-semibold text-gray-800">${request.amount}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
                             {request.walletAddress && request.walletAddress !== 'N/A' ? (
-                              <span title={request.walletAddress}>
-                                {request.walletAddress.length > 20 
-                                  ? `${request.walletAddress.substring(0, 10)}...${request.walletAddress.substring(request.walletAddress.length - 10)}`
-                                  : request.walletAddress}
-                              </span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(request.walletAddress)
+                                  alert('Wallet address copied to clipboard!')
+                                }}
+                                className="text-left hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1 group"
+                                title={`Click to copy: ${request.walletAddress}`}
+                              >
+                                <span className="text-blue-600 group-hover:text-blue-700">
+                                  {request.walletAddress.length > 20 
+                                    ? `${request.walletAddress.substring(0, 10)}...${request.walletAddress.substring(request.walletAddress.length - 10)}`
+                                    : request.walletAddress}
+                                </span>
+                                <span className="material-icons text-gray-400 group-hover:text-blue-600 transition-colors" style={{fontSize: '14px'}}>content_copy</span>
+                              </button>
                             ) : (
                               <span className="text-gray-400">N/A</span>
                             )}
@@ -1771,10 +2027,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setDownloadingSession(false)
                       }}
                       disabled={downloadingSession}
-                      className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                     >
-                      <span className="material-icons text-sm">cloud_download</span>
-                      <span className="hidden xs:inline">Download All</span>
+                      <span className="material-icons" style={{fontSize: '16px'}}>cloud_download</span>
+                      <span>Download All</span>
                     </button>
                     <button
                       onClick={async () => {
@@ -1798,10 +2054,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setDownloadingSession(false)
                       }}
                       disabled={downloadingSession || sessions.length === 0}
-                      className="px-3 sm:px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-red-500 hover:bg-red-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                     >
-                      <span className="material-icons text-sm">delete_forever</span>
-                      <span className="hidden xs:inline">Delete All</span>
+                      <span className="material-icons" style={{fontSize: '16px'}}>delete_forever</span>
+                      <span>Delete All</span>
                     </button>
                     <button
                       onClick={async () => {
@@ -1821,10 +2077,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         setLoadingSessions(false)
                       }}
                       disabled={loadingSessions}
-                      className="px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                      className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-500 hover:bg-green-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                     >
-                      <span className="material-icons text-sm">refresh</span>
-                      <span className="hidden xs:inline">Refresh</span>
+                      <span className="material-icons" style={{fontSize: '16px'}}>refresh</span>
+                      <span>Refresh</span>
                     </button>
                   </div>
                 </div>
@@ -1883,7 +2139,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                     {new Date(session.createdAt).toLocaleDateString()}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                <div className="flex items-center gap-1 w-full sm:w-auto">
                                   <button
                                     onClick={async (e) => {
                                       e.stopPropagation()
@@ -1916,10 +2172,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       setDownloadingSingleSession(null)
                                     }}
                                     disabled={downloadingSingleSession === session.fileName}
-                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                    className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                   >
-                                    <span className="material-icons text-sm">download</span>
-                                    <span className="hidden sm:inline">Download</span>
+                                    <span className="material-icons" style={{fontSize: '14px'}}>download</span>
+                                    <span className="hidden sm:inline text-[10px]">DL</span>
                                   </button>
                                   <button
                                     onClick={async (e) => {
@@ -1951,10 +2207,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                       setDownloadingSingleSession(null)
                                     }}
                                     disabled={downloadingSingleSession === session.fileName}
-                                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                    className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                   >
-                                    <span className="material-icons text-sm">delete</span>
-                                    <span className="hidden sm:inline">Delete</span>
+                                    <span className="material-icons" style={{fontSize: '14px'}}>delete</span>
+                                    <span className="hidden sm:inline text-[10px]">DEL</span>
                                   </button>
                                 </div>
                               </div>
@@ -1987,7 +2243,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   ) : countrySessionStats.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
                       <span className="material-icons text-5xl text-gray-300 mb-3">folder_off</span>
-                      <p className="text-gray-500">No sessions found. Click "Refresh List" to load.</p>
+                      <p className="text-gray-500">No sessions found. Click "Refresh" to load.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -2035,10 +2291,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                   setDownloadingSession(false)
                                 }}
                                 disabled={downloadingSession}
-                                className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 sm:gap-2"
+                                className="px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white text-[11px] sm:text-sm rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
                               >
-                                <span className="material-icons text-sm">download</span>
-                                <span className="hidden xs:inline">Download</span>
+                                <span className="material-icons" style={{fontSize: '14px'}}>download</span>
+                                <span>Download</span>
                               </button>
                             </div>
                           </div>
@@ -2071,7 +2327,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                             {new Date(session.createdAt).toLocaleDateString()}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                        <div className="flex items-center gap-1 w-full sm:w-auto">
                                           <button
                                             onClick={async (e) => {
                                               e.stopPropagation()
@@ -2104,10 +2360,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                               setDownloadingSingleSession(null)
                                             }}
                                             disabled={downloadingSingleSession === session.fileName}
-                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                            className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                           >
-                                            <span className="material-icons text-sm">download</span>
-                                            <span className="hidden sm:inline">Download</span>
+                                            <span className="material-icons" style={{fontSize: '14px'}}>download</span>
+                                            <span className="hidden sm:inline text-[10px]">DL</span>
                                           </button>
                                           <button
                                             onClick={async (e) => {
@@ -2139,10 +2395,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                                               setDownloadingSingleSession(null)
                                             }}
                                             disabled={downloadingSingleSession === session.fileName}
-                                            className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-1 min-w-[70px]"
+                                            className="flex-1 sm:flex-none px-1.5 sm:px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors disabled:opacity-50 flex items-center justify-center gap-0.5 min-w-[50px] sm:min-w-[60px]"
                                           >
-                                            <span className="material-icons text-sm">delete</span>
-                                            <span className="hidden sm:inline">Delete</span>
+                                            <span className="material-icons" style={{fontSize: '14px'}}>delete</span>
+                                            <span className="hidden sm:inline text-[10px]">DEL</span>
                                           </button>
                                         </div>
                                       </div>
@@ -2224,10 +2480,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 {/* Minimum Withdrawal Amount */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Minimum Withdrawal Amount (USDT)
+                    {t('admin.minWithdrawal')}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Users must have at least this amount in their balance to withdraw funds
+                    {t('admin.minWithdrawalDesc')}
                   </p>
                   <input
                     type="number"
@@ -2236,17 +2492,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     step="0.01"
                     min="0"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="Enter minimum amount"
+                    placeholder={t('admin.enterMinAmount')}
                   />
                 </div>
 
                 {/* Login Button Toggle */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Login Button Status
+                    {t('admin.loginButton')}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Enable or disable the login button globally. When enabled, users can sell accounts.
+                    {t('admin.loginButtonDesc')}
                   </p>
                   <div className="flex items-center gap-4">
                     <button
@@ -2258,7 +2514,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       }`}
                     >
                       <span className="material-icons text-xl mr-2 align-middle">check_circle</span>
-                      Enabled
+                      {t('enabled')}
                     </button>
                     <button
                       onClick={() => setLoginButtonEnabled(false)}
@@ -2269,13 +2525,92 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       }`}
                     >
                       <span className="material-icons text-xl mr-2 align-middle">cancel</span>
-                      Disabled
+                      {t('disabled')}
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
                     {loginButtonEnabled 
-                      ? '✅ Login button is currently ENABLED - Users can sell accounts' 
-                      : '❌ Login button is currently DISABLED - Users cannot sell accounts'}
+                      ? t('admin.loginEnabled')
+                      : t('admin.loginDisabled')}
+                  </p>
+                </div>
+
+                {/* Default Language Selection */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {t('admin.defaultLanguage')}
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    {t('admin.selectLanguage')}
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      onClick={() => setDefaultLanguage('en')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        defaultLanguage === 'en'
+                          ? 'border-blue-500 bg-blue-50 shadow-md'
+                          : 'border-gray-300 hover:border-blue-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🇬🇧</div>
+                        <p className={`font-semibold text-sm ${
+                          defaultLanguage === 'en' ? 'text-blue-600' : 'text-gray-700'
+                        }`}>English</p>
+                        {defaultLanguage === 'en' && (
+                          <div className="mt-2">
+                            <span className="inline-block bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">{t('active')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setDefaultLanguage('ar')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        defaultLanguage === 'ar'
+                          ? 'border-green-500 bg-green-50 shadow-md'
+                          : 'border-gray-300 hover:border-green-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🇸🇦</div>
+                        <p className={`font-semibold text-sm ${
+                          defaultLanguage === 'ar' ? 'text-green-600' : 'text-gray-700'
+                        }`}>العربية</p>
+                        {defaultLanguage === 'ar' && (
+                          <div className="mt-2">
+                            <span className="inline-block bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">نشط</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setDefaultLanguage('zh')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        defaultLanguage === 'zh'
+                          ? 'border-red-500 bg-red-50 shadow-md'
+                          : 'border-gray-300 hover:border-red-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🇨🇳</div>
+                        <p className={`font-semibold text-sm ${
+                          defaultLanguage === 'zh' ? 'text-red-600' : 'text-gray-700'
+                        }`}>中文</p>
+                        {defaultLanguage === 'zh' && (
+                          <div className="mt-2">
+                            <span className="inline-block bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">活跃</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-3">
+                    📝 {t('admin.currentLanguage')}: <strong>
+                      {defaultLanguage === 'en' ? 'English' : defaultLanguage === 'ar' ? 'العربية (Arabic)' : '中文 (Chinese)'}
+                    </strong>
                   </p>
                 </div>
 
@@ -2290,7 +2625,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         : 'bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white'
                     }`}
                   >
-                    {savingSettings ? "Saving..." : settingsSaved ? "✓ Settings Saved!" : "Save Settings"}
+                    {savingSettings ? t('admin.saveSettings') + "..." : settingsSaved ? "✓ " + t('admin.settingsSaved') : t('admin.saveSettings')}
                   </button>
                   
                   {/* Error Message */}

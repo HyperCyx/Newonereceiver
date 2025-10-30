@@ -9,12 +9,20 @@ export async function GET(request: NextRequest) {
     
     const minWithdrawal = await settings.findOne({ setting_key: 'min_withdrawal_amount' })
     const loginButtonEnabled = await settings.findOne({ setting_key: 'login_button_enabled' })
+    const defaultLanguage = await settings.findOne({ setting_key: 'default_language' })
+
+    console.log('[Settings] GET - Fetched settings:', {
+      minWithdrawal: minWithdrawal?.setting_value,
+      loginButtonEnabled: loginButtonEnabled?.setting_value,
+      defaultLanguage: defaultLanguage?.setting_value
+    })
 
     return NextResponse.json({
       success: true,
       settings: {
         min_withdrawal_amount: minWithdrawal?.setting_value || '5.00',
-        login_button_enabled: loginButtonEnabled?.setting_value || 'true'
+        login_button_enabled: loginButtonEnabled?.setting_value || 'true',
+        default_language: defaultLanguage?.setting_value || 'en'
       }
     })
   } catch (error) {
@@ -60,6 +68,12 @@ export async function POST(request: NextRequest) {
       },
       { upsert: true }
     )
+
+    console.log('[Settings] POST - Saved setting:', {
+      settingKey,
+      settingValue,
+      telegramId
+    })
 
     return NextResponse.json({
       success: true,

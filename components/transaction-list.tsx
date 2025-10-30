@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Transaction {
   id: string
@@ -33,12 +34,13 @@ interface TransactionListProps {
 }
 
 export default function TransactionList({ tab, searchQuery, onLoginClick }: TransactionListProps) {
+  const { t } = useLanguage()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [telegramUserId, setTelegramUserId] = useState<number | null>(null)
   const [, setTick] = useState(0)
-  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState<boolean | null>(null)
 
   // Fetch login button setting
   useEffect(() => {
@@ -299,22 +301,14 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
         </div>
       )}
 
-      {loginButtonEnabled && (
+      {loginButtonEnabled === true && (
         <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
           <button
             onClick={onLoginClick}
             className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[15px] font-medium py-3 rounded-full transition-colors"
           >
-            Login
+            {t('transaction.login')}
           </button>
-        </div>
-      )}
-      
-      {!loginButtonEnabled && (
-        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 bg-white z-10">
-          <div className="w-full bg-gray-300 text-gray-600 text-[15px] font-medium py-3 rounded-full text-center">
-            Login Disabled by Admin
-          </div>
         </div>
       )}
 
@@ -325,58 +319,139 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
           onClick={() => setSelectedTransaction(null)}
         >
           <div 
-            className="bg-white rounded-2xl max-w-md w-full p-6 relative"
+            className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={() => setSelectedTransaction(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X size={24} />
-            </button>
-
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Transaction Details</h2>
-
-            <div className="space-y-4">
-              {/* Transaction ID */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Transaction ID</p>
-                <p className="text-base font-mono text-gray-900 break-all">{selectedTransaction.id}</p>
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xl font-bold">{t('transaction.details')}</h3>
+                <button 
+                  onClick={() => setSelectedTransaction(null)}
+                  className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+                >
+                  <X size={24} className="text-white" />
+                </button>
               </div>
+              <p className="text-sm text-blue-100">{t('transaction.viewFullDetails')}</p>
+            </div>
 
-              {/* Amount */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Amount</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  ${selectedTransaction.amount} <span className="text-base font-normal text-gray-600">{selectedTransaction.currency}</span>
-                </p>
-              </div>
-
-              {/* Date & Time */}
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Date & Time</p>
-                <p className="text-base text-gray-900">{selectedTransaction.fullDate}</p>
-              </div>
-
-              {/* Status */}
-              <div>
-                <p className="text-sm text-gray-500 mb-2">Status</p>
+            <div className="p-6 space-y-4">
+              {/* Status Badges */}
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-4 rounded-xl border border-blue-100">
+                <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">{t('status')}</p>
                 <div className="flex gap-2 flex-wrap">
                   {selectedTransaction.status.map((status, idx) => (
-                    <span key={idx} className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(status)}`}>
+                    <span 
+                      key={idx} 
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${getStatusColor(status)} shadow-sm`}
+                    >
                       {status}
                     </span>
                   ))}
                 </div>
               </div>
+
+              {/* Phone Number */}
+              <div className="bg-white p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="material-icons text-blue-600">phone</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-0.5">{t('transaction.phoneNumber')}</p>
+                    <p className="text-lg font-bold text-gray-900">{selectedTransaction.phone}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div className="bg-white p-4 rounded-xl border-2 border-gray-200 hover:border-green-300 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="material-icons text-green-600">payments</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-0.5">{t('admin.amount')}</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {selectedTransaction.amount} {selectedTransaction.currency}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Percentage (if available) */}
+              {selectedTransaction.percentage && (
+                <div className="bg-white p-4 rounded-xl border-2 border-gray-200 hover:border-red-300 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                      <span className="material-icons text-red-600">percent</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-500 mb-0.5">{t('transaction.percentage')}</p>
+                      <p className="text-lg font-bold text-red-600">{selectedTransaction.percentage}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Date & Time */}
+              <div className="bg-white p-4 rounded-xl border-2 border-gray-200 hover:border-purple-300 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span className="material-icons text-purple-600">event</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-0.5">{t('date')}</p>
+                    <p className="text-base font-bold text-gray-900">{selectedTransaction.fullDate}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{selectedTransaction.date}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Auto-Approve Timer (if pending) */}
+              {selectedTransaction.status[0] === 'PENDING' && selectedTransaction.autoApproveMinutes && getTimeRemaining(selectedTransaction) && (
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl border-2 border-blue-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                      <span className="material-icons text-white">timer</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-600 mb-0.5">{t('transaction.autoApprove')}</p>
+                      <p className="text-lg font-bold text-blue-600">
+                        ⏱️ {getTimeRemaining(selectedTransaction)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {t('transaction.willAutoApprove')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Transaction ID */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                    <span className="material-icons text-gray-600">tag</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-0.5">{t('transaction.id')}</p>
+                    <p className="text-sm font-mono text-gray-700 break-all">{selectedTransaction.id}</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={() => setSelectedTransaction(null)}
-              className="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 rounded-full transition-colors"
-            >
-              Close
-            </button>
+            {/* Footer Actions */}
+            <div className="sticky bottom-0 bg-gray-50 p-4 rounded-b-2xl border-t border-gray-200">
+              <button
+                onClick={() => setSelectedTransaction(null)}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold py-3 rounded-xl transition-all shadow-lg hover:shadow-xl"
+              >
+                {t('close')}
+              </button>
+            </div>
           </div>
         </div>
       )}

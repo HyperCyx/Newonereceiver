@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import ReferralSection from "./referral-section"
 import { useReferral } from "@/lib/referral-context"
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface MenuViewProps {
   onNavigate?: (view: "menu" | "dashboard" | "withdrawal" | "admin-login") => void
@@ -27,6 +28,7 @@ interface TelegramUser {
 }
 
 export default function MenuView({ onNavigate }: MenuViewProps) {
+  const { t, isRTL } = useLanguage()
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null)
   const [userName, setUserName] = useState("Guest")
   const [userId, setUserId] = useState("")
@@ -37,6 +39,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState("")
+  const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
   const { saveUserWithReferral } = useReferral()
 
   useEffect(() => {
@@ -56,6 +59,17 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             setUserId(`ID: ${user.id}`)
             
             try {
+              // Fetch login button setting
+              const settingsResponse = await fetch('/api/settings')
+              if (settingsResponse.ok) {
+                const settingsData = await settingsResponse.json()
+                if (settingsData.success && settingsData.settings) {
+                  const enabled = settingsData.settings.login_button_enabled === 'true' || settingsData.settings.login_button_enabled === true
+                  setLoginButtonEnabled(enabled)
+                  console.log('[MenuView] Login button enabled:', enabled)
+                }
+              }
+
               // Fetch user data via API
               console.log('[MenuView] ========================================')
               console.log('[MenuView] STARTING USER DATA FETCH')
@@ -160,7 +174,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
                   fetch('/api/accounts/count', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'pending' })
+                    body: JSON.stringify({}) // Get ALL accounts, not just pending
                   }).then(r => r.ok ? r.json() : { count: 0 }),
                   
                   saveUserWithReferral(user.id.toString(), undefined, {
@@ -216,24 +230,24 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     {
       icon: "account_balance_wallet",
       iconType: "material",
-      title: "Withdraw Money",
-      subtitle: balance + " USDT",
+      title: t('menu.withdraw'),
+      subtitle: `${t('menu.balance')}: ${balance} ${t('menu.usdt')}`,
       color: "bg-emerald-500",
       action: "withdraw",
     },
     {
       icon: "inventory_2",
       iconType: "material",
-      title: "Send Accounts",
+      title: t('menu.sendAccounts'),
       subtitle: accountCount.toString(),
-      badge: accountCount > 0 ? "AVAILABLE" : undefined,
+      badge: loginButtonEnabled ? t('menu.available') : undefined,
       color: "bg-sky-500",
       action: "send",
     },
     {
       icon: "receipt_long",
       iconType: "material",
-      title: "Orders",
+      title: t('menu.orders'),
       subtitle: "0",
       color: "bg-rose-500",
       action: "orders",
@@ -241,8 +255,8 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     {
       icon: "campaign",
       iconType: "material",
-      title: "Channel",
-      subtitle: "Check our channel for latest updates",
+      title: t('menu.channel'),
+      subtitle: t('menu.checkChannel'),
       color: "bg-amber-500",
       action: "channel",
     },
@@ -255,14 +269,6 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
             subtitle: "Manage system settings",
             color: "bg-gradient-to-r from-purple-500 to-pink-500",
             action: "admin-dashboard",
-          },
-          {
-            icon: "link",
-            iconType: "material" as const,
-            title: "Referral Program",
-            subtitle: "Manage referral links",
-            color: "bg-violet-500",
-            action: "referral",
           },
         ]
       : []),
