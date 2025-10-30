@@ -385,3 +385,191 @@ export function deleteSession(phoneNumber: string): boolean {
     return false
   }
 }
+
+/**
+ * Set or change 2FA password on Telegram account
+ */
+export async function set2FAPassword(
+  phoneNumber: string,
+  sessionString: string,
+  newPassword: string,
+  currentPassword?: string // Required if 2FA already exists
+): Promise<{ success: boolean; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Setting/changing 2FA password for:', phoneNumber)
+
+    // Get current password settings
+    const passwordSettings = await client.invoke(new Api.account.GetPassword())
+
+    // Import the password utility
+    const { computeCheck } = await import('telegram/Password')
+
+    // Check if password is already set
+    if (passwordSettings.hasPassword) {
+      console.log('[TelegramAuth] Account has existing 2FA, will change it')
+      
+      if (!currentPassword) {
+        await client.disconnect()
+        return {
+          success: false,
+          error: 'Current password required to change 2FA',
+        }
+      }
+      
+      // Verify current password first
+      const passwordCheck = await computeCheck(passwordSettings, currentPassword)
+      
+      try {
+        await client.invoke(
+          new Api.auth.CheckPassword({
+            password: passwordCheck,
+          })
+        )
+        console.log('[TelegramAuth] Current password verified')
+      } catch (error: any) {
+        await client.disconnect()
+        return {
+          success: false,
+          error: 'Current password incorrect',
+        }
+      }
+    }
+
+    // Use simpler approach - just update the password
+    await client.invoke(
+      new Api.account.UpdatePasswordSettings({
+        password: passwordSettings.hasPassword 
+          ? await computeCheck(passwordSettings, currentPassword || '')
+          : new Api.InputCheckPasswordEmpty(),
+        newSettings: new Api.account.PasswordInputSettings({
+          newPassword: Buffer.from(newPassword, 'utf-8'),
+          hint: 'system-generated',
+          email: undefined,
+        }),
+      })
+    )
+
+    await client.disconnect()
+
+    console.log('[TelegramAuth] 2FA password set/changed successfully for:', phoneNumber)
+
+    return {
+      success: true,
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] Error setting 2FA password:', error)
+    
+    // Disconnect on error
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore disconnect errors
+    }
+    
+    return {
+      success: false,
+      error: error.errorMessage || error.message || 'Failed to set 2FA password',
+    }
+  }
+}
+
+/**
+ * Validate that 2FA password can be verified (test if it's set correctly)
+ */
+export async function validate2FAPassword(
+  phoneNumber: string,
+  sessionString: string,
+  password: string
+): Promise<{ success: boolean; has2FA: boolean; passwordValid?: boolean; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Validating 2FA password for:', phoneNumber)
+
+    // Get the password SRP parameters
+    const passwordSrpResult = await client.invoke(
+      new Api.account.GetPassword()
+    )
+
+    // Check if password is set
+    if (!passwordSrpResult.currentAlgo) {
+      await client.disconnect()
+      return {
+        success: true,
+        has2FA: false,
+        error: 'No 2FA password set on this account',
+      }
+    }
+
+    // Import the password utility
+    const { computeCheck } = await import('telegram/Password')
+    
+    // Compute the password check using the SRP algorithm
+    const passwordCheck = await computeCheck(passwordSrpResult, password)
+
+    // Check the password
+    try {
+      await client.invoke(
+        new Api.auth.CheckPassword({
+          password: passwordCheck,
+        })
+      )
+      
+      await client.disconnect()
+
+      console.log('[TelegramAuth] 2FA password validated successfully for:', phoneNumber)
+
+      return {
+        success: true,
+        has2FA: true,
+        passwordValid: true,
+      }
+    } catch (checkError: any) {
+      await client.disconnect()
+      
+      return {
+        success: false,
+        has2FA: true,
+        passwordValid: false,
+        error: 'Password verification failed',
+      }
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] Error validating 2FA:', error)
+    
+    // Disconnect on error
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore disconnect errors
+    }
+    
+    return {
+      success: false,
+      has2FA: false,
+      error: error.errorMessage || error.message || 'Failed to validate 2FA',
+    }
+  }
+}
