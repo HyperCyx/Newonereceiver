@@ -196,32 +196,10 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         setPhoneCodeHash(data.phoneCodeHash)
         setInitialSessionString(data.sessionString) // Store session for verification step
         setError("") // Clear any errors
+        setSuccessMessage("") // Clear any success messages
         
-        // Determine code delivery method
-        const codeTypeMessage = data.codeType === 'sentCodeTypeCall' 
-          ? '☎️ You will receive a phone call with the code' 
-          : data.codeType === 'sentCodeTypeFlashCall'
-          ? '☎️ Check your missed calls - the last digits are the code'
-          : data.codeType === 'sentCodeTypeSms'
-          ? '✉️ Check your SMS messages for the code'
-          : '📨 Check your Telegram app for the verification code'
-        
-        const message = `✅ Code sent successfully!\n\n${codeTypeMessage}`
-        
-        // Show success message on page
-        setSuccessMessage(message)
-        
-        // Also show Telegram alert
-        const tg = (window as any).Telegram?.WebApp
-        if (tg && tg.showAlert) {
-          tg.showAlert(message)
-        }
-        
-        // Move to OTP step after 2 seconds
-        setTimeout(() => {
-          setSuccessMessage("")
-          setStep("otp")
-        }, 2000)
+        // Go directly to OTP step - NO POPUPS, NO MESSAGES
+        setStep("otp")
       } else {
         console.log('[LoginPage] ❌ FAILED TO SEND OTP')
         console.log('[LoginPage] Error:', data.error)
