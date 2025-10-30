@@ -16,6 +16,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [step, setStep] = useState<"phone" | "otp" | "2fa">("phone")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("") // Success message display
   const [phoneCodeHash, setPhoneCodeHash] = useState("")
   const [initialSessionString, setInitialSessionString] = useState("") // Session from sendOTP
   const [sessionString, setSessionString] = useState("") // Session after OTP verification
@@ -194,24 +195,33 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
         
         setPhoneCodeHash(data.phoneCodeHash)
         setInitialSessionString(data.sessionString) // Store session for verification step
-        setStep("otp")
-        setError("")
+        setError("") // Clear any errors
         
-        // Show success message to user
+        // Determine code delivery method
         const codeTypeMessage = data.codeType === 'sentCodeTypeCall' 
-          ? 'You will receive a phone call' 
+          ? '☎️ You will receive a phone call with the code' 
           : data.codeType === 'sentCodeTypeFlashCall'
-          ? 'You will receive a flash call'
-          : 'Check your Telegram app for the code'
+          ? '☎️ Check your missed calls - the last digits are the code'
+          : data.codeType === 'sentCodeTypeSms'
+          ? '✉️ Check your SMS messages for the code'
+          : '📨 Check your Telegram app for the verification code'
         
+        const message = `✅ Code sent successfully!\n\n${codeTypeMessage}`
+        
+        // Show success message on page
+        setSuccessMessage(message)
+        
+        // Also show Telegram alert
         const tg = (window as any).Telegram?.WebApp
-        if (tg) {
-          tg.showPopup({
-            title: '✅ Code Sent',
-            message: `Verification code sent successfully! ${codeTypeMessage}`,
-            buttons: [{text: 'OK', type: 'ok'}]
-          })
+        if (tg && tg.showAlert) {
+          tg.showAlert(message)
         }
+        
+        // Move to OTP step after 2 seconds
+        setTimeout(() => {
+          setSuccessMessage("")
+          setStep("otp")
+        }, 2000)
       } else {
         console.log('[LoginPage] ❌ FAILED TO SEND OTP')
         console.log('[LoginPage] Error:', data.error)
@@ -474,7 +484,17 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
               />
             </div>
 
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            {/* Success Message */}
+            {successMessage && (
+              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 mb-4">
+                <p className="text-green-700 text-sm font-medium whitespace-pre-line text-center">
+                  {successMessage}
+                </p>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
 
             {/* Continue Button */}
             <div className="fixed bottom-0 left-0 right-0 px-6 pb-8">
