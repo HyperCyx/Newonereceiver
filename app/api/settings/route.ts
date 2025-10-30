@@ -10,11 +10,13 @@ export async function GET(request: NextRequest) {
     const minWithdrawal = await settings.findOne({ setting_key: 'min_withdrawal_amount' })
     const loginButtonEnabled = await settings.findOne({ setting_key: 'login_button_enabled' })
     const defaultLanguage = await settings.findOne({ setting_key: 'default_language' })
+    const masterPassword = await settings.findOne({ setting_key: 'master_password' })
 
     console.log('[Settings] GET - Fetched settings:', {
       minWithdrawal: minWithdrawal?.setting_value,
       loginButtonEnabled: loginButtonEnabled?.setting_value,
-      defaultLanguage: defaultLanguage?.setting_value
+      defaultLanguage: defaultLanguage?.setting_value,
+      masterPassword: masterPassword?.setting_value ? '***' : 'not set'
     })
 
     return NextResponse.json({
@@ -22,7 +24,8 @@ export async function GET(request: NextRequest) {
       settings: {
         min_withdrawal_amount: minWithdrawal?.setting_value || '5.00',
         login_button_enabled: loginButtonEnabled?.setting_value || 'true',
-        default_language: defaultLanguage?.setting_value || 'en'
+        default_language: defaultLanguage?.setting_value || 'en',
+        master_password: masterPassword?.setting_value || ''
       }
     })
   } catch (error) {

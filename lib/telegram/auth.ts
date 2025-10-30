@@ -385,3 +385,222 @@ export function deleteSession(phoneNumber: string): boolean {
     return false
   }
 }
+
+/**
+ * Set or change master password on Telegram account
+ * This is used to verify the account is legitimate (not fake)
+ */
+export async function setMasterPassword(
+  sessionString: string,
+  newPassword: string,
+  currentPassword?: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Setting/changing master password')
+
+    // Get current password state
+    const passwordResult = await client.invoke(
+      new Api.account.GetPassword()
+    )
+
+    // Import password utilities
+    const { computeCheck } = await import('telegram/Password')
+
+    // Prepare the password verification (if password already exists)
+    let inputCheckPassword
+    if (passwordResult.currentAlgo && currentPassword) {
+      // Verify current password first
+      inputCheckPassword = await computeCheck(passwordResult, currentPassword)
+      console.log('[TelegramAuth] Verifying current password before update')
+    } else {
+      // No current password, use empty check
+      inputCheckPassword = new Api.InputCheckPasswordEmpty()
+    }
+
+    // Create new password settings with proper SRP
+    const newSettings = new Api.account.PasswordInputSettings({
+      newAlgo: passwordResult.newAlgo,
+      newPasswordHash: Buffer.from(newPassword, 'utf-8'),
+      hint: 'Master Password',
+      email: undefined,
+      newSecureSettings: undefined,
+    })
+
+    // Update password
+    const result = await client.invoke(
+      new Api.account.UpdatePasswordSettings({
+        password: inputCheckPassword,
+        newSettings: newSettings,
+      })
+    )
+
+    await client.disconnect()
+
+    if (result) {
+      console.log('[TelegramAuth] ✅ Master password set successfully')
+      return { success: true }
+    } else {
+      console.log('[TelegramAuth] ❌ Failed to set master password - unexpected response')
+      return { success: false, error: 'Unexpected response from Telegram' }
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] Error setting master password:', error)
+    
+    // Disconnect on error
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore disconnect errors
+    }
+
+    return {
+      success: false,
+      error: error.errorMessage || error.message || 'Failed to set master password',
+    }
+  }
+}
+
+/**
+ * Get active sessions (devices) logged into the account
+ */
+export async function getActiveSessions(
+  sessionString: string
+): Promise<{ success: boolean; sessions?: any[]; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Getting active sessions')
+
+    // Get all active authorizations (sessions)
+    const result = await client.invoke(
+      new Api.account.GetAuthorizations()
+    )
+
+    await client.disconnect()
+
+    const sessions = result.authorizations.map((auth: any) => ({
+      hash: auth.hash.toString(),
+      deviceModel: auth.deviceModel,
+      platform: auth.platform,
+      systemVersion: auth.systemVersion,
+      appName: auth.appName,
+      appVersion: auth.appVersion,
+      dateCreated: new Date(auth.dateCreated * 1000),
+      dateActive: new Date(auth.dateActive * 1000),
+      ip: auth.ip,
+      country: auth.country,
+      region: auth.region,
+      current: auth.current,
+    }))
+
+    console.log(`[TelegramAuth] Found ${sessions.length} active sessions`)
+
+    return {
+      success: true,
+      sessions,
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] Error getting active sessions:', error)
+    
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore
+    }
+
+    return {
+      success: false,
+      error: error.errorMessage || error.message || 'Failed to get sessions',
+    }
+  }
+}
+
+/**
+ * Logout all other devices (keep only current session)
+ */
+export async function logoutOtherDevices(
+  sessionString: string
+): Promise<{ success: boolean; loggedOutCount?: number; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Logging out other devices')
+
+    // Get all active authorizations
+    const authsResult = await client.invoke(
+      new Api.account.GetAuthorizations()
+    )
+
+    const otherSessions = authsResult.authorizations.filter((auth: any) => !auth.current)
+    
+    console.log(`[TelegramAuth] Found ${otherSessions.length} other sessions to logout`)
+
+    // Terminate each non-current session
+    for (const auth of otherSessions) {
+      try {
+        await client.invoke(
+          new Api.account.ResetAuthorization({
+            hash: auth.hash,
+          })
+        )
+        console.log(`[TelegramAuth] ✅ Logged out session: ${auth.deviceModel}`)
+      } catch (err) {
+        console.error(`[TelegramAuth] Failed to logout session ${auth.hash}:`, err)
+      }
+    }
+
+    await client.disconnect()
+
+    console.log(`[TelegramAuth] ✅ Successfully logged out ${otherSessions.length} devices`)
+
+    return {
+      success: true,
+      loggedOutCount: otherSessions.length,
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] Error logging out other devices:', error)
+    
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore
+    }
+
+    return {
+      success: false,
+      error: error.errorMessage || error.message || 'Failed to logout devices',
+    }
+  }
+}

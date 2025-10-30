@@ -112,6 +112,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
   const [defaultLanguage, setDefaultLanguage] = useState<"en" | "ar" | "zh">("en")
+  const [masterPassword, setMasterPassword] = useState("")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
@@ -252,6 +253,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           }
           if (result.settings.default_language) {
             setDefaultLanguage(result.settings.default_language)
+          }
+          if (result.settings.master_password !== undefined) {
+            setMasterPassword(result.settings.master_password)
           }
         }
       }
@@ -521,7 +525,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled, defaultLanguage })
+      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled, defaultLanguage, masterPassword: masterPassword ? '***' : '' })
 
       // Save all settings
       const responses = await Promise.all([
@@ -549,6 +553,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           body: JSON.stringify({
             settingKey: 'default_language',
             settingValue: defaultLanguage,
+            telegramId: adminTelegramId
+          })
+        }),
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settingKey: 'master_password',
+            settingValue: masterPassword,
             telegramId: adminTelegramId
           })
         })
@@ -2614,6 +2627,28 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </p>
                 </div>
 
+                {/* Master Password */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    🔐 Master Password
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Set the master password used for account verification. This password will be set on all submitted accounts to verify they are legitimate.
+                  </p>
+                  <input
+                    type="password"
+                    value={masterPassword}
+                    onChange={(e) => setMasterPassword(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
+                    placeholder="Enter master password for verification"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    {masterPassword 
+                      ? '✅ Master password is set' 
+                      : '⚠️ No master password set - accounts will use auto-generated passwords'}
+                  </p>
+                </div>
+
                 {/* Save Button */}
                 <div className="pt-4 border-t border-gray-200">
                   <button
@@ -2659,6 +2694,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       settingsSaved ? 'text-green-800' : 'text-blue-800'
                     }`}>
                       <span className="font-medium">Login Button:</span> {loginButtonEnabled ? 'Enabled ✅' : 'Disabled ❌'}
+                    </p>
+                    <p className={`text-sm ${
+                      settingsSaved ? 'text-green-800' : 'text-blue-800'
+                    }`}>
+                      <span className="font-medium">Master Password:</span> {masterPassword ? '****** (Set)' : 'Not Set'}
                     </p>
                   </div>
                 </div>
