@@ -10,6 +10,7 @@
     "db:init": "tsx scripts/init-mongodb.ts",
     "db:seed": "tsx scripts/003_insert_test_data.ts",
     "db:clear": "tsx scripts/004_clear_test_data.ts",
+    "validate-accounts": "tsx scripts/validate-all-accounts.ts",
     "deploy": "vercel",
     "deploy:prod": "vercel --prod",
     "get-url": "bash GET_PUBLIC_URL.sh"
