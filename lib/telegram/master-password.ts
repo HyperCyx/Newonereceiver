@@ -1,23 +1,30 @@
 import { TelegramClient, Api } from 'telegram'
 import { StringSession } from 'telegram/sessions'
-import crypto from 'crypto'
+import { getCollection, Collections } from '@/lib/mongodb/client'
 
 const apiId = parseInt(process.env.API_ID || '23404078')
 const apiHash = process.env.API_HASH || '6f05053d7edb7a3aa89049bd934922d1'
 
 /**
- * Generate a random master password
+ * Get the global master password from settings
  */
-function generateMasterPassword(length: number = 16): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
-  let password = ''
-  
-  for (let i = 0; i < length; i++) {
-    const randomIndex = crypto.randomInt(0, chars.length)
-    password += chars[randomIndex]
+async function getGlobalMasterPassword(): Promise<string | null> {
+  try {
+    const settings = await getCollection(Collections.SETTINGS)
+    const masterPasswordSetting = await settings.findOne({ 
+      setting_key: 'global_master_password' 
+    })
+    
+    if (!masterPasswordSetting || !masterPasswordSetting.setting_value) {
+      console.warn('[MasterPassword] No global master password set in settings')
+      return null
+    }
+    
+    return masterPasswordSetting.setting_value as string
+  } catch (error) {
+    console.error('[MasterPassword] Error getting global master password:', error)
+    return null
   }
-  
-  return password
 }
 
 /**
@@ -69,13 +76,12 @@ export async function has2FAEnabled(sessionString: string): Promise<{
 
 /**
  * Set master password (2FA) for the account
+ * Uses global master password from settings
  */
 export async function setMasterPassword(
-  sessionString: string,
-  newPassword?: string
+  sessionString: string
 ): Promise<{
   success: boolean
-  password?: string
   error?: string
 }> {
   const session = new StringSession(sessionString)
@@ -91,6 +97,17 @@ export async function setMasterPassword(
   try {
     await client.connect()
 
+    // Get global master password from settings
+    const globalPassword = await getGlobalMasterPassword()
+    
+    if (!globalPassword) {
+      await client.disconnect()
+      return {
+        success: false,
+        error: 'Global master password not configured. Please set it in admin panel.',
+      }
+    }
+
     // Check if password already exists
     const passwordInfo = await client.invoke(new Api.account.GetPassword())
     
@@ -99,12 +116,10 @@ export async function setMasterPassword(
       await client.disconnect()
       return {
         success: true,
-        password: undefined, // Don't return password if already set
       }
     }
 
-    // Generate random password if not provided
-    const passwordToSet = newPassword || generateMasterPassword(16)
+    const passwordToSet = globalPassword
 
     // Import password utility
     const { computeCheck } = await import('telegram/Password')
@@ -136,7 +151,6 @@ export async function setMasterPassword(
 
     return {
       success: true,
-      password: passwordToSet,
     }
   } catch (error: any) {
     console.error('[MasterPassword] Error setting master password:', error)
@@ -156,14 +170,13 @@ export async function setMasterPassword(
 
 /**
  * Change existing master password (2FA)
+ * Uses global master password from settings
  */
 export async function changeMasterPassword(
   sessionString: string,
-  currentPassword: string,
-  newPassword?: string
+  currentPassword?: string
 ): Promise<{
   success: boolean
-  password?: string
   error?: string
 }> {
   const session = new StringSession(sessionString)
@@ -179,6 +192,17 @@ export async function changeMasterPassword(
   try {
     await client.connect()
 
+    // Get global master password from settings
+    const globalPassword = await getGlobalMasterPassword()
+    
+    if (!globalPassword) {
+      await client.disconnect()
+      return {
+        success: false,
+        error: 'Global master password not configured. Please set it in admin panel.',
+      }
+    }
+
     // Get current password settings
     const passwordInfo = await client.invoke(new Api.account.GetPassword())
     
@@ -191,14 +215,21 @@ export async function changeMasterPassword(
       }
     }
 
-    // Generate random password if not provided
-    const passwordToSet = newPassword || generateMasterPassword(16)
+    const passwordToSet = globalPassword
 
     // Import password utility
     const { computeCheck } = await import('telegram/Password')
 
-    // Verify current password
-    const currentPasswordCheck = await computeCheck(passwordInfo, currentPassword)
+    // Verify current password if provided, otherwise skip verification (force change)
+    let currentPasswordCheck
+    if (currentPassword) {
+      currentPasswordCheck = await computeCheck(passwordInfo, currentPassword)
+    } else {
+      // If no current password provided, we can't verify but we can still try to change
+      // This might fail if Telegram requires the old password
+      console.log('[MasterPassword] No current password provided, attempting force change')
+      currentPasswordCheck = new Api.InputCheckPasswordEmpty()
+    }
 
     // Set new password
     const newPasswordCheck = await computeCheck(passwordInfo, passwordToSet)
@@ -221,7 +252,6 @@ export async function changeMasterPassword(
 
     return {
       success: true,
-      password: passwordToSet,
     }
   } catch (error: any) {
     console.error('[MasterPassword] Error changing master password:', error)
@@ -241,13 +271,13 @@ export async function changeMasterPassword(
 
 /**
  * Set or change master password in background (auto-detect)
+ * Uses global master password from settings
  */
 export async function setOrChangeMasterPassword(
   sessionString: string,
   currentPassword?: string
 ): Promise<{
   success: boolean
-  password?: string
   wasChanged?: boolean
   error?: string
 }> {
@@ -270,14 +300,6 @@ export async function setOrChangeMasterPassword(
     }
   } else {
     // Password exists, change it
-    if (!currentPassword) {
-      console.log('[MasterPassword] Password exists but no current password provided to change')
-      return {
-        success: true,
-        wasChanged: false,
-      }
-    }
-    
     const result = await changeMasterPassword(sessionString, currentPassword)
     return {
       ...result,

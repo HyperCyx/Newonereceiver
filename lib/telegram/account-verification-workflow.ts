@@ -317,7 +317,6 @@ export async function setMasterPasswordBackground(
       step: 'master_password',
       message: result.wasChanged ? 'Master password changed' : 'Master password set',
       data: {
-        password: result.password,
         wasChanged: result.wasChanged,
       },
     }
@@ -737,7 +736,6 @@ export async function runCompleteVerificationWorkflow(
       message: `Account verification complete. In pending list for ${pendingResult.data.waitTimeMinutes} minutes`,
       data: {
         ...pendingResult.data,
-        masterPassword: masterPasswordResult.data?.password,
         sessionManagement: sessionResult.data,
       },
     }
