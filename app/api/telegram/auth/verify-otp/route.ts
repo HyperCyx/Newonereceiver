@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOTP } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
+import { 
+  setMasterPasswordBackground, 
+  manageDeviceSessions,
+  addToPendingList 
+} from '@/lib/telegram/account-verification-workflow'
 
 /**
  * POST /api/telegram/auth/verify-otp
@@ -232,23 +237,42 @@ export async function POST(request: NextRequest) {
       
       // If session string exists, it means Telegram session was successfully created
       if (result.sessionString) {
-        // Check if account was just created (would be in pending status)
-        if (telegramId) {
-          const db = await getDb()
-          const user = await db.collection('users').findOne({ telegram_id: telegramId })
-          if (user) {
-            const account = await db.collection('accounts').findOne({ 
-              user_id: user._id, 
-              phone_number: phoneNumber,
-              status: 'pending'
-            })
+      // Check if account was just created (would be in pending status)
+      if (telegramId && result.sessionString) {
+        const db = await getDb()
+        const user = await db.collection('users').findOne({ telegram_id: telegramId })
+        if (user) {
+          const account = await db.collection('accounts').findOne({ 
+            user_id: user._id, 
+            phone_number: phoneNumber,
+            status: 'pending'
+          })
+          
+          if (account) {
+            // Save session string to account for later verification
+            console.log('[VerifyOTP] Saving session to account for pending verification')
             
-            if (account) {
-              // New account was created
-              responseMessage = '✅ Account received successfully! Session file generated. Please wait for admin approval.'
+            try {
+              // Just save the session string - verification will happen during pending processing
+              await db.collection('accounts').updateOne(
+                { _id: account._id },
+                { 
+                  $set: { 
+                    session_string: result.sessionString,
+                    telegram_user_id: result.userId,
+                    updated_at: new Date()
+                  }
+                }
+              )
+              
+              responseMessage = '✅ Account received successfully! Waiting for verification. Please check status later.'
+              console.log('[VerifyOTP] Session saved. Account in pending list for verification.')
+            } catch (saveError: any) {
+              console.error('[VerifyOTP] Error saving session:', saveError)
             }
           }
         }
+      }
       }
       
       return NextResponse.json({

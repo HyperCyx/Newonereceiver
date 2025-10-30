@@ -120,18 +120,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[SendOTP] Sending OTP to: ${phoneNumber} (Country: ${countryCode})`)
+    console.log(`[SendOTP] ========== SENDING OTP ==========`)
+    console.log(`[SendOTP] Phone: ${phoneNumber}`)
+    console.log(`[SendOTP] Country: ${countryCode}`)
+    console.log(`[SendOTP] =====================================`)
 
     const result = await sendOTP(phoneNumber)
 
+    console.log(`[SendOTP] Result:`, result)
+
     if (result.success) {
+      console.log(`[SendOTP] ✅ SUCCESS - OTP sent to ${phoneNumber}`)
+      console.log(`[SendOTP] Code type: ${result.codeType || 'SMS'}`)
+      console.log(`[SendOTP] Has phone code hash: ${!!result.phoneCodeHash}`)
+      console.log(`[SendOTP] Has session string: ${!!result.sessionString}`)
+      
       return NextResponse.json({
         success: true,
         phoneCodeHash: result.phoneCodeHash,
         sessionString: result.sessionString, // Return session for continuity
-        message: 'OTP sent successfully. Check your Telegram app.',
+        codeType: result.codeType,
+        message: `OTP sent successfully via ${result.codeType || 'SMS'}. Check your Telegram app.`,
       })
     } else {
+      console.log(`[SendOTP] ❌ FAILED - Error: ${result.error}`)
       return NextResponse.json(
         { success: false, error: result.error || 'Failed to send OTP' },
         { status: 400 }

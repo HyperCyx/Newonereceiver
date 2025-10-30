@@ -24,8 +24,12 @@ interface SessionData {
 /**
  * Send OTP to phone number
  */
-export async function sendOTP(phoneNumber: string): Promise<{ success: boolean; phoneCodeHash?: string; sessionString?: string; error?: string }> {
+export async function sendOTP(phoneNumber: string): Promise<{ success: boolean; phoneCodeHash?: string; sessionString?: string; error?: string; codeType?: string }> {
   try {
+    console.log('[TelegramAuth] Starting OTP send process...')
+    console.log('[TelegramAuth] API ID:', apiId)
+    console.log('[TelegramAuth] Phone number:', phoneNumber)
+    
     const session = new StringSession('') // Empty session for new login
     const client = new TelegramClient(session, apiId, apiHash, {
       connectionRetries: 5,
@@ -36,9 +40,12 @@ export async function sendOTP(phoneNumber: string): Promise<{ success: boolean; 
       systemLangCode: 'en-US',
     })
 
+    console.log('[TelegramAuth] Connecting to Telegram...')
     await client.connect()
+    console.log('[TelegramAuth] Connected successfully!')
 
     // Send code
+    console.log('[TelegramAuth] Sending verification code...')
     const result = await client.sendCode(
       {
         apiId,
@@ -47,6 +54,10 @@ export async function sendOTP(phoneNumber: string): Promise<{ success: boolean; 
       phoneNumber
     )
 
+    console.log('[TelegramAuth] Code sent successfully!')
+    console.log('[TelegramAuth] Code type:', result.type?.className || 'Unknown')
+    console.log('[TelegramAuth] Phone code hash:', result.phoneCodeHash?.substring(0, 20) + '...')
+
     // IMPORTANT: Save the session string BEFORE disconnecting
     // This session must be reused in verifyOTP to avoid PHONE_CODE_EXPIRED
     const sessionString = client.session.save() as unknown as string
@@ -54,19 +65,44 @@ export async function sendOTP(phoneNumber: string): Promise<{ success: boolean; 
     // Don't disconnect - keep the session alive for verification
     // Or save session and disconnect, then restore it later
     await client.disconnect()
+    console.log('[TelegramAuth] Disconnected, session saved')
 
-    console.log('[TelegramAuth] OTP sent, session saved for verification')
+    console.log('[TelegramAuth] ✅ OTP sent successfully, session saved for verification')
 
     return {
       success: true,
       phoneCodeHash: result.phoneCodeHash,
       sessionString, // Return session to maintain continuity
+      codeType: result.type?.className,
     }
   } catch (error: any) {
-    console.error('[TelegramAuth] Error sending OTP:', error)
+    console.error('[TelegramAuth] ❌ Error sending OTP:')
+    console.error('[TelegramAuth] Error name:', error.name)
+    console.error('[TelegramAuth] Error message:', error.message)
+    console.error('[TelegramAuth] Error code:', error.code)
+    console.error('[TelegramAuth] Full error:', error)
+    
+    // Return more detailed error
+    let errorMessage = error.message || 'Failed to send OTP'
+    
+    // Handle specific Telegram errors
+    if (error.errorMessage) {
+      errorMessage = error.errorMessage
+    }
+    
+    if (error.message?.includes('PHONE_NUMBER_INVALID')) {
+      errorMessage = 'Invalid phone number format. Please enter with country code (e.g., +1234567890)'
+    } else if (error.message?.includes('PHONE_NUMBER_BANNED')) {
+      errorMessage = 'This phone number is banned from Telegram'
+    } else if (error.message?.includes('PHONE_NUMBER_FLOOD')) {
+      errorMessage = 'Too many attempts. Please try again later (wait 24 hours)'
+    } else if (error.message?.includes('API_ID_INVALID')) {
+      errorMessage = 'Invalid Telegram API credentials. Please contact administrator.'
+    }
+    
     return {
       success: false,
-      error: error.message || 'Failed to send OTP',
+      error: errorMessage,
     }
   }
 }

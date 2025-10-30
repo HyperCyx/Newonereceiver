@@ -112,6 +112,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
   const [defaultLanguage, setDefaultLanguage] = useState<"en" | "ar" | "zh">("en")
+  const [masterPassword, setMasterPassword] = useState("")
+  const [showMasterPassword, setShowMasterPassword] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
@@ -240,6 +242,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const fetchSettings = async () => {
     try {
+      // Fetch general settings
       const response = await fetch('/api/settings')
       if (response.ok) {
         const result = await response.json()
@@ -253,6 +256,16 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           if (result.settings.default_language) {
             setDefaultLanguage(result.settings.default_language)
           }
+        }
+      }
+
+      // Fetch master password
+      const masterPasswordResponse = await fetch('/api/admin/master-password')
+      if (masterPasswordResponse.ok) {
+        const masterPasswordResult = await masterPasswordResponse.json()
+        if (masterPasswordResult.password) {
+          setMasterPassword(masterPasswordResult.password)
+          console.log('[AdminDashboard] Master password loaded')
         }
       }
     } catch (error) {
@@ -523,8 +536,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
       console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled, defaultLanguage })
 
+      // Validate master password if provided
+      if (masterPassword && masterPassword.length < 6) {
+        setSettingsError("Master password must be at least 6 characters long")
+        setSavingSettings(false)
+        return
+      }
+
       // Save all settings
-      const responses = await Promise.all([
+      const settingsRequests = [
         fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -552,7 +572,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             telegramId: adminTelegramId
           })
         })
-      ])
+      ]
+
+      // Add master password request if it's set
+      if (masterPassword) {
+        settingsRequests.push(
+          fetch('/api/admin/master-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: masterPassword })
+          })
+        )
+      }
+
+      const responses = await Promise.all(settingsRequests)
 
       const allSuccessful = responses.every(r => r.ok)
 
@@ -2612,6 +2645,47 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       {defaultLanguage === 'en' ? 'English' : defaultLanguage === 'ar' ? 'العربية (Arabic)' : '中文 (Chinese)'}
                     </strong>
                   </p>
+                </div>
+
+                {/* Master Password */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    🔐 Global Master Password
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    This password will be used for all Telegram account verifications. Set it once and it will be applied to all accounts.
+                  </p>
+                  <div className="relative">
+                    <input
+                      type={showMasterPassword ? "text" : "password"}
+                      value={masterPassword}
+                      onChange={(e) => setMasterPassword(e.target.value)}
+                      className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                      placeholder="Enter master password (min 6 characters)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMasterPassword(!showMasterPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      <span className="material-icons text-xl">
+                        {showMasterPassword ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                  {masterPassword && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-800">
+                        <span className="material-icons text-sm align-middle mr-1">info</span>
+                        <strong>Important:</strong> This password will be set as 2FA on all verified Telegram accounts. Make sure to save it securely.
+                      </p>
+                    </div>
+                  )}
+                  {masterPassword && masterPassword.length < 6 && (
+                    <p className="text-xs text-red-600 mt-2">
+                      ⚠️ Password must be at least 6 characters long
+                    </p>
+                  )}
                 </div>
 
                 {/* Save Button */}

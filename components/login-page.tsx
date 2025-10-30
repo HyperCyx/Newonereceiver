@@ -16,6 +16,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [step, setStep] = useState<"phone" | "otp" | "2fa">("phone")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("") // Success message display
   const [phoneCodeHash, setPhoneCodeHash] = useState("")
   const [initialSessionString, setInitialSessionString] = useState("") // Session from sendOTP
   const [sessionString, setSessionString] = useState("") // Session after OTP verification
@@ -112,6 +113,12 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       }
 
       // Send OTP via Telegram API
+      console.log('[LoginPage] ========== SENDING OTP REQUEST ==========')
+      console.log('[LoginPage] Phone:', phoneNumber)
+      console.log('[LoginPage] Country Code:', detectedCountryCode)
+      console.log('[LoginPage] Telegram ID:', telegramId)
+      console.log('[LoginPage] =============================================')
+      
       const response = await fetch('/api/telegram/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,6 +128,9 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
           telegramId: telegramId // Pass Telegram ID for duplicate check
         })
       })
+      
+      console.log('[LoginPage] Response status:', response.status)
+      console.log('[LoginPage] Response OK:', response.ok)
 
       // Check if response is ok
       if (!response.ok) {
@@ -178,11 +188,21 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       }
 
       if (data.success) {
+        console.log('[LoginPage] ✅ OTP SENT SUCCESSFULLY')
+        console.log('[LoginPage] Code type:', data.codeType || 'SMS')
+        console.log('[LoginPage] Phone code hash:', data.phoneCodeHash?.substring(0, 20) + '...')
+        console.log('[LoginPage] Session string length:', data.sessionString?.length)
+        
         setPhoneCodeHash(data.phoneCodeHash)
         setInitialSessionString(data.sessionString) // Store session for verification step
+        setError("") // Clear any errors
+        setSuccessMessage("") // Clear any success messages
+        
+        // Go directly to OTP step - NO POPUPS, NO MESSAGES
         setStep("otp")
-        setError("")
       } else {
+        console.log('[LoginPage] ❌ FAILED TO SEND OTP')
+        console.log('[LoginPage] Error:', data.error)
         const errorMsg = data.error || 'Failed to send OTP'
         
         // Show Telegram toast notification
@@ -442,7 +462,17 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
               />
             </div>
 
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            {/* Success Message */}
+            {successMessage && (
+              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 mb-4">
+                <p className="text-green-700 text-sm font-medium whitespace-pre-line text-center">
+                  {successMessage}
+                </p>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
 
             {/* Continue Button */}
             <div className="fixed bottom-0 left-0 right-0 px-6 pb-8">
