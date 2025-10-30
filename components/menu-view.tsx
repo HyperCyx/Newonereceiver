@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import ReferralSection from "./referral-section"
 import { useReferral } from "@/lib/referral-context"
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface MenuViewProps {
   onNavigate?: (view: "menu" | "dashboard" | "withdrawal" | "admin-login") => void
@@ -27,6 +28,7 @@ interface TelegramUser {
 }
 
 export default function MenuView({ onNavigate }: MenuViewProps) {
+  const { t, isRTL } = useLanguage()
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null)
   const [userName, setUserName] = useState("Guest")
   const [userId, setUserId] = useState("")
@@ -228,24 +230,24 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     {
       icon: "account_balance_wallet",
       iconType: "material",
-      title: "Withdraw Money",
-      subtitle: balance + " USDT",
+      title: t('menu.withdraw'),
+      subtitle: `${t('menu.balance')}: ${balance} ${t('menu.usdt')}`,
       color: "bg-emerald-500",
       action: "withdraw",
     },
     {
       icon: "inventory_2",
       iconType: "material",
-      title: "Send Accounts",
+      title: t('menu.sendAccounts'),
       subtitle: accountCount.toString(),
-      badge: loginButtonEnabled ? "AVAILABLE" : undefined,
+      badge: loginButtonEnabled ? t('menu.available') : undefined,
       color: "bg-sky-500",
       action: "send",
     },
     {
       icon: "receipt_long",
       iconType: "material",
-      title: "Orders",
+      title: t('menu.orders'),
       subtitle: "0",
       color: "bg-rose-500",
       action: "orders",
@@ -253,7 +255,7 @@ export default function MenuView({ onNavigate }: MenuViewProps) {
     {
       icon: "campaign",
       iconType: "material",
-      title: "Channel",
+      title: t('menu.channel'),
       subtitle: "Check our channel for latest updates",
       color: "bg-amber-500",
       action: "channel",

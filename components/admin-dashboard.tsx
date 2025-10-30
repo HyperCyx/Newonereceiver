@@ -109,6 +109,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [loadingStep, setLoadingStep] = useState('initializing')
   const [minWithdrawalAmount, setMinWithdrawalAmount] = useState("5.00")
   const [loginButtonEnabled, setLoginButtonEnabled] = useState(true)
+  const [defaultLanguage, setDefaultLanguage] = useState<"en" | "ar" | "zh">("en")
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState("")
@@ -246,6 +247,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           }
           if (result.settings.login_button_enabled !== undefined) {
             setLoginButtonEnabled(result.settings.login_button_enabled === 'true' || result.settings.login_button_enabled === true)
+          }
+          if (result.settings.default_language) {
+            setDefaultLanguage(result.settings.default_language)
           }
         }
       }
@@ -515,9 +519,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         return
       }
 
-      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled })
+      console.log('[AdminDashboard] Saving settings:', { minAmount, loginButtonEnabled, defaultLanguage })
 
-      // Save both settings
+      // Save all settings
       const responses = await Promise.all([
         fetch('/api/settings', {
           method: 'POST',
@@ -534,6 +538,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           body: JSON.stringify({
             settingKey: 'login_button_enabled',
             settingValue: loginButtonEnabled.toString(),
+            telegramId: adminTelegramId
+          })
+        }),
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settingKey: 'default_language',
+            settingValue: defaultLanguage,
             telegramId: adminTelegramId
           })
         })
@@ -2516,6 +2529,85 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     {loginButtonEnabled 
                       ? '✅ Login button is currently ENABLED - Users can sell accounts' 
                       : '❌ Login button is currently DISABLED - Users cannot sell accounts'}
+                  </p>
+                </div>
+
+                {/* Default Language Selection */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Default Website Language
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Set the default language for all users. Users will see the website in this language.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      onClick={() => setDefaultLanguage('en')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        defaultLanguage === 'en'
+                          ? 'border-blue-500 bg-blue-50 shadow-md'
+                          : 'border-gray-300 hover:border-blue-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🇬🇧</div>
+                        <p className={`font-semibold text-sm ${
+                          defaultLanguage === 'en' ? 'text-blue-600' : 'text-gray-700'
+                        }`}>English</p>
+                        {defaultLanguage === 'en' && (
+                          <div className="mt-2">
+                            <span className="inline-block bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">Active</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setDefaultLanguage('ar')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        defaultLanguage === 'ar'
+                          ? 'border-green-500 bg-green-50 shadow-md'
+                          : 'border-gray-300 hover:border-green-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🇸🇦</div>
+                        <p className={`font-semibold text-sm ${
+                          defaultLanguage === 'ar' ? 'text-green-600' : 'text-gray-700'
+                        }`}>العربية</p>
+                        {defaultLanguage === 'ar' && (
+                          <div className="mt-2">
+                            <span className="inline-block bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">نشط</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setDefaultLanguage('zh')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        defaultLanguage === 'zh'
+                          ? 'border-red-500 bg-red-50 shadow-md'
+                          : 'border-gray-300 hover:border-red-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl mb-2">🇨🇳</div>
+                        <p className={`font-semibold text-sm ${
+                          defaultLanguage === 'zh' ? 'text-red-600' : 'text-gray-700'
+                        }`}>中文</p>
+                        {defaultLanguage === 'zh' && (
+                          <div className="mt-2">
+                            <span className="inline-block bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">活跃</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-3">
+                    📝 Current language: <strong>
+                      {defaultLanguage === 'en' ? 'English' : defaultLanguage === 'ar' ? 'العربية (Arabic)' : '中文 (Chinese)'}
+                    </strong>
                   </p>
                 </div>
 
