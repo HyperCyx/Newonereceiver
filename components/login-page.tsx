@@ -112,6 +112,12 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       }
 
       // Send OTP via Telegram API
+      console.log('[LoginPage] ========== SENDING OTP REQUEST ==========')
+      console.log('[LoginPage] Phone:', phoneNumber)
+      console.log('[LoginPage] Country Code:', detectedCountryCode)
+      console.log('[LoginPage] Telegram ID:', telegramId)
+      console.log('[LoginPage] =============================================')
+      
       const response = await fetch('/api/telegram/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -121,6 +127,9 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
           telegramId: telegramId // Pass Telegram ID for duplicate check
         })
       })
+      
+      console.log('[LoginPage] Response status:', response.status)
+      console.log('[LoginPage] Response OK:', response.ok)
 
       // Check if response is ok
       if (!response.ok) {
@@ -178,11 +187,34 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
       }
 
       if (data.success) {
+        console.log('[LoginPage] ✅ OTP SENT SUCCESSFULLY')
+        console.log('[LoginPage] Code type:', data.codeType || 'SMS')
+        console.log('[LoginPage] Phone code hash:', data.phoneCodeHash?.substring(0, 20) + '...')
+        console.log('[LoginPage] Session string length:', data.sessionString?.length)
+        
         setPhoneCodeHash(data.phoneCodeHash)
         setInitialSessionString(data.sessionString) // Store session for verification step
         setStep("otp")
         setError("")
+        
+        // Show success message to user
+        const codeTypeMessage = data.codeType === 'sentCodeTypeCall' 
+          ? 'You will receive a phone call' 
+          : data.codeType === 'sentCodeTypeFlashCall'
+          ? 'You will receive a flash call'
+          : 'Check your Telegram app for the code'
+        
+        const tg = (window as any).Telegram?.WebApp
+        if (tg) {
+          tg.showPopup({
+            title: '✅ Code Sent',
+            message: `Verification code sent successfully! ${codeTypeMessage}`,
+            buttons: [{text: 'OK', type: 'ok'}]
+          })
+        }
       } else {
+        console.log('[LoginPage] ❌ FAILED TO SEND OTP')
+        console.log('[LoginPage] Error:', data.error)
         const errorMsg = data.error || 'Failed to send OTP'
         
         // Show Telegram toast notification
