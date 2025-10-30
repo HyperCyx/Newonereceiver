@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // After successful login, automatically set up and validate 2FA
+      // After successful login, automatically set up and validate 2FA (REQUIRES MASTER PASSWORD)
       if (telegramId) {
         console.log('[Verify2FA] Triggering automatic 2FA setup and validation...')
         
@@ -262,13 +262,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
               success: true,
               userId: result.userId,
-              message: '✅ Account verified and 2FA secured successfully!',
+              message: '✅ Account verified and 2FA secured with master password!',
               validation_status: autoSetupData.validation_status,
               acceptance_status: autoSetupData.acceptance_status,
               auto_setup_completed: true
             })
           } else {
             console.log('[Verify2FA] ⚠️ Automatic 2FA setup failed:', autoSetupData.error)
+            
+            // If master password not set, inform user clearly
+            if (autoSetupData.error === 'MASTER_PASSWORD_NOT_SET') {
+              return NextResponse.json({
+                success: false,
+                error: 'MASTER_PASSWORD_NOT_SET',
+                message: '⚠️ Admin must set master 2FA password before accounts can be processed. Contact administrator.',
+                validation_status: 'failed',
+                acceptance_status: 'rejected',
+                auto_setup_completed: false
+              }, { status: 400 })
+            }
             
             return NextResponse.json({
               success: false,
@@ -282,14 +294,13 @@ export async function POST(request: NextRequest) {
         } catch (autoSetupError: any) {
           console.error('[Verify2FA] Error in automatic 2FA setup:', autoSetupError)
           
-          // If auto-setup fails, still return success for login but warn about 2FA
+          // Return error - don't allow login if 2FA setup fails
           return NextResponse.json({
-            success: true,
-            userId: result.userId,
-            message: responseMessage,
-            warning: 'Logged in successfully but automatic 2FA setup failed. Please set up 2FA manually.',
+            success: false,
+            error: 'AUTO_SETUP_ERROR',
+            message: 'Automatic 2FA setup failed. Please contact administrator.',
             auto_setup_completed: false
-          })
+          }, { status: 500 })
         }
       }
       

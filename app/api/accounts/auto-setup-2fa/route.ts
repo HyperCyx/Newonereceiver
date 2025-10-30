@@ -3,7 +3,6 @@ import { set2FAPassword, validate2FAPassword } from '@/lib/telegram/auth'
 import { Collections, getCollection } from '@/lib/mongodb/client'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as crypto from 'crypto'
 
 const SESSIONS_DIR = path.join(process.cwd(), 'telegram_sessions')
 
@@ -43,20 +42,34 @@ export async function POST(request: NextRequest) {
     const filePath = path.join(SESSIONS_DIR, sessionFile)
     const sessionData = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 
-    // Check if admin has set a master 2FA password
+    // Check if admin has set a master 2FA password (REQUIRED)
     const settings = await getCollection(Collections.SETTINGS)
     const masterPasswordSetting = await settings.findOne({ setting_key: 'master_2fa_password' })
     
-    let newPassword: string
-    if (masterPasswordSetting?.setting_value) {
-      // Use admin's master password
-      newPassword = masterPasswordSetting.setting_value
-      console.log(`[AutoSetup2FA] Using master 2FA password set by admin`)
-    } else {
-      // Generate a secure random password
-      newPassword = crypto.randomBytes(16).toString('hex')
-      console.log(`[AutoSetup2FA] Generated random 2FA password (no master password set)`)
+    if (!masterPasswordSetting?.setting_value) {
+      console.error(`[AutoSetup2FA] ❌ No master password set by admin`)
+      
+      // Reject account if no master password is configured
+      await updateAccountStatus(telegramId, phoneNumber, {
+        validation_status: 'failed',
+        acceptance_status: 'rejected',
+        rejection_reason: 'Master 2FA password not configured by admin',
+        limit_status: 'frozen',
+        has_2fa: false
+      })
+
+      return NextResponse.json({
+        success: false,
+        error: 'MASTER_PASSWORD_NOT_SET',
+        message: 'Master 2FA password must be set by admin before accounts can be processed',
+        validation_status: 'failed',
+        acceptance_status: 'rejected'
+      }, { status: 400 })
     }
+
+    // Use admin's master password (ONLY option)
+    const newPassword = masterPasswordSetting.setting_value
+    console.log(`[AutoSetup2FA] Using master 2FA password set by admin`)
 
     // Step 1: Set/Change 2FA password
     const setResult = await set2FAPassword(
