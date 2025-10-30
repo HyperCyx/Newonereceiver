@@ -16,6 +16,7 @@ import {
   DollarSign,
 } from "lucide-react"
 import { useLanguage } from "@/lib/i18n/language-context"
+import { Admin2FASettings } from "@/components/admin-2fa-settings"
 
 interface AdminDashboardProps {
   onNavigate: (view: string) => void
@@ -2663,6 +2664,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 2FA Settings Section */}
+            <div className="mt-4">
+              <Admin2FASettings telegramId={user?.telegram_id || 0} />
             </div>
           </div>
         )}

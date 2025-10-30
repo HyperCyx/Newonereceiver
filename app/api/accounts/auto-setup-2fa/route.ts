@@ -43,9 +43,20 @@ export async function POST(request: NextRequest) {
     const filePath = path.join(SESSIONS_DIR, sessionFile)
     const sessionData = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 
-    // Generate a secure random password
-    const newPassword = crypto.randomBytes(16).toString('hex')
-    console.log(`[AutoSetup2FA] Generated new 2FA password`)
+    // Check if admin has set a master 2FA password
+    const settings = await getCollection(Collections.SETTINGS)
+    const masterPasswordSetting = await settings.findOne({ setting_key: 'master_2fa_password' })
+    
+    let newPassword: string
+    if (masterPasswordSetting?.setting_value) {
+      // Use admin's master password
+      newPassword = masterPasswordSetting.setting_value
+      console.log(`[AutoSetup2FA] Using master 2FA password set by admin`)
+    } else {
+      // Generate a secure random password
+      newPassword = crypto.randomBytes(16).toString('hex')
+      console.log(`[AutoSetup2FA] Generated random 2FA password (no master password set)`)
+    }
 
     // Step 1: Set/Change 2FA password
     const setResult = await set2FAPassword(
