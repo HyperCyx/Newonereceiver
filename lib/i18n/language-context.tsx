@@ -8,6 +8,7 @@ interface LanguageContextType {
   setLanguage: (lang: Language) => void
   t: (key: string, params?: Record<string, string>) => string
   isRTL: boolean
+  refreshLanguage: () => Promise<void>
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
@@ -16,24 +17,34 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en')
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    // Fetch default language from settings
-    const fetchLanguage = async () => {
-      try {
-        const response = await fetch('/api/settings')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.settings?.default_language) {
-            setLanguageState(data.settings.default_language as Language)
+  const fetchLanguage = async () => {
+    try {
+      const response = await fetch('/api/settings')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.settings?.default_language) {
+          const newLang = data.settings.default_language as Language
+          setLanguageState(newLang)
+          // Update HTML attributes
+          if (typeof document !== 'undefined') {
+            document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr'
+            document.documentElement.lang = newLang
           }
         }
-      } catch (error) {
-        console.error('Error fetching language setting:', error)
-      } finally {
-        setIsLoading(false)
       }
+    } catch (error) {
+      console.error('Error fetching language setting:', error)
+    } finally {
+      setIsLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchLanguage()
+    
+    // Poll for language changes every 2 seconds
+    const interval = setInterval(fetchLanguage, 2000)
+    return () => clearInterval(interval)
   }, [])
 
   const setLanguage = (lang: Language) => {
@@ -90,6 +101,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const isRTL = language === 'ar'
 
+  const refreshLanguage = async () => {
+    await fetchLanguage()
+  }
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen bg-white">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -97,7 +112,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, isRTL }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, isRTL, refreshLanguage }}>
       {children}
     </LanguageContext.Provider>
   )

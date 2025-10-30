@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Transaction {
   id: string
@@ -33,6 +34,7 @@ interface TransactionListProps {
 }
 
 export default function TransactionList({ tab, searchQuery, onLoginClick }: TransactionListProps) {
+  const { t } = useLanguage()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
@@ -305,7 +307,7 @@ export default function TransactionList({ tab, searchQuery, onLoginClick }: Tran
             onClick={onLoginClick}
             className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[15px] font-medium py-3 rounded-full transition-colors"
           >
-            Login
+            {t('transaction.login')}
           </button>
         </div>
       )}

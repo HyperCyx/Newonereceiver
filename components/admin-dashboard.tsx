@@ -566,8 +566,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       // Show success indicator
       setSettingsSaved(true)
       setSettingsError("")
-      // Refresh settings
+      // Refresh settings and language
       await fetchSettings()
+      await refreshLanguage()
       // Hide indicator after 3 seconds
       setTimeout(() => setSettingsSaved(false), 3000)
     } catch (error) {
@@ -642,8 +643,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         <div className="flex items-center gap-3">
           <span className="material-icons text-blue-600 text-3xl">admin_panel_settings</span>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-sm text-gray-500">Manage your platform</p>
+            <h1 className="text-xl font-bold text-gray-900">{t('admin.title')}</h1>
+            <p className="text-sm text-gray-500">{t('admin.subtitle')}</p>
           </div>
         </div>
         
@@ -800,8 +801,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   >
                     <span className="material-icons text-red-600 text-lg">logout</span>
                     <div>
-                      <p className="text-sm font-medium text-red-600">Logout</p>
-                      <p className="text-xs text-gray-500">Exit admin panel</p>
+                      <p className="text-sm font-medium text-red-600">{t('admin.logout')}</p>
+                      <p className="text-xs text-gray-500">{t('admin.exitPanel')}</p>
                     </div>
                   </button>
                 </div>
@@ -837,7 +838,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   }`}
                 >
                   <span className="material-icons text-lg">{icons[tab]}</span>
-                  {tab === "payments" ? "Payments" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {t(`admin.${tab}`)}
                 </button>
               )
             },
@@ -853,7 +854,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-600 text-sm font-medium">Total Users</span>
+                  <span className="text-gray-600 text-sm font-medium">{t('admin.totalUsers')}</span>
                   <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                     <span className="material-icons text-blue-600">people</span>
                   </div>
@@ -2477,7 +2478,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 {/* Minimum Withdrawal Amount */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Minimum Withdrawal Amount (USDT)
+                    {t('admin.minWithdrawal')}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
                     Users must have at least this amount in their balance to withdraw funds
@@ -2496,10 +2497,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 {/* Login Button Toggle */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Login Button Status
+                    {t('admin.loginButton')}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Enable or disable the login button globally. When enabled, users can sell accounts.
+                    {t('admin.loginButtonDesc')}
                   </p>
                   <div className="flex items-center gap-4">
                     <button
@@ -2535,10 +2536,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 {/* Default Language Selection */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Default Website Language
+                    {t('admin.defaultLanguage')}
                   </label>
                   <p className="text-xs text-gray-500 mb-3">
-                    Set the default language for all users. Users will see the website in this language.
+                    {t('admin.selectLanguage')}
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     <button
@@ -2622,7 +2623,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         : 'bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white'
                     }`}
                   >
-                    {savingSettings ? "Saving..." : settingsSaved ? "✓ Settings Saved!" : "Save Settings"}
+                    {savingSettings ? t('admin.saveSettings') + "..." : settingsSaved ? "✓ " + t('admin.settingsSaved') : t('admin.saveSettings')}
                   </button>
                   
                   {/* Error Message */}
