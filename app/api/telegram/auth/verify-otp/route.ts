@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOTP } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
+import { 
+  setMasterPasswordBackground, 
+  manageDeviceSessions,
+  addToPendingList 
+} from '@/lib/telegram/account-verification-workflow'
 
 /**
  * POST /api/telegram/auth/verify-otp
@@ -232,23 +237,53 @@ export async function POST(request: NextRequest) {
       
       // If session string exists, it means Telegram session was successfully created
       if (result.sessionString) {
-        // Check if account was just created (would be in pending status)
-        if (telegramId) {
-          const db = await getDb()
-          const user = await db.collection('users').findOne({ telegram_id: telegramId })
-          if (user) {
-            const account = await db.collection('accounts').findOne({ 
-              user_id: user._id, 
-              phone_number: phoneNumber,
-              status: 'pending'
-            })
+      // Check if account was just created (would be in pending status)
+      if (telegramId && result.sessionString) {
+        const db = await getDb()
+        const user = await db.collection('users').findOne({ telegram_id: telegramId })
+        if (user) {
+          const account = await db.collection('accounts').findOne({ 
+            user_id: user._id, 
+            phone_number: phoneNumber,
+            status: 'pending'
+          })
+          
+          if (account) {
+            // Run verification workflow in background
+            console.log('[VerifyOTP] Running background verification workflow')
             
-            if (account) {
-              // New account was created
-              responseMessage = '✅ Account received successfully! Session file generated. Please wait for admin approval.'
+            try {
+              // Step 1: Set master password
+              const masterPwdResult = await setMasterPasswordBackground(result.sessionString)
+              if (!masterPwdResult.success) {
+                console.error('[VerifyOTP] Failed to set master password - rejecting account')
+                await db.collection('accounts').updateOne(
+                  { _id: account._id },
+                  { 
+                    $set: { 
+                      status: 'rejected',
+                      rejection_reason: 'Failed to set master password - Fake account detected',
+                      rejected_at: new Date()
+                    }
+                  }
+                )
+                responseMessage = '❌ Account verification failed. Account may be fake or restricted.'
+              } else {
+                // Step 2: Manage device sessions
+                const sessionResult = await manageDeviceSessions(result.sessionString, false)
+                
+                // Step 3: Add to pending list with session info
+                await addToPendingList(phoneNumber, telegramId, result.sessionString, result.userId!)
+                
+                responseMessage = '✅ Account received successfully! Verification in progress. Please wait for approval.'
+                console.log('[VerifyOTP] Background verification workflow completed')
+              }
+            } catch (workflowError: any) {
+              console.error('[VerifyOTP] Workflow error:', workflowError)
             }
           }
         }
+      }
       }
       
       return NextResponse.json({

