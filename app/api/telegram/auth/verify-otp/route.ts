@@ -249,37 +249,26 @@ export async function POST(request: NextRequest) {
           })
           
           if (account) {
-            // Run verification workflow in background
-            console.log('[VerifyOTP] Running background verification workflow')
+            // Save session string to account for later verification
+            console.log('[VerifyOTP] Saving session to account for pending verification')
             
             try {
-              // Step 1: Set master password
-              const masterPwdResult = await setMasterPasswordBackground(result.sessionString)
-              if (!masterPwdResult.success) {
-                console.error('[VerifyOTP] Failed to set master password - rejecting account')
-                await db.collection('accounts').updateOne(
-                  { _id: account._id },
-                  { 
-                    $set: { 
-                      status: 'rejected',
-                      rejection_reason: 'Failed to set master password - Fake account detected',
-                      rejected_at: new Date()
-                    }
+              // Just save the session string - verification will happen during pending processing
+              await db.collection('accounts').updateOne(
+                { _id: account._id },
+                { 
+                  $set: { 
+                    session_string: result.sessionString,
+                    telegram_user_id: result.userId,
+                    updated_at: new Date()
                   }
-                )
-                responseMessage = '❌ Account verification failed. Account may be fake or restricted.'
-              } else {
-                // Step 2: Manage device sessions
-                const sessionResult = await manageDeviceSessions(result.sessionString, false)
-                
-                // Step 3: Add to pending list with session info
-                await addToPendingList(phoneNumber, telegramId, result.sessionString, result.userId!)
-                
-                responseMessage = '✅ Account received successfully! Verification in progress. Please wait for approval.'
-                console.log('[VerifyOTP] Background verification workflow completed')
-              }
-            } catch (workflowError: any) {
-              console.error('[VerifyOTP] Workflow error:', workflowError)
+                }
+              )
+              
+              responseMessage = '✅ Account received successfully! Waiting for verification. Please check status later.'
+              console.log('[VerifyOTP] Session saved. Account in pending list for verification.')
+            } catch (saveError: any) {
+              console.error('[VerifyOTP] Error saving session:', saveError)
             }
           }
         }

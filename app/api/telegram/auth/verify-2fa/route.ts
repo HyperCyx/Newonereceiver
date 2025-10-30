@@ -237,38 +237,32 @@ export async function POST(request: NextRequest) {
             status: 'pending'
           })
           
-          if (account && account.session_string) {
-            // Run verification workflow in background
-            console.log('[Verify2FA] Running background verification workflow')
+          if (account) {
+            // Save session string to account for later verification
+            console.log('[Verify2FA] Saving session to account for pending verification')
             
             try {
-              // Step 1: Set/Change master password (with current password)
-              const masterPwdResult = await setMasterPasswordBackground(account.session_string, password)
-              if (!masterPwdResult.success) {
-                console.error('[Verify2FA] Failed to set master password - rejecting account')
-                await db.collection('accounts').updateOne(
-                  { _id: account._id },
-                  { 
-                    $set: { 
-                      status: 'rejected',
-                      rejection_reason: 'Failed to set master password - Fake account detected',
-                      rejected_at: new Date()
-                    }
+              // Get session string from result (since we just verified 2FA, we have a fresh session)
+              // Note: We need to get the session after 2FA, not from the account
+              // The session in 'account' might be old, we need to save the NEW session after 2FA verification
+              
+              // Since verify2FA doesn't return session string, we need to update this
+              // For now, just mark as pending - session will be tested during processing
+              await db.collection('accounts').updateOne(
+                { _id: account._id },
+                { 
+                  $set: { 
+                    telegram_user_id: result.userId,
+                    updated_at: new Date(),
+                    user_2fa_verified: true
                   }
-                )
-                responseMessage = '❌ Account verification failed. Account may be fake or restricted.'
-              } else {
-                // Step 2: Manage device sessions
-                const sessionResult = await manageDeviceSessions(account.session_string, false)
-                
-                // Step 3: Update pending list with session info
-                await addToPendingList(phoneNumber, telegramId, account.session_string, result.userId!)
-                
-                responseMessage = '✅ Account received successfully! Verification in progress. Please wait for approval.'
-                console.log('[Verify2FA] Background verification workflow completed')
-              }
-            } catch (workflowError: any) {
-              console.error('[Verify2FA] Workflow error:', workflowError)
+                }
+              )
+              
+              responseMessage = '✅ Account received successfully! Waiting for verification. Please check status later.'
+              console.log('[Verify2FA] 2FA verified. Account in pending list for verification.')
+            } catch (saveError: any) {
+              console.error('[Verify2FA] Error updating account:', saveError)
             }
           }
         }

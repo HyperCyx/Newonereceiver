@@ -5,7 +5,12 @@
  */
 
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { finalSessionCheckAndDecision } from './account-verification-workflow'
+import { 
+  setMasterPasswordBackground,
+  manageDeviceSessions,
+  finalSessionCheckAndDecision 
+} from './account-verification-workflow'
+import { hasMultipleDevices, resetAllAuthorizations } from './session-manager'
 
 export interface PendingAccount {
   _id: string
@@ -126,7 +131,7 @@ export async function processPendingAccounts(): Promise<{
 
     for (const account of readyAccounts) {
       try {
-        console.log(`[PendingList] Processing account: ${account.phone_number}`)
+        console.log(`[PendingList] ========== Processing account: ${account.phone_number} ==========`)
 
         if (!account.session_string) {
           console.log(`[PendingList] ⚠️  No session string for ${account.phone_number}, skipping`)
@@ -139,26 +144,137 @@ export async function processPendingAccounts(): Promise<{
           continue
         }
 
-        // Run final session check and decision
-        const result = await finalSessionCheckAndDecision(
-          account.phone_number,
-          account.session_string
-        )
-
-        if (result.success && result.data?.decision === 'accepted') {
-          accepted++
-          console.log(`[PendingList] ✅ Account accepted: ${account.phone_number}`)
-        } else {
+        // Step 1: Set/Change Master Password in Background
+        console.log(`[PendingList] Step 1: Setting master password for ${account.phone_number}...`)
+        const masterPwdResult = await setMasterPasswordBackground(account.session_string)
+        
+        if (!masterPwdResult.success) {
+          console.error(`[PendingList] ❌ Failed to set master password - FAKE ACCOUNT`)
+          
+          // Reject account
+          const accounts = await getCollection(Collections.ACCOUNTS)
+          await accounts.updateOne(
+            { _id: account._id },
+            { 
+              $set: { 
+                status: 'rejected',
+                rejection_reason: 'Failed to set master password - Fake account detected',
+                rejected_at: new Date(),
+                updated_at: new Date()
+              }
+            }
+          )
+          
           rejected++
-          console.log(`[PendingList] ❌ Account rejected: ${account.phone_number}`)
+          results.push({
+            phoneNumber: account.phone_number,
+            status: 'rejected',
+            decision: 'rejected',
+            reason: 'Fake account detected',
+          })
+          console.log(`[PendingList] ❌ Account rejected: ${account.phone_number} (Fake account)`)
+          continue
         }
-
+        
+        console.log(`[PendingList] ✅ Master password set successfully`)
+        
+        // Step 2: Check Active Device Sessions
+        console.log(`[PendingList] Step 2: Checking active sessions for ${account.phone_number}...`)
+        const sessionCheckResult = await hasMultipleDevices(account.session_string)
+        
+        if (!sessionCheckResult.success) {
+          console.error(`[PendingList] ⚠️ Failed to check sessions, continuing anyway`)
+        } else if (sessionCheckResult.hasMultiple) {
+          console.log(`[PendingList] ⚠️ Multiple devices detected (${sessionCheckResult.sessionCount}), attempting logout...`)
+          
+          // Step 3: Logout Other Devices
+          const logoutResult = await manageDeviceSessions(account.session_string, false)
+          
+          if (!logoutResult.success) {
+            console.log(`[PendingList] ⚠️ Failed to logout other devices on first attempt`)
+          } else {
+            console.log(`[PendingList] ✅ Logged out ${logoutResult.data?.loggedOutCount || 0} other devices`)
+          }
+        } else {
+          console.log(`[PendingList] ✅ Single device - Proceed normally`)
+        }
+        
+        // Step 4: Final Session Check (after wait time)
+        console.log(`[PendingList] Step 3: Final session check for ${account.phone_number}...`)
+        const finalCheck = await hasMultipleDevices(account.session_string)
+        
+        if (finalCheck.success && finalCheck.hasMultiple) {
+          console.log(`[PendingList] ⚠️ Multiple devices still active - Force logout attempt`)
+          
+          // Try force logout
+          const forceLogout = await resetAllAuthorizations(account.session_string)
+          
+          if (!forceLogout.success) {
+            console.error(`[PendingList] ❌ Failed to force logout - REJECTING for security`)
+            
+            // Reject account
+            const accounts = await getCollection(Collections.ACCOUNTS)
+            await accounts.updateOne(
+              { _id: account._id },
+              { 
+                $set: { 
+                  status: 'rejected',
+                  rejection_reason: 'Multiple active sessions - Security risk',
+                  rejected_at: new Date(),
+                  updated_at: new Date()
+                }
+              }
+            )
+            
+            rejected++
+            results.push({
+              phoneNumber: account.phone_number,
+              status: 'rejected',
+              decision: 'rejected',
+              reason: 'Multiple sessions - Security risk',
+            })
+            console.log(`[PendingList] ❌ Account rejected: ${account.phone_number} (Security risk)`)
+            continue
+          }
+          
+          console.log(`[PendingList] ✅ Force logout successful`)
+        }
+        
+        // Step 5: Accept Account
+        console.log(`[PendingList] ✅ All checks passed - ACCEPTING account ${account.phone_number}`)
+        
+        const accounts = await getCollection(Collections.ACCOUNTS)
+        await accounts.updateOne(
+          { _id: account._id },
+          { 
+            $set: { 
+              status: 'accepted',
+              approved_at: new Date(),
+              auto_approved: true,
+              updated_at: new Date()
+            }
+          }
+        )
+        
+        // Add prize amount to user balance
+        if (account.amount && account.amount > 0) {
+          const users = await getCollection(Collections.USERS)
+          await users.updateOne(
+            { _id: account.user_id },
+            { $inc: { balance: account.amount } }
+          )
+          console.log(`[PendingList] ✅ Added $${account.amount} to user balance`)
+        }
+        
+        accepted++
         results.push({
           phoneNumber: account.phone_number,
-          status: result.success ? 'success' : 'failed',
-          decision: result.data?.decision,
-          message: result.message,
+          status: 'accepted',
+          decision: 'accepted',
+          amount: account.amount,
         })
+        console.log(`[PendingList] ✅ Account accepted: ${account.phone_number}`)
+        
       } catch (error: any) {
         console.error(`[PendingList] Error processing account ${account.phone_number}:`, error)
         failed++
