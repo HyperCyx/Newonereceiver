@@ -15,6 +15,7 @@ import {
   X,
   DollarSign,
 } from "lucide-react"
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface AdminDashboardProps {
   onNavigate: (view: string) => void
@@ -87,6 +88,7 @@ interface Country {
 }
 
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
+  const { t, refreshLanguage } = useLanguage()
   const [activeTab, setActiveTab] = useState<
     "overview" | "users" | "analytics" | "referrals" | "payments" | "countries" | "sessions" | "settings"
   >("overview")
