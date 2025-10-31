@@ -85,7 +85,7 @@ export default function Home() {
       ) : currentView === "dashboard" ? (
         <DashboardPage onNavigate={(view) => handleNavigate(view)} />
       ) : currentView === "withdrawal" ? (
-        <WithdrawalHistory onNavigate={handleNavigate} />
+        <WithdrawalHistory onNavigate={(view, data) => handleNavigate(view as any, data)} />
       ) : currentView === "withdrawal-details" ? (
         <WithdrawalDetails withdrawalId={selectedWithdrawalId} onNavigate={handleNavigate} />
       ) : currentView === "login" ? (
@@ -96,7 +96,7 @@ export default function Home() {
           handleNavigate("menu")
         }} />
       ) : currentView === "admin-dashboard" ? (
-        <AdminDashboard onNavigate={handleNavigate} />
+        <AdminDashboard onNavigate={(view) => handleNavigate(view as any)} />
       ) : (
         <MenuView onNavigate={(view) => handleNavigate(view)} />
       )}
