@@ -138,3 +138,9 @@ t=2025-10-31T14:23:32+0000 lvl=info msg="join connections" obj=join id=669f1e843
 t=2025-10-31T14:23:32+0000 lvl=info msg="join connections" obj=join id=5970e2153751 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:55802
 t=2025-10-31T14:23:34+0000 lvl=info msg="join connections" obj=join id=e408ec19d698 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:55770
 t=2025-10-31T14:24:00+0000 lvl=info msg="join connections" obj=join id=c60875051b54 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:55770
+t=2025-10-31T14:25:34+0000 lvl=info msg="join connections" obj=join id=2482b36c05d7 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:55770
+t=2025-10-31T14:26:08+0000 lvl=info msg="join connections" obj=join id=a01ebe8efb75 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:44708
+t=2025-10-31T14:26:34+0000 lvl=info msg="join connections" obj=join id=339e5e4780d6 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:44708
+t=2025-10-31T14:27:34+0000 lvl=info msg="join connections" obj=join id=1f1476907e0b l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:44708
+t=2025-10-31T14:28:34+0000 lvl=info msg="join connections" obj=join id=4bb6f31f2522 l=127.0.0.1:5000 r=[2409:40e1:3085:36ed:8000::]:44708
+t=2025-10-31T14:29:49+0000 lvl=info msg="join connections" obj=join id=6d6d9fb29611 l=127.0.0.1:5000 r=34.38.145.6:50702

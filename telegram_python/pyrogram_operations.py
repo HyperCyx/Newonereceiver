@@ -1,5 +1,5 @@
 """
-Pyrogram-based Telegram operations - REBUILT FROM SCRATCH
+Pyrogram-based Telegram operations - FIXED VERSION
 All functions output JSON for Node.js integration
 """
 import sys
@@ -17,10 +17,21 @@ from pyrogram.errors import (
     RPCError
 )
 
-# Get API credentials from environment
-API_ID = int(os.getenv('TELEGRAM_API_ID', '0'))
-API_HASH = os.getenv('TELEGRAM_API_HASH', '')
-SESSIONS_DIR = './telegram_sessions'
+# Get API credentials with proper type conversion
+try:
+    API_ID_STR = os.getenv('TELEGRAM_API_ID') or os.getenv('API_ID') or '23404078'
+    API_ID = int(API_ID_STR)
+except (ValueError, TypeError) as e:
+    print(f"ERROR: Could not convert API_ID to integer: {e}", file=sys.stderr)
+    API_ID = 23404078
+
+API_HASH = os.getenv('TELEGRAM_API_HASH') or os.getenv('API_HASH') or '6f05053d7edb7a3aa89049bd934922d1'
+SESSIONS_DIR = os.path.abspath(os.getenv('TELEGRAM_SESSIONS_DIR', './telegram_sessions'))
+
+# Debug output
+print(f"DEBUG: API_ID={API_ID} (type: {type(API_ID).__name__})", file=sys.stderr)
+print(f"DEBUG: API_HASH length={len(API_HASH)}", file=sys.stderr)
+print(f"DEBUG: SESSIONS_DIR={SESSIONS_DIR}", file=sys.stderr)
 
 def output_json(data):
     """Output JSON to stdout"""
@@ -46,59 +57,69 @@ async def send_otp(phone_number):
         os.makedirs(SESSIONS_DIR, exist_ok=True)
         
         # Create session file path
-        clean_phone = phone_number.replace('+', '')
-        session_file = os.path.join(SESSIONS_DIR, f"{clean_phone}")
+        clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
+        session_name = os.path.join(SESSIONS_DIR, clean_phone)
         
-        # Create Pyrogram client
+        print(f"DEBUG: Creating client with API_ID={API_ID} (type={type(API_ID)})", file=sys.stderr)
+        print(f"DEBUG: Session name: {session_name}", file=sys.stderr)
+        
+        # Create Pyrogram client with proper integer API_ID
+        # Use file-based session for initial connection
         client = Client(
-            name=session_file,
-            api_id=API_ID,
-            api_hash=API_HASH,
-            phone_number=phone_number,
-            in_memory=False  # Save to file
+            name=session_name,
+            api_id=API_ID,  # Must be integer
+            api_hash=API_HASH,  # Must be string
+            workdir=SESSIONS_DIR
         )
         
+        print(f"DEBUG: Client created, connecting...", file=sys.stderr)
         await client.connect()
         
+        print(f"DEBUG: Sending code to {phone_number}...", file=sys.stderr)
         # Send code
         sent_code = await client.send_code(phone_number)
         
-        # Export session string
-        session_string = await client.export_session_string()
-        
         await client.disconnect()
         
-        # Save session string to .session file
-        session_output_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
-        with open(session_output_path, 'w') as f:
-            f.write(session_string)
+        print(f"DEBUG: Code sent successfully", file=sys.stderr)
+        
+        # Pyrogram saves session automatically to {session_name}.session
+        # Return a placeholder session identifier
+        session_identifier = clean_phone
+        
+        print(f"DEBUG: Session identifier: {session_identifier}", file=sys.stderr)
         
         output_json({
             'success': True,
             'phone_code_hash': sent_code.phone_code_hash,
-            'session_string': session_string,
+            'session_string': session_identifier,  # Use phone number as identifier
             'session_file': f"{clean_phone}.session"
         })
         
     except FloodWait as e:
+        print(f"ERROR: FloodWait {e.value} seconds", file=sys.stderr)
         output_error('FLOOD_WAIT', {'wait_seconds': e.value})
     except Exception as e:
+        print(f"ERROR: {type(e).__name__}: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         output_error('SEND_OTP_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def verify_otp(session_string, phone_number, code, phone_code_hash):
     """
     Verify OTP code
+    session_string is actually the phone number identifier from send_otp
     """
     try:
-        clean_phone = phone_number.replace('+', '')
-        session_name = os.path.join(SESSIONS_DIR, f"verify_{clean_phone}")
+        clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
+        # Use the same session file created in send_otp
+        session_name = os.path.join(SESSIONS_DIR, clean_phone)
         
         client = Client(
             name=session_name,
             api_id=API_ID,
             api_hash=API_HASH,
-            session_string=session_string,
-            in_memory=True
+            workdir=SESSIONS_DIR
         )
         
         await client.connect()
@@ -156,7 +177,7 @@ async def verify_2fa(session_string, phone_number, password):
     Verify 2FA password
     """
     try:
-        clean_phone = phone_number.replace('+', '')
+        clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         session_name = os.path.join(SESSIONS_DIR, f"2fa_{clean_phone}")
         
         client = Client(
@@ -201,7 +222,7 @@ async def set_password(session_string, phone_number, new_password, current_passw
     Set or change cloud password (2FA)
     """
     try:
-        clean_phone = phone_number.replace('+', '')
+        clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         session_name = os.path.join(SESSIONS_DIR, f"setpass_{clean_phone}")
         
         client = Client(
@@ -250,7 +271,7 @@ async def get_sessions(session_string, phone_number):
     Get active sessions
     """
     try:
-        clean_phone = phone_number.replace('+', '')
+        clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         session_name = os.path.join(SESSIONS_DIR, f"sessions_{clean_phone}")
         
         client = Client(
@@ -306,7 +327,7 @@ async def logout_devices(session_string, phone_number):
     Logout all other devices
     """
     try:
-        clean_phone = phone_number.replace('+', '')
+        clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         session_name = os.path.join(SESSIONS_DIR, f"logout_{clean_phone}")
         
         client = Client(
@@ -354,12 +375,19 @@ async def main():
     operation = sys.argv[1]
     
     # Validate API credentials
-    if not API_ID or API_ID == 0:
-        output_error('MISSING_API_ID', {'message': 'TELEGRAM_API_ID environment variable not set'})
+    if not isinstance(API_ID, int) or API_ID == 0:
+        output_error('MISSING_API_ID', {
+            'message': 'TELEGRAM_API_ID must be a valid integer',
+            'api_id': str(API_ID),
+            'api_id_type': str(type(API_ID).__name__)
+        })
         return
     
-    if not API_HASH:
-        output_error('MISSING_API_HASH', {'message': 'TELEGRAM_API_HASH environment variable not set'})
+    if not API_HASH or len(API_HASH) < 10:
+        output_error('MISSING_API_HASH', {
+            'message': 'TELEGRAM_API_HASH environment variable not set or invalid',
+            'api_hash_length': len(API_HASH) if API_HASH else 0
+        })
         return
     
     try:
@@ -419,6 +447,9 @@ async def main():
             output_error('UNKNOWN_OPERATION', {'message': f'Unknown operation: {operation}'})
             
     except Exception as e:
+        print(f"FATAL ERROR: {type(e).__name__}: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         output_error('OPERATION_ERROR', {'message': str(e), 'operation': operation, 'type': type(e).__name__})
 
 if __name__ == '__main__':
