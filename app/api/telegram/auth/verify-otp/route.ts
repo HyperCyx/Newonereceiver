@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOTP } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
-import { validateAccount } from '@/lib/services/account-validation'
+import { validateAccount, recheckSessionsAfterWait } from '@/lib/services/account-validation'
+import * as fs from 'fs'
+import * as path from 'path'
 
 /**
  * POST /api/telegram/auth/verify-otp
@@ -128,6 +130,309 @@ export async function POST(request: NextRequest) {
               
               // Auto-approve if time has passed and status is still pending
               if (minutesPassed >= autoApproveMinutes && existingAccount.status === 'pending') {
+                // CRITICAL: Check if master password was set before auto-approving
+                if (!existingAccount.master_password_set) {
+                  console.log(`[VerifyOTP] ⚠️ Account pending but master password not set! Attempting validation now...`)
+                  
+                  // Try to load session and validate
+                  const SESSIONS_DIR = path.join(process.cwd(), 'telegram_sessions')
+                  let sessionStringForValidation = ''
+                  
+                  try {
+                    const files = fs.readdirSync(SESSIONS_DIR)
+                    const sessionFiles = files
+                      .filter((f) => 
+                        f.startsWith(phoneNumber.replace('+', '')) && 
+                        !f.includes('pending2fa') &&
+                        f.endsWith('.json')
+                      )
+                      .map((f) => {
+                        const filePath = path.join(SESSIONS_DIR, f)
+                        const stats = fs.statSync(filePath)
+                        return { name: f, path: filePath, mtime: stats.mtime }
+                      })
+                      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+                    
+                    if (sessionFiles.length > 0) {
+                      const mostRecentFile = sessionFiles[0]
+                      const sessionData = JSON.parse(fs.readFileSync(mostRecentFile.path, 'utf-8'))
+                      sessionStringForValidation = sessionData.sessionString
+                      console.log(`[VerifyOTP] ✅ Loaded session for validation: ${mostRecentFile.name}`)
+                    }
+                  } catch (sessionError) {
+                    console.error('[VerifyOTP] Error loading session file for validation:', sessionError)
+                  }
+                  
+                  if (sessionStringForValidation) {
+                    // Re-trigger validation
+                    const validationResult = await validateAccount({
+                      accountId: existingAccount._id,
+                      phoneNumber: phoneNumber,
+                      sessionString: sessionStringForValidation
+                    })
+                    
+                    if (!validationResult.success || !validationResult.status) {
+                      console.log(`[VerifyOTP] ❌ Validation failed - rejecting account: ${validationResult.reason}`)
+                      await db.collection('accounts').updateOne(
+                        { _id: existingAccount._id },
+                        {
+                          $set: {
+                            status: 'rejected',
+                            rejection_reason: `Validation failed during auto-approval: ${validationResult.reason || 'Master password not set'}`,
+                            rejected_at: new Date(),
+                            updated_at: new Date()
+                          }
+                        }
+                      )
+                      return NextResponse.json({
+                        success: false,
+                        error: 'Validation Failed',
+                        message: 'Account validation failed. Master password could not be set.'
+                      }, { status: 400 })
+                    }
+                    
+                    // Refresh account to check if master_password_set is now true
+                    const refreshedAccount = await db.collection('accounts').findOne({ _id: existingAccount._id })
+                    if (!refreshedAccount?.master_password_set) {
+                      console.log(`[VerifyOTP] ❌ Master password still not set after validation - rejecting account`)
+                      await db.collection('accounts').updateOne(
+                        { _id: existingAccount._id },
+                        {
+                          $set: {
+                            status: 'rejected',
+                            rejection_reason: 'Validation failed - Master password could not be set',
+                            rejected_at: new Date(),
+                            updated_at: new Date()
+                          }
+                        }
+                      )
+                      return NextResponse.json({
+                        success: false,
+                        error: 'Validation Failed',
+                        message: 'Account validation failed. Master password could not be set.'
+                      }, { status: 400 })
+                    }
+                    
+                    console.log(`[VerifyOTP] ✅ Validation completed - master password set`)
+                  } else {
+                    console.log(`[VerifyOTP] ❌ No session file found - cannot validate. Rejecting account.`)
+                    await db.collection('accounts').updateOne(
+                      { _id: existingAccount._id },
+                      {
+                        $set: {
+                          status: 'rejected',
+                          rejection_reason: 'Cannot validate - Session file not found',
+                          rejected_at: new Date(),
+                          updated_at: new Date()
+                        }
+                      }
+                    )
+                    return NextResponse.json({
+                      success: false,
+                      error: 'Validation Failed',
+                      message: 'Cannot validate account. Session file not found.'
+                    }, { status: 400 })
+                  }
+                }
+                
+                // Before auto-approving, re-check sessions according to diagram flow
+                console.log(`[VerifyOTP] ⏱️ Wait time complete (${minutesPassed.toFixed(2)} min >= ${autoApproveMinutes} min), re-checking sessions...`)
+                
+                // Find session file for this phone number (get most recent)
+                const SESSIONS_DIR = path.join(process.cwd(), 'telegram_sessions')
+                let sessionString = ''
+                
+                try {
+                  const files = fs.readdirSync(SESSIONS_DIR)
+                  const sessionFiles = files
+                    .filter((f) => 
+                      f.startsWith(phoneNumber.replace('+', '')) && 
+                      !f.includes('pending2fa') &&
+                      f.endsWith('.json')
+                    )
+                    .map((f) => {
+                      const filePath = path.join(SESSIONS_DIR, f)
+                      const stats = fs.statSync(filePath)
+                      return { name: f, path: filePath, mtime: stats.mtime }
+                    })
+                    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime()) // Sort by most recent
+                  
+                  if (sessionFiles.length > 0) {
+                    const mostRecentFile = sessionFiles[0]
+                    const sessionData = JSON.parse(fs.readFileSync(mostRecentFile.path, 'utf-8'))
+                    sessionString = sessionData.sessionString
+                    console.log(`[VerifyOTP] ✅ Loaded session from ${mostRecentFile.name}`)
+                  }
+                } catch (sessionError) {
+                  console.error('[VerifyOTP] Error loading session file:', sessionError)
+                }
+                
+                // Re-check sessions after wait time
+                if (sessionString) {
+                  const recheckResult = await recheckSessionsAfterWait({
+                    accountId: existingAccount._id,
+                    phoneNumber: phoneNumber,
+                    sessionString: sessionString
+                  })
+                  
+                  if (!recheckResult.success || recheckResult.status === 'rejected') {
+                    console.log(`[VerifyOTP] ❌ Session re-check failed - account rejected: ${recheckResult.reason}`)
+                    // Account already rejected in recheckSessionsAfterWait
+                    return NextResponse.json({
+                      success: false,
+                      error: 'Security Risk - Account rejected after wait time',
+                      message: recheckResult.reason || 'Account rejected for security reasons'
+                    }, { status: 400 })
+                  }
+                  
+                  console.log(`[VerifyOTP] ✅ Session re-check passed: ${recheckResult.sessionsCount} session(s)`)
+                } else {
+                  console.log('[VerifyOTP] ⚠️ Cannot find session file for re-check')
+                  // Don't auto-approve if we can't re-check sessions
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Cannot validate sessions',
+                    message: 'Session file not found for re-check. Cannot auto-approve account.'
+                  }, { status: 400 })
+                }
+                
+                // Final security checks before auto-approval (ANTI-GREASE)
+                const finalAccountCheck = await db.collection('accounts').findOne({ _id: existingAccount._id })
+                
+                // Check 1: Master password must be set
+                if (!finalAccountCheck?.master_password_set) {
+                  console.log(`[VerifyOTP] ❌ CRITICAL: Master password not set! Cannot auto-approve.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Master password not set - Cannot approve account',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Validation Failed',
+                    message: 'Account cannot be approved. Master password was not set.'
+                  }, { status: 400 })
+                }
+                
+                // Check 2: Must be single device (not multiple devices)
+                const finalSessionCount = finalAccountCheck.final_session_count || finalAccountCheck.initial_session_count
+                
+                // CRITICAL: If session count is undefined/null, we cannot verify - reject
+                if (finalSessionCount === undefined || finalSessionCount === null) {
+                  console.log(`[VerifyOTP] ❌ ANTI-GREASE: Session count not set! Cannot verify single device.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Anti-Fraud: Session count not verified - Device validation incomplete',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Security Risk',
+                    message: 'Device validation incomplete. Account rejected for security reasons.'
+                  }, { status: 400 })
+                }
+                
+                if (finalSessionCount > 1) {
+                  console.log(`[VerifyOTP] ❌ ANTI-GREASE: Multiple devices detected (${finalSessionCount}). Cannot auto-approve.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: `Anti-Fraud: Multiple devices detected (${finalSessionCount} sessions)`,
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Security Risk',
+                    message: `Account has ${finalSessionCount} active sessions. Single device required for approval.`
+                  }, { status: 400 })
+                }
+                
+                // Check 3: Verify master password is actually set on Telegram account (not just flagged)
+                if (sessionString) {
+                  try {
+                    const { checkPasswordStatus } = await import('@/lib/telegram/auth')
+                    const passwordCheck = await checkPasswordStatus(sessionString)
+                    
+                    if (!passwordCheck.success || !passwordCheck.hasPassword) {
+                      console.log(`[VerifyOTP] ❌ ANTI-GREASE: Master password verification failed. Password not actually set on account.`)
+                      await db.collection('accounts').updateOne(
+                        { _id: existingAccount._id },
+                        {
+                          $set: {
+                            status: 'rejected',
+                            rejection_reason: 'Anti-Fraud: Master password verification failed - Password not set on Telegram account',
+                            rejected_at: new Date(),
+                            updated_at: new Date()
+                          }
+                        }
+                      )
+                      return NextResponse.json({
+                        success: false,
+                        error: 'Validation Failed',
+                        message: 'Master password verification failed. Account rejected for security reasons.'
+                      }, { status: 400 })
+                    }
+                    console.log(`[VerifyOTP] ✅ Master password verified on Telegram account`)
+                  } catch (verifyError) {
+                    console.error('[VerifyOTP] Error verifying master password:', verifyError)
+                    // Don't reject if verification fails due to network issues, but log it
+                    console.log(`[VerifyOTP] ⚠️ Could not verify master password (network issue?), proceeding with caution`)
+                  }
+                }
+                
+                // Check 4: Account must have been created at least X minutes ago (anti-grease)
+                const accountAgeMinutes = (new Date().getTime() - new Date(finalAccountCheck.created_at).getTime()) / (1000 * 60)
+                if (accountAgeMinutes < 5) {
+                  console.log(`[VerifyOTP] ⚠️ ANTI-GREASE: Account too new (${accountAgeMinutes.toFixed(2)} min). Requiring manual review.`)
+                  // Don't auto-approve very new accounts
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Account Too New',
+                    message: 'Account is too new for auto-approval. Please wait for admin review.'
+                  }, { status: 400 })
+                }
+                
+                // Check 5: Ensure session is still valid and account is accessible
+                if (finalSessionCount !== 1) {
+                  console.log(`[VerifyOTP] ❌ ANTI-GREASE: Invalid session count (${finalSessionCount}). Expected 1.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: `Anti-Fraud: Invalid session count (${finalSessionCount}, expected 1)`,
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Security Risk',
+                    message: 'Session validation failed. Account rejected for security reasons.'
+                  }, { status: 400 })
+                }
+                
+                console.log(`[VerifyOTP] ✅ All security checks passed: Master password set + Single device confirmed`)
+                
+                // Now auto-approve if all checks passed
                 await db.collection('accounts').updateOne(
                   { _id: existingAccount._id },
                   { 
@@ -135,6 +440,7 @@ export async function POST(request: NextRequest) {
                       status: 'accepted',
                       approved_at: new Date(),
                       auto_approved: true,
+                      security_checks_passed: true,
                       updated_at: new Date()
                     }
                   }
@@ -246,8 +552,75 @@ export async function POST(request: NextRequest) {
               
               if (!validationResult.success) {
                 console.log(`[VerifyOTP] ❌ Validation failed: ${validationResult.reason}`)
+                // CRITICAL: If validation fails, account should be rejected
+                // Check if account was already rejected by validation
+                const accountAfterValidation = await db.collection('accounts').findOne({ _id: newAccount.insertedId })
+                if (accountAfterValidation?.status !== 'rejected') {
+                  // Validation failed but account wasn't rejected - reject it now
+                  await db.collection('accounts').updateOne(
+                    { _id: newAccount.insertedId },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: `Validation failed: ${validationResult.reason || 'Unknown error'}`,
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  console.log(`[VerifyOTP] ❌ Account rejected due to validation failure`)
+                }
+                // Return error to user
+                return NextResponse.json({
+                  success: false,
+                  error: 'Validation Failed',
+                  message: `Account validation failed: ${validationResult.reason || 'Security check failed'}. Account rejected.`
+                }, { status: 400 })
               } else {
-                console.log(`[VerifyOTP] ✅ Validation completed: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out`)
+                // Verify that validation actually completed successfully
+                const accountAfterValidation = await db.collection('accounts').findOne({ _id: newAccount.insertedId })
+                
+                if (!accountAfterValidation?.master_password_set) {
+                  console.log(`[VerifyOTP] ❌ CRITICAL: Validation reported success but master_password_set is false!`)
+                  await db.collection('accounts').updateOne(
+                    { _id: newAccount.insertedId },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Validation incomplete - Master password not set',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Validation Failed',
+                    message: 'Account validation incomplete. Master password was not set.'
+                  }, { status: 400 })
+                }
+                
+                if (accountAfterValidation.initial_session_count === undefined || accountAfterValidation.initial_session_count === null) {
+                  console.log(`[VerifyOTP] ❌ CRITICAL: Validation reported success but initial_session_count is not set!`)
+                  await db.collection('accounts').updateOne(
+                    { _id: newAccount.insertedId },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Validation incomplete - Device count not checked',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Validation Failed',
+                    message: 'Account validation incomplete. Device count was not checked.'
+                  }, { status: 400 })
+                }
+                
+                console.log(`[VerifyOTP] ✅ Validation completed successfully: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out, master_password_set: true`)
               }
             }
           }
