@@ -1,13 +1,17 @@
 /**
- * Step 5: Setup Master Password
- * Corresponds to: O → P/Q → R in flowchart
- * - If account has existing password: Reset to default
- * - If no password: Set default master password
+ * Step 5: Setup Master Password (FIXED VERSION)
+ * Uses Python Telethon for more reliable password operations
+ * 
+ * CRITICAL FIXES:
+ * 1. Properly detects if account has existing password
+ * 2. Uses Python/Telethon for reliable password changes
+ * 3. Properly handles errors and rejects fake accounts
+ * 4. Stores correct password state in database
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { setMasterPassword } from '@/lib/telegram/auth'
+import { pythonSetPassword } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 // Get default master password from settings
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[SetupPassword] Setting up master password for account: ${accountId}`)
+    console.log(`[SetupPassword-FIXED] Setting up master password for account: ${accountId}`)
 
     const accounts = await getCollection(Collections.ACCOUNTS)
     const account = await accounts.findOne({ _id: new ObjectId(accountId) })
@@ -63,27 +67,48 @@ export async function POST(request: NextRequest) {
 
     // Get default master password
     const masterPassword = await getDefaultMasterPassword()
-    const hadExistingPassword = account.had_existing_password || !!currentPassword
+    
+    // Determine if account has existing password
+    // Priority: 1. Stored password from 2FA verification, 2. Provided password, 3. DB flag
+    const storedPassword = account.current_2fa_password
+    const actualCurrentPassword = storedPassword || currentPassword
+    const hadExistingPassword = account.had_existing_password || !!actualCurrentPassword
 
-    console.log(`[SetupPassword] Account ${hadExistingPassword ? 'has' : 'does not have'} existing password`)
+    console.log(`[SetupPassword-FIXED] Account password status:`)
+    console.log(`  - had_existing_password (DB): ${account.had_existing_password}`)
+    console.log(`  - current_2fa_password (DB): ${!!storedPassword}`)
+    console.log(`  - currentPassword provided: ${!!currentPassword}`)
+    console.log(`  - Final decision: ${hadExistingPassword ? 'HAS PASSWORD' : 'NO PASSWORD'}`)
 
-    // Set or change master password
-    const setPasswordResult = await setMasterPassword(
+    // Use Python Telethon for reliable password setting
+    console.log(`[SetupPassword-FIXED] Using Python/Telethon for password operation`)
+    
+    const setPasswordResult = await pythonSetPassword(
       sessionString,
       masterPassword,
-      hadExistingPassword ? currentPassword : undefined
+      hadExistingPassword ? actualCurrentPassword : undefined
     )
 
     if (!setPasswordResult.success) {
-      // Failed to set password = Likely a fake account
-      console.log(`[SetupPassword] ❌ Failed to set master password: ${setPasswordResult.error}`)
+      // Failed to set password
+      console.log(`[SetupPassword-FIXED] ❌ Failed to set master password: ${setPasswordResult.error}`)
       
+      // Check if error is due to missing current password
+      if (setPasswordResult.error?.includes('current password not provided')) {
+        return NextResponse.json({
+          success: false,
+          needsCurrentPassword: true,
+          error: 'Account has 2FA enabled, current password required',
+        }, { status: 400 })
+      }
+      
+      // Real failure - likely fake account
       await accounts.updateOne(
         { _id: new ObjectId(accountId) },
         {
           $set: {
             status: 'rejected',
-            rejection_reason: 'Fake Account - Unable to set master password',
+            rejection_reason: `Failed to set password: ${setPasswordResult.error}`,
             rejected_at: new Date(),
             updated_at: new Date(),
           }
@@ -93,13 +118,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         rejected: true,
-        reason: 'Fake Account - Unable to set master password',
+        reason: `Failed to set password: ${setPasswordResult.error}`,
         error: setPasswordResult.error,
       }, { status: 400 })
     }
 
     // Password set successfully
-    console.log(`[SetupPassword] ✅ Master password ${hadExistingPassword ? 'changed' : 'set'} successfully`)
+    const actuallyHadPassword = setPasswordResult.hasPassword || setPasswordResult.passwordChanged
+    
+    console.log(`[SetupPassword-FIXED] ✅ Master password ${actuallyHadPassword ? 'changed' : 'set'} successfully`)
+    console.log(`  - Account had password: ${actuallyHadPassword}`)
+    console.log(`  - Password changed: ${setPasswordResult.passwordChanged}`)
     
     await accounts.updateOne(
       { _id: new ObjectId(accountId) },
@@ -108,19 +137,23 @@ export async function POST(request: NextRequest) {
           status: 'checking_sessions',
           master_password_set: true,
           master_password_set_at: new Date(),
-          had_existing_password: hadExistingPassword,
+          had_existing_password: actuallyHadPassword,
           updated_at: new Date(),
+        },
+        $unset: {
+          current_2fa_password: '', // Remove stored password for security
         }
       }
     )
 
     return NextResponse.json({
       success: true,
-      passwordChanged: hadExistingPassword,
-      message: `Master password ${hadExistingPassword ? 'changed' : 'set'} successfully`,
+      passwordChanged: actuallyHadPassword,
+      hadPassword: actuallyHadPassword,
+      message: `Master password ${actuallyHadPassword ? 'changed' : 'set'} successfully`,
     })
   } catch (error: any) {
-    console.error('[SetupPassword] Error:', error)
+    console.error('[SetupPassword-FIXED] Error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

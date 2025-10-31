@@ -1,18 +1,14 @@
 /**
- * Step 6: Check Device Sessions & First Logout Attempt (FIXED VERSION)
- * Uses Python Telethon for reliable session operations
- * 
- * CRITICAL FIXES:
- * 1. Properly detects multiple devices
- * 2. ALWAYS attempts logout if multiple devices detected
- * 3. Uses Python/Telethon for reliable operations
- * 4. Does NOT accept account prematurely
- * 5. Properly moves to pending queue
+ * Step 6: Check Device Sessions & First Logout Attempt
+ * Corresponds to: R → S → T → U/V → W → U/X in flowchart
+ * - Check active device sessions
+ * - If single device: Go to pending
+ * - If multiple devices: Attempt first logout
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { pythonGetSessions, pythonLogoutDevices } from '@/lib/telegram/python-wrapper'
+import { getActiveSessions, logoutOtherDevices } from '@/lib/telegram/auth'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -27,7 +23,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[CheckSessions-FIXED] Checking sessions for account: ${accountId}`)
+    console.log(`[CheckSessions] Checking sessions for account: ${accountId}`)
 
     const accounts = await getCollection(Collections.ACCOUNTS)
     const account = await accounts.findOne({ _id: new ObjectId(accountId) })
@@ -39,12 +35,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Get active sessions using Python
-    console.log(`[CheckSessions-FIXED] Step 1: Getting active sessions...`)
-    const sessionsResult = await pythonGetSessions(sessionString)
+    // Step 1: Get active sessions
+    console.log(`[CheckSessions] Step 1: Getting active sessions...`)
+    const sessionsResult = await getActiveSessions(sessionString)
 
     if (!sessionsResult.success || !sessionsResult.sessions) {
-      console.log(`[CheckSessions-FIXED] ⚠️ Could not retrieve sessions, proceeding with caution`)
+      console.log(`[CheckSessions] ⚠️ Could not retrieve sessions, proceeding with caution`)
       
       // Can't determine session count, proceed to pending anyway
       await accounts.updateOne(
@@ -70,20 +66,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const sessionCount = sessionsResult.count || 0
+    const sessionCount = sessionsResult.sessions.length
     const multipleDevices = sessionCount > 1
 
-    console.log(`[CheckSessions-FIXED] Found ${sessionCount} active session(s)`)
-    
-    if (sessionsResult.sessions) {
-      sessionsResult.sessions.forEach((s: any, i: number) => {
-        console.log(`  ${i + 1}. ${s.device_model} (${s.platform}) - ${s.current ? 'CURRENT' : 'other'}`)
-      })
-    }
+    console.log(`[CheckSessions] Found ${sessionCount} active session(s)`)
 
     // Step 2: If single device, go directly to pending
     if (!multipleDevices) {
-      console.log(`[CheckSessions-FIXED] ✅ Single device detected, proceeding to pending`)
+      console.log(`[CheckSessions] ✅ Single device detected, proceeding to pending`)
       
       await accounts.updateOne(
         { _id: new ObjectId(accountId) },
@@ -108,21 +98,19 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Step 3: Multiple devices detected - MUST attempt first logout
-    console.log(`[CheckSessions-FIXED] ⚠️ Multiple devices detected (${sessionCount}), ATTEMPTING LOGOUT...`)
+    // Step 3: Multiple devices detected - attempt first logout
+    console.log(`[CheckSessions] ⚠️ Multiple devices detected (${sessionCount}), attempting logout...`)
     
-    const logoutResult = await pythonLogoutDevices(sessionString)
+    const logoutResult = await logoutOtherDevices(sessionString)
     const logoutSuccessful = logoutResult.success && (logoutResult.loggedOutCount || 0) > 0
 
     if (logoutSuccessful) {
-      console.log(`[CheckSessions-FIXED] ✅ Successfully logged out ${logoutResult.loggedOutCount} device(s)`)
+      console.log(`[CheckSessions] ✅ Successfully logged out ${logoutResult.loggedOutCount} device(s)`)
     } else {
-      console.log(`[CheckSessions-FIXED] ⚠️ Logout attempt failed or no devices logged out`)
-      console.log(`  Error: ${logoutResult.error || 'Unknown'}`)
+      console.log(`[CheckSessions] ⚠️ Logout attempt failed or no devices logged out`)
     }
 
-    // CRITICAL: Update account with session info and proceed to pending
-    // The account is NOT accepted here - it goes to pending queue
+    // Update account with session info and proceed to pending
     await accounts.updateOne(
       { _id: new ObjectId(accountId) },
       {
@@ -139,8 +127,6 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    console.log(`[CheckSessions-FIXED] Account moved to PENDING status (not accepted yet!)`)
-
     return NextResponse.json({
       success: true,
       sessionCount,
@@ -153,7 +139,7 @@ export async function POST(request: NextRequest) {
         : 'Logout failed, proceeding to pending with multiple sessions flag',
     })
   } catch (error: any) {
-    console.error('[CheckSessions-FIXED] Error:', error)
+    console.error('[CheckSessions] Error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
     // 2FA verified successfully
     console.log(`[Verify2FA] ✅ 2FA password verified successfully`)
     
+    // CRITICAL FIX: Store the current password in session_string or account metadata
+    // so it can be used later for password change
     await accounts.updateOne(
       { _id: new ObjectId(accountId) },
       {
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
           status: 'setting_password',
           two_fa_verified_at: new Date(),
           had_existing_password: true,
+          current_2fa_password: password, // Store temporarily for password change
           telegram_user_id: verify2FAResult.userId,
           updated_at: new Date(),
         }
