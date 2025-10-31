@@ -51,6 +51,7 @@ def output_error(error_message, details=None):
 async def send_otp(phone_number):
     """
     Send OTP to phone number and save session
+    FIX: Use just the phone number as session name, not full path
     """
     try:
         # Ensure sessions directory exists
@@ -64,23 +65,23 @@ async def send_otp(phone_number):
             })
             return
         
-        # Create session file path
+        # Create session name (just the phone number, workdir handles the path)
         clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
-        session_name = os.path.join(SESSIONS_DIR, clean_phone)
         
         print(f"INFO: ===== SENDING OTP =====", file=sys.stderr)
         print(f"INFO: Phone number: {phone_number}", file=sys.stderr)
         print(f"INFO: Clean phone: {clean_phone}", file=sys.stderr)
         print(f"INFO: API_ID: {API_ID} (type: {type(API_ID).__name__})", file=sys.stderr)
-        print(f"INFO: Session: {session_name}", file=sys.stderr)
+        print(f"INFO: Session name: {clean_phone} (workdir: {SESSIONS_DIR})", file=sys.stderr)
         
-        # Create Pyrogram client with proper integer API_ID
-        # Use file-based session for initial connection
+        # Create Pyrogram client
+        # FIX: Use ONLY the phone number as name, workdir handles the directory
         client = Client(
-            name=session_name,
-            api_id=API_ID,  # Must be integer
-            api_hash=API_HASH,  # Must be string
-            workdir=SESSIONS_DIR
+            name=clean_phone,  # Just the phone number, not full path!
+            api_id=API_ID,
+            api_hash=API_HASH,
+            workdir=SESSIONS_DIR,
+            no_updates=True  # Don't handle updates, faster connection
         )
         
         print(f"INFO: Connecting to Telegram...", file=sys.stderr)
@@ -91,23 +92,22 @@ async def send_otp(phone_number):
         # Send code
         sent_code = await client.send_code(phone_number)
         
+        # FIX: Don't disconnect immediately! Keep session active.
+        # Just storage.save() to persist current state
+        await client.storage.save()
         await client.disconnect()
         
         print(f"SUCCESS: ? OTP CODE SENT TO TELEGRAM!", file=sys.stderr)
         print(f"SUCCESS: Phone: {phone_number}", file=sys.stderr)
         print(f"SUCCESS: Hash: {sent_code.phone_code_hash}", file=sys.stderr)
         print(f"SUCCESS: Type: {sent_code.type}", file=sys.stderr)
+        print(f"SUCCESS: Session saved: {SESSIONS_DIR}/{clean_phone}.session", file=sys.stderr)
         
-        # Pyrogram saves session automatically to {session_name}.session
-        # Return a placeholder session identifier
-        session_identifier = clean_phone
-        
-        print(f"DEBUG: Session identifier: {session_identifier}", file=sys.stderr)
-        
+        # Return session identifier
         output_json({
             'success': True,
             'phone_code_hash': sent_code.phone_code_hash,
-            'session_string': session_identifier,  # Use phone number as identifier
+            'session_string': clean_phone,  # Phone number as identifier
             'session_file': f"{clean_phone}.session"
         })
         
@@ -135,38 +135,50 @@ async def send_otp(phone_number):
 async def verify_otp(session_string, phone_number, code, phone_code_hash):
     """
     Verify OTP code
-    session_string is actually the phone number identifier from send_otp
+    session_string is the phone number identifier from send_otp
+    FIX: Use same session name format as send_otp
     """
     try:
         clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
-        # Use the same session file created in send_otp
-        session_name = os.path.join(SESSIONS_DIR, clean_phone)
         
+        print(f"INFO: ===== VERIFYING OTP =====", file=sys.stderr)
+        print(f"INFO: Phone: {phone_number}", file=sys.stderr)
+        print(f"INFO: Code: {code}", file=sys.stderr)
+        print(f"INFO: Hash: {phone_code_hash}", file=sys.stderr)
+        print(f"INFO: Session: {clean_phone} (workdir: {SESSIONS_DIR})", file=sys.stderr)
+        
+        # FIX: Use SAME format as send_otp - just phone number, not full path
         client = Client(
-            name=session_name,
+            name=clean_phone,  # Must match send_otp!
             api_id=API_ID,
             api_hash=API_HASH,
-            workdir=SESSIONS_DIR
+            workdir=SESSIONS_DIR,
+            no_updates=True
         )
         
+        print(f"INFO: Connecting with saved session...", file=sys.stderr)
         await client.connect()
+        print(f"INFO: Connected! Attempting sign in...", file=sys.stderr)
         
         try:
             # Try to sign in with code
             signed_in = await client.sign_in(phone_number, phone_code_hash, code)
             
+            print(f"INFO: ? Sign in successful!", file=sys.stderr)
+            
             # Get user info
             me = await client.get_me()
+            print(f"INFO: User ID: {me.id}", file=sys.stderr)
             
-            # Export updated session
+            # Save session to persist auth state
+            await client.storage.save()
+            
+            # Export session string
             new_session_string = await client.export_session_string()
             
             await client.disconnect()
             
-            # Save updated session
-            session_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
-            with open(session_path, 'w') as f:
-                f.write(new_session_string)
+            print(f"SUCCESS: ? OTP VERIFIED - No 2FA", file=sys.stderr)
             
             output_json({
                 'success': True,
@@ -176,15 +188,17 @@ async def verify_otp(session_string, phone_number, code, phone_code_hash):
             })
             
         except SessionPasswordNeeded:
-            # 2FA is enabled, need password
+            print(f"INFO: ??  2FA required", file=sys.stderr)
+            
+            # Save current session state (after OTP verified, before 2FA)
+            await client.storage.save()
+            
+            # Export session string
             new_session_string = await client.export_session_string()
             
             await client.disconnect()
             
-            # Save session even though 2FA needed
-            session_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
-            with open(session_path, 'w') as f:
-                f.write(new_session_string)
+            print(f"SUCCESS: ? OTP VERIFIED - Needs 2FA", file=sys.stderr)
             
             output_json({
                 'success': True,
@@ -192,11 +206,20 @@ async def verify_otp(session_string, phone_number, code, phone_code_hash):
                 'session_string': new_session_string
             })
             
-    except PhoneCodeInvalid:
+    except PhoneCodeInvalid as e:
+        print(f"ERROR: ? Invalid OTP code", file=sys.stderr)
         output_error('PHONE_CODE_INVALID')
-    except PhoneCodeExpired:
+    except PhoneCodeExpired as e:
+        print(f"ERROR: ? OTP code expired", file=sys.stderr)
+        print(f"ERROR: This might happen if:", file=sys.stderr)
+        print(f"ERROR:  - Code was used already", file=sys.stderr)
+        print(f"ERROR:  - Too much time passed (>10 min)", file=sys.stderr)
+        print(f"ERROR:  - Session mismatch between send/verify", file=sys.stderr)
         output_error('PHONE_CODE_EXPIRED')
     except Exception as e:
+        print(f"ERROR: ? Unexpected error: {type(e).__name__}: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         output_error('VERIFY_OTP_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def verify_2fa(session_string, phone_number, password):
