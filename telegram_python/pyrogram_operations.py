@@ -56,12 +56,23 @@ async def send_otp(phone_number):
         # Ensure sessions directory exists
         os.makedirs(SESSIONS_DIR, exist_ok=True)
         
+        # Validate phone number format
+        if not phone_number.startswith('+'):
+            output_error('INVALID_PHONE_FORMAT', {
+                'message': 'Phone number must start with + and country code',
+                'phone': phone_number
+            })
+            return
+        
         # Create session file path
         clean_phone = phone_number.replace('+', '').replace(' ', '').replace('-', '')
         session_name = os.path.join(SESSIONS_DIR, clean_phone)
         
-        print(f"DEBUG: Creating client with API_ID={API_ID} (type={type(API_ID)})", file=sys.stderr)
-        print(f"DEBUG: Session name: {session_name}", file=sys.stderr)
+        print(f"INFO: ===== SENDING OTP =====", file=sys.stderr)
+        print(f"INFO: Phone number: {phone_number}", file=sys.stderr)
+        print(f"INFO: Clean phone: {clean_phone}", file=sys.stderr)
+        print(f"INFO: API_ID: {API_ID} (type: {type(API_ID).__name__})", file=sys.stderr)
+        print(f"INFO: Session: {session_name}", file=sys.stderr)
         
         # Create Pyrogram client with proper integer API_ID
         # Use file-based session for initial connection
@@ -72,16 +83,20 @@ async def send_otp(phone_number):
             workdir=SESSIONS_DIR
         )
         
-        print(f"DEBUG: Client created, connecting...", file=sys.stderr)
+        print(f"INFO: Connecting to Telegram...", file=sys.stderr)
         await client.connect()
+        print(f"INFO: Connected successfully!", file=sys.stderr)
         
-        print(f"DEBUG: Sending code to {phone_number}...", file=sys.stderr)
+        print(f"INFO: Requesting OTP code from Telegram for {phone_number}...", file=sys.stderr)
         # Send code
         sent_code = await client.send_code(phone_number)
         
         await client.disconnect()
         
-        print(f"DEBUG: Code sent successfully", file=sys.stderr)
+        print(f"SUCCESS: ? OTP CODE SENT TO TELEGRAM!", file=sys.stderr)
+        print(f"SUCCESS: Phone: {phone_number}", file=sys.stderr)
+        print(f"SUCCESS: Hash: {sent_code.phone_code_hash}", file=sys.stderr)
+        print(f"SUCCESS: Type: {sent_code.type}", file=sys.stderr)
         
         # Pyrogram saves session automatically to {session_name}.session
         # Return a placeholder session identifier
@@ -97,13 +112,25 @@ async def send_otp(phone_number):
         })
         
     except FloodWait as e:
-        print(f"ERROR: FloodWait {e.value} seconds", file=sys.stderr)
-        output_error('FLOOD_WAIT', {'wait_seconds': e.value})
+        print(f"ERROR: ? FLOOD_WAIT - Too many requests", file=sys.stderr)
+        print(f"ERROR: Wait {e.value} seconds ({e.value/60:.1f} minutes)", file=sys.stderr)
+        print(f"ERROR: Phone: {phone_number}", file=sys.stderr)
+        output_error('FLOOD_WAIT', {
+            'wait_seconds': e.value,
+            'wait_minutes': round(e.value / 60, 1),
+            'phone': phone_number,
+            'message': f'Too many requests. Please wait {round(e.value/60)} minutes and try again.'
+        })
     except Exception as e:
-        print(f"ERROR: {type(e).__name__}: {str(e)}", file=sys.stderr)
+        print(f"ERROR: ? {type(e).__name__}: {str(e)}", file=sys.stderr)
+        print(f"ERROR: Phone: {phone_number}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
-        output_error('SEND_OTP_ERROR', {'message': str(e), 'type': type(e).__name__})
+        output_error('SEND_OTP_ERROR', {
+            'message': str(e),
+            'type': type(e).__name__,
+            'phone': phone_number
+        })
 
 async def verify_otp(session_string, phone_number, code, phone_code_hash):
     """
