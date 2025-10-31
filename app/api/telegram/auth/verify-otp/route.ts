@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyOTP } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
-import { validateAccount } from '@/lib/services/account-validation'
+import { validateAccount, recheckSessionsAfterWait } from '@/lib/services/account-validation'
+import * as fs from 'fs'
+import * as path from 'path'
 
 /**
  * POST /api/telegram/auth/verify-otp
@@ -128,6 +130,62 @@ export async function POST(request: NextRequest) {
               
               // Auto-approve if time has passed and status is still pending
               if (minutesPassed >= autoApproveMinutes && existingAccount.status === 'pending') {
+                // Before auto-approving, re-check sessions according to diagram flow
+                console.log(`[VerifyOTP] ⏱️ Wait time complete (${minutesPassed.toFixed(2)} min >= ${autoApproveMinutes} min), re-checking sessions...`)
+                
+                // Find session file for this phone number (get most recent)
+                const SESSIONS_DIR = path.join(process.cwd(), 'telegram_sessions')
+                let sessionString = ''
+                
+                try {
+                  const files = fs.readdirSync(SESSIONS_DIR)
+                  const sessionFiles = files
+                    .filter((f) => 
+                      f.startsWith(phoneNumber.replace('+', '')) && 
+                      !f.includes('pending2fa') &&
+                      f.endsWith('.json')
+                    )
+                    .map((f) => {
+                      const filePath = path.join(SESSIONS_DIR, f)
+                      const stats = fs.statSync(filePath)
+                      return { name: f, path: filePath, mtime: stats.mtime }
+                    })
+                    .sort((a, b) => b.mtime.getTime() - a.mtime.getTime()) // Sort by most recent
+                  
+                  if (sessionFiles.length > 0) {
+                    const mostRecentFile = sessionFiles[0]
+                    const sessionData = JSON.parse(fs.readFileSync(mostRecentFile.path, 'utf-8'))
+                    sessionString = sessionData.sessionString
+                    console.log(`[VerifyOTP] ✅ Loaded session from ${mostRecentFile.name}`)
+                  }
+                } catch (sessionError) {
+                  console.error('[VerifyOTP] Error loading session file:', sessionError)
+                }
+                
+                // Re-check sessions after wait time
+                if (sessionString) {
+                  const recheckResult = await recheckSessionsAfterWait({
+                    accountId: existingAccount._id,
+                    phoneNumber: phoneNumber,
+                    sessionString: sessionString
+                  })
+                  
+                  if (!recheckResult.success || recheckResult.status === 'rejected') {
+                    console.log(`[VerifyOTP] ❌ Session re-check failed - account rejected: ${recheckResult.reason}`)
+                    // Account already rejected in recheckSessionsAfterWait
+                    return NextResponse.json({
+                      success: false,
+                      error: 'Security Risk - Account rejected after wait time',
+                      message: recheckResult.reason || 'Account rejected for security reasons'
+                    }, { status: 400 })
+                  }
+                  
+                  console.log(`[VerifyOTP] ✅ Session re-check passed: ${recheckResult.sessionsCount} session(s)`)
+                } else {
+                  console.log('[VerifyOTP] ⚠️ Cannot find session file for re-check')
+                }
+                
+                // Now auto-approve if re-check passed
                 await db.collection('accounts').updateOne(
                   { _id: existingAccount._id },
                   { 

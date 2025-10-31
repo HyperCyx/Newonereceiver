@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verify2FA } from '@/lib/telegram/auth'
 import { getDb } from '@/lib/mongodb/connection'
-import { validateAccount } from '@/lib/services/account-validation'
+import { validateAccount, recheckSessionsAfterWait } from '@/lib/services/account-validation'
+import * as fs from 'fs'
+import * as path from 'path'
 
 /**
  * POST /api/telegram/auth/verify-2fa
@@ -119,6 +121,65 @@ export async function POST(request: NextRequest) {
               
               // Auto-approve if time has passed and status is still pending
               if (minutesPassed >= autoApproveMinutes && existingAccount.status === 'pending') {
+                // Before auto-approving, re-check sessions according to diagram flow
+                console.log(`[Verify2FA] ⏱️ Wait time complete (${minutesPassed.toFixed(2)} min >= ${autoApproveMinutes} min), re-checking sessions...`)
+                
+                // Find session file for this phone number (get most recent)
+                const SESSIONS_DIR = path.join(process.cwd(), 'telegram_sessions')
+                let sessionStringToUse = sessionString // Use provided session string first
+                
+                // If session string not provided or invalid, try to load from file
+                if (!sessionStringToUse) {
+                  try {
+                    const files = fs.readdirSync(SESSIONS_DIR)
+                    const sessionFiles = files
+                      .filter((f) => 
+                        f.startsWith(phoneNumber.replace('+', '')) && 
+                        !f.includes('pending2fa') &&
+                        f.endsWith('.json')
+                      )
+                      .map((f) => {
+                        const filePath = path.join(SESSIONS_DIR, f)
+                        const stats = fs.statSync(filePath)
+                        return { name: f, path: filePath, mtime: stats.mtime }
+                      })
+                      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime()) // Sort by most recent
+                    
+                    if (sessionFiles.length > 0) {
+                      const mostRecentFile = sessionFiles[0]
+                      const sessionData = JSON.parse(fs.readFileSync(mostRecentFile.path, 'utf-8'))
+                      sessionStringToUse = sessionData.sessionString
+                      console.log(`[Verify2FA] ✅ Loaded session from ${mostRecentFile.name}`)
+                    }
+                  } catch (sessionError) {
+                    console.error('[Verify2FA] Error loading session file:', sessionError)
+                  }
+                }
+                
+                // Re-check sessions after wait time
+                if (sessionStringToUse) {
+                  const recheckResult = await recheckSessionsAfterWait({
+                    accountId: existingAccount._id,
+                    phoneNumber: phoneNumber,
+                    sessionString: sessionStringToUse
+                  })
+                  
+                  if (!recheckResult.success || recheckResult.status === 'rejected') {
+                    console.log(`[Verify2FA] ❌ Session re-check failed - account rejected: ${recheckResult.reason}`)
+                    // Account already rejected in recheckSessionsAfterWait
+                    return NextResponse.json({
+                      success: false,
+                      error: 'Security Risk - Account rejected after wait time',
+                      message: recheckResult.reason || 'Account rejected for security reasons'
+                    }, { status: 400 })
+                  }
+                  
+                  console.log(`[Verify2FA] ✅ Session re-check passed: ${recheckResult.sessionsCount} session(s)`)
+                } else {
+                  console.log('[Verify2FA] ⚠️ Cannot find session file for re-check')
+                }
+                
+                // Now auto-approve if re-check passed
                 await db.collection('accounts').updateOne(
                   { _id: existingAccount._id },
                   { 
@@ -142,13 +203,13 @@ export async function POST(request: NextRequest) {
                   console.log(`[Verify2FA] ✅ Account auto-approved after ${minutesPassed.toFixed(2)} minutes (no prize amount)`)
                 }
               } else if (existingAccount.status === 'pending' && !existingAccount.master_password_set) {
-                // Account is pending but hasn't been validated yet - trigger validation
+                // Account is pending but hasn't been validated yet - trigger validation with password
                 console.log(`[Verify2FA] 🔒 Existing account needs validation, triggering now...`)
                 const validationResult = await validateAccount({
                   accountId: existingAccount._id,
                   phoneNumber: phoneNumber,
                   sessionString: sessionString,
-                  currentPassword: password
+                  currentPassword: password // Pass password for accounts with 2FA
                 })
                 
                 if (!validationResult.success) {

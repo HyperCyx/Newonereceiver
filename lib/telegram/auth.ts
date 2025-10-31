@@ -466,6 +466,137 @@ export async function setMasterPassword(
 }
 
 /**
+ * Check if account has a password (2FA enabled)
+ */
+export async function checkPasswordStatus(
+  sessionString: string
+): Promise<{ success: boolean; hasPassword?: boolean; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Checking password status...')
+
+    const passwordResult = await client.invoke(
+      new Api.account.GetPassword()
+    )
+
+    const hasPassword = !!passwordResult.currentAlgo
+
+    await client.disconnect()
+
+    console.log(`[TelegramAuth] ✅ Password status: ${hasPassword ? 'HAS PASSWORD' : 'NO PASSWORD'}`)
+
+    return {
+      success: true,
+      hasPassword,
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] ❌ Error checking password status:', error)
+    
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore
+    }
+
+    return {
+      success: false,
+      error: error.errorMessage || error.message || 'Failed to check password status',
+    }
+  }
+}
+
+/**
+ * Disable password (remove 2FA) from Telegram account
+ * This is done before setting master password according to the flow
+ */
+export async function disablePassword(
+  sessionString: string,
+  currentPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = new StringSession(sessionString)
+  const client = new TelegramClient(session, apiId, apiHash, {
+    connectionRetries: 5,
+    deviceModel: 'Telegram Web',
+    systemVersion: '1.0',
+    appVersion: '10.9.3',
+    langCode: 'en',
+    systemLangCode: 'en-US',
+  })
+
+  try {
+    await client.connect()
+
+    console.log('[TelegramAuth] Disabling existing password...')
+
+    // Get password SRP parameters
+    const passwordSrpResult = await client.invoke(
+      new Api.account.GetPassword()
+    )
+
+    if (!passwordSrpResult.currentAlgo) {
+      await client.disconnect()
+      console.log('[TelegramAuth] ✅ Account has no password to disable')
+      return {
+        success: true,
+      }
+    }
+
+    // Import the password utility
+    const { computeCheck } = await import('telegram/Password')
+    
+    // Compute the password check using the SRP algorithm
+    const passwordCheck = await computeCheck(passwordSrpResult, currentPassword)
+
+    // Disable password by setting empty password
+    await client.updateTwoFaSettings({
+      isCheckPassword: true,
+      currentPassword: passwordCheck,
+      newPassword: '', // Empty password disables 2FA
+      hint: '',
+      email: '',
+      emailCodeCallback: async (length: number) => {
+        console.log(`[TelegramAuth] Email verification skipped (not configured)`)
+        return ''
+      },
+      onEmailCodeError: (err: any) => {
+        console.log('[TelegramAuth] Email verification not required or skipped')
+      }
+    })
+
+    await client.disconnect()
+
+    console.log('[TelegramAuth] ✅ Password disabled successfully')
+    return {
+      success: true,
+    }
+  } catch (error: any) {
+    console.error('[TelegramAuth] ❌ Error disabling password:', error.errorMessage || error.message)
+    
+    try {
+      await client.disconnect()
+    } catch (e) {
+      // Ignore
+    }
+
+    return {
+      success: false,
+      error: error.errorMessage || error.message || 'Failed to disable password',
+    }
+  }
+}
+
+/**
  * Get active sessions (devices) logged into the account
  */
 export async function getActiveSessions(
