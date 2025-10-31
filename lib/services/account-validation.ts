@@ -235,7 +235,7 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
       status: 'pending',
       sessionsCount: sessionCount,
       loggedOutCount: loggedOutCount
-    }
+    };
   } catch (error: any) {
     console.error('[AccountValidation] Error:', error)
     return {
