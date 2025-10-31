@@ -53,6 +53,35 @@ export async function POST(request: NextRequest) {
         
         // Auto-approve if time has passed
         if (minutesPassed >= autoApproveMinutes) {
+          // SECURITY CHECKS: Only auto-approve if validation completed properly
+          if (!account.master_password_set) {
+            console.log(`[AutoApprove] ⚠️ Skipping account ${account._id} - Master password not set`)
+            continue
+          }
+          
+          const sessionCount = account.final_session_count || account.initial_session_count
+          if (sessionCount === undefined || sessionCount === null) {
+            console.log(`[AutoApprove] ⚠️ Skipping account ${account._id} - Device count not verified`)
+            continue
+          }
+          
+          if (sessionCount !== 1) {
+            console.log(`[AutoApprove] ⚠️ Skipping account ${account._id} - Multiple devices detected (${sessionCount})`)
+            // Mark as rejected for security
+            await accounts.updateOne(
+              { _id: account._id },
+              {
+                $set: {
+                  status: 'rejected',
+                  rejection_reason: `Auto-approve rejected: Multiple devices detected (${sessionCount})`,
+                  rejected_at: new Date(),
+                  updated_at: new Date()
+                }
+              }
+            )
+            continue
+          }
+          
           console.log(`[AutoApprove] Approving account ${account._id} (${account.phone_number}) after ${minutesPassed.toFixed(2)} minutes`)
           
           // Update account

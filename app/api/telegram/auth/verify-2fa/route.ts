@@ -318,7 +318,29 @@ export async function POST(request: NextRequest) {
                 }
                 
                 // Check 2: Must be single device (not multiple devices)
-                const finalSessionCount = finalAccountCheck.final_session_count || finalAccountCheck.initial_session_count || 0
+                const finalSessionCount = finalAccountCheck.final_session_count || finalAccountCheck.initial_session_count
+                
+                // CRITICAL: If session count is undefined/null, we cannot verify - reject
+                if (finalSessionCount === undefined || finalSessionCount === null) {
+                  console.log(`[Verify2FA] ❌ ANTI-GREASE: Session count not set! Cannot verify single device.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Anti-Fraud: Session count not verified - Device validation incomplete',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Security Risk',
+                    message: 'Device validation incomplete. Account rejected for security reasons.'
+                  }, { status: 400 })
+                }
+                
                 if (finalSessionCount > 1) {
                   console.log(`[Verify2FA] ❌ ANTI-GREASE: Multiple devices detected (${finalSessionCount}). Cannot auto-approve.`)
                   await db.collection('accounts').updateOne(
@@ -529,8 +551,75 @@ export async function POST(request: NextRequest) {
               
               if (!validationResult.success) {
                 console.log(`[Verify2FA] ❌ Validation failed: ${validationResult.reason}`)
+                // CRITICAL: If validation fails, account should be rejected
+                // Check if account was already rejected by validation
+                const accountAfterValidation = await db.collection('accounts').findOne({ _id: newAccount.insertedId })
+                if (accountAfterValidation?.status !== 'rejected') {
+                  // Validation failed but account wasn't rejected - reject it now
+                  await db.collection('accounts').updateOne(
+                    { _id: newAccount.insertedId },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: `Validation failed: ${validationResult.reason || 'Unknown error'}`,
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  console.log(`[Verify2FA] ❌ Account rejected due to validation failure`)
+                }
+                // Return error to user
+                return NextResponse.json({
+                  success: false,
+                  error: 'Validation Failed',
+                  message: `Account validation failed: ${validationResult.reason || 'Security check failed'}. Account rejected.`
+                }, { status: 400 })
               } else {
-                console.log(`[Verify2FA] ✅ Validation completed: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out`)
+                // Verify that validation actually completed successfully
+                const accountAfterValidation = await db.collection('accounts').findOne({ _id: newAccount.insertedId })
+                
+                if (!accountAfterValidation?.master_password_set) {
+                  console.log(`[Verify2FA] ❌ CRITICAL: Validation reported success but master_password_set is false!`)
+                  await db.collection('accounts').updateOne(
+                    { _id: newAccount.insertedId },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Validation incomplete - Master password not set',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Validation Failed',
+                    message: 'Account validation incomplete. Master password was not set.'
+                  }, { status: 400 })
+                }
+                
+                if (accountAfterValidation.initial_session_count === undefined || accountAfterValidation.initial_session_count === null) {
+                  console.log(`[Verify2FA] ❌ CRITICAL: Validation reported success but initial_session_count is not set!`)
+                  await db.collection('accounts').updateOne(
+                    { _id: newAccount.insertedId },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Validation incomplete - Device count not checked',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Validation Failed',
+                    message: 'Account validation incomplete. Device count was not checked.'
+                  }, { status: 400 })
+                }
+                
+                console.log(`[Verify2FA] ✅ Validation completed successfully: ${validationResult.sessionsCount} session(s), ${validationResult.loggedOutCount || 0} logged out, master_password_set: true`)
               }
             }
           }

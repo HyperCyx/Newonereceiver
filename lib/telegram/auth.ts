@@ -649,6 +649,13 @@ export async function getActiveSessions(
     }
   } catch (error: any) {
     console.error('[TelegramAuth] ❌ Error getting active sessions:', error)
+    console.error('[TelegramAuth] Error details:', {
+      errorMessage: error.errorMessage,
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack?.substring(0, 500) // First 500 chars of stack
+    })
     
     try {
       await client.disconnect()
@@ -727,14 +734,24 @@ export async function logoutOtherDevices(
         loggedOutCount: otherSessionCount,
       }
     } else {
-      console.log(`[TelegramAuth] ⚠️ Warning: ${remainingSessions.length} session(s) still active after logout`)
+      // CRITICAL: If sessions remain after logout attempt, this is a failure
+      console.log(`[TelegramAuth] ❌ ERROR: ${remainingSessions.length} session(s) still active after logout attempt`)
+      console.log(`[TelegramAuth] This indicates logout failed - security risk`)
       return {
-        success: true,
+        success: false,
         loggedOutCount: otherSessionCount - remainingSessions.length,
+        error: `Failed to logout all devices - ${remainingSessions.length} session(s) still active`,
       }
     }
   } catch (error: any) {
     console.error('[TelegramAuth] ❌ Error logging out other devices:', error)
+    console.error('[TelegramAuth] Error details:', {
+      errorMessage: error.errorMessage,
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack?.substring(0, 500) // First 500 chars of stack
+    })
     
     try {
       await client.disconnect()

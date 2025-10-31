@@ -114,24 +114,38 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
 
     if (!sessionsResult.success || !sessionsResult.sessions) {
       console.log('[AccountValidation] ⚠️ Could not retrieve sessions, proceeding with caution')
-      // Still set master_password_set flag even if session retrieval failed
-      // because master password was successfully set
+      // CRITICAL: Session check is REQUIRED for security
+      // If we can't check sessions, we can't verify single device, so reject account
+      console.log('[AccountValidation] ❌ CRITICAL: Cannot verify single device - session check failed')
+      
       await accounts.updateOne(
         { _id: objId },
         {
           $set: {
-            master_password_set: true,
-            last_session_check: new Date(),
+            status: 'rejected',
+            rejection_reason: 'Security Risk - Cannot verify single device. Session check failed.',
+            master_password_set: true, // Password was set, but security check failed
+            session_check_failed: true,
+            rejected_at: new Date(),
             updated_at: new Date()
           }
         }
       )
-    } else {
-      sessionCount = sessionsResult.sessions.length
-      console.log(`[AccountValidation] Found ${sessionCount} active session(s)`)
 
-      // Step 5: If multiple devices, logout all other devices
-      if (sessionCount > 1) {
+      return {
+        success: false,
+        accountId: objId.toString(),
+        status: 'rejected',
+        reason: 'Security Risk - Cannot verify single device. Session check failed.',
+        error: sessionsResult.error || 'Session check failed'
+      }
+    }
+    
+    sessionCount = sessionsResult.sessions.length
+    console.log(`[AccountValidation] Found ${sessionCount} active session(s)`)
+
+    // Step 5: If multiple devices, logout all other devices
+    if (sessionCount > 1) {
         console.log('[AccountValidation] Step 5: Multiple devices detected, logging out others...')
         
         const logoutResult = await logoutOtherDevices(sessionString)
@@ -154,7 +168,32 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
           )
         } else {
           console.log('[AccountValidation] ⚠️ Failed to logout other devices')
-          // Continue to pending - will re-check after wait time
+          // CRITICAL: If logout fails, we cannot ensure single device - reject account
+          console.log('[AccountValidation] ❌ CRITICAL: Cannot logout other devices - security risk')
+          
+          await accounts.updateOne(
+            { _id: objId },
+            {
+              $set: {
+                status: 'rejected',
+                rejection_reason: `Security Risk - Multiple devices detected (${sessionCount}) but cannot logout other devices`,
+                initial_session_count: sessionCount,
+                multiple_devices_detected: true,
+                logout_failed: true,
+                rejected_at: new Date(),
+                updated_at: new Date()
+              }
+            }
+          )
+
+          return {
+            success: false,
+            accountId: objId.toString(),
+            status: 'rejected',
+            reason: `Security Risk - Multiple devices detected (${sessionCount}) but cannot logout other devices`,
+            sessionsCount: sessionCount,
+            error: logoutResult.error || 'Logout failed'
+          }
         }
       } else {
         console.log('[AccountValidation] ✅ Single device detected - no logout needed')

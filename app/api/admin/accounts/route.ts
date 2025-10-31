@@ -75,6 +75,27 @@ export async function POST(request: NextRequest) {
     if (action === 'approve') {
       console.log('[AdminAccounts] Approving account:', accountId)
       
+      // SECURITY CHECK: Verify account has been properly validated before admin approval
+      if (!account.master_password_set) {
+        return NextResponse.json({ 
+          error: 'Cannot approve account - Master password not set. Account must be validated first.' 
+        }, { status: 400 })
+      }
+      
+      // SECURITY CHECK: Verify device count was checked
+      const sessionCount = account.final_session_count || account.initial_session_count
+      if (sessionCount === undefined || sessionCount === null) {
+        return NextResponse.json({ 
+          error: 'Cannot approve account - Device count not verified. Account must be validated first.' 
+        }, { status: 400 })
+      }
+      
+      // SECURITY CHECK: Only allow approval if single device (or admin explicitly overriding)
+      if (sessionCount > 1) {
+        console.log(`[AdminAccounts] ⚠️ Warning: Account has ${sessionCount} sessions. Admin approval will proceed but this is a security risk.`)
+        // Admin can override, but log it
+      }
+      
       // Get country prize amount from phone number
       const phoneDigits = account.phone_number.replace(/[^\d]/g, '')
       let prizeAmount = 0
