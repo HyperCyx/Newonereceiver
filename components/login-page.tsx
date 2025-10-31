@@ -20,6 +20,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [initialSessionString, setInitialSessionString] = useState("") // Session from sendOTP
   const [sessionString, setSessionString] = useState("") // Session after OTP verification
   const [password2FA, setPassword2FA] = useState("")
+  const [resendingOtp, setResendingOtp] = useState(false)
 
   const handleContinue = async () => {
     if (!phoneNumber.trim()) {
@@ -422,6 +423,84 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setOtp(digits)
   }
 
+  const handleResendOtp = async () => {
+    setResendingOtp(true)
+    setError("")
+    setOtp("") // Clear the old OTP input
+
+    try {
+      console.log('[LoginPage] 🔄 Resending OTP to:', phoneNumber)
+
+      // Get Telegram user info
+      const tg = (window as any).Telegram?.WebApp
+      const telegramUser = tg?.initDataUnsafe?.user
+
+      const response = await fetch('/api/telegram/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber,
+          countryCode: phoneNumber.substring(1, 4), // Extract country code
+          telegramId: telegramUser?.id
+        })
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        console.error('[LoginPage] ❌ Resend OTP error:', text)
+        const errorMsg = parseApiError(text, response.status)
+        
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+        
+        setResendingOtp(false)
+        return
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        console.log('[LoginPage] ✅ OTP resent successfully')
+        
+        // Update the phone code hash with the new one
+        setPhoneCodeHash(data.phoneCodeHash)
+        setInitialSessionString(data.sessionString || data.sessionFile || "")
+
+        // Show success message
+        if (tg) {
+          tg.showAlert('✅ New OTP code sent! Check your Telegram app.')
+        } else {
+          setError('✅ New OTP code sent! Check your Telegram app.')
+          // Clear the success message after 3 seconds
+          setTimeout(() => setError(''), 3000)
+        }
+      } else {
+        const errorMsg = data.error || 'Failed to resend OTP'
+        
+        if (tg) {
+          tg.showAlert(errorMsg)
+        } else {
+          setError(errorMsg)
+        }
+      }
+    } catch (err: any) {
+      console.error('[LoginPage] ❌ Resend OTP network error:', err)
+      const errorMsg = err.message || 'Network error. Please try again.'
+      
+      const tg = (window as any).Telegram?.WebApp
+      if (tg) {
+        tg.showAlert(errorMsg)
+      } else {
+        setError(errorMsg)
+      }
+    } finally {
+      setResendingOtp(false)
+    }
+  }
+
   return (
     <div className="bg-white flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
       {/* Login Form */}
@@ -490,6 +569,15 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
                 {loading ? "Verifying..." : "Verify OTP"}
               </button>
 
+              {/* Resend OTP Button */}
+              <button
+                onClick={handleResendOtp}
+                disabled={resendingOtp || loading}
+                className="w-full text-blue-500 text-[14px] hover:text-blue-600 font-medium mb-2 disabled:opacity-50"
+              >
+                {resendingOtp ? "Sending new code..." : "🔄 Resend OTP"}
+              </button>
+
               {/* Change Phone Number */}
               <button
                 onClick={() => {
@@ -497,7 +585,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
                   setOtp("")
                   setError("")
                 }}
-                className="w-full text-blue-500 text-[14px] hover:text-blue-600 font-normal"
+                className="w-full text-gray-500 text-[14px] hover:text-gray-600 font-normal"
               >
                 Change phone number
               </button>
