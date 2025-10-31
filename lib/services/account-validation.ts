@@ -25,6 +25,7 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
   
   try {
     const accounts = await getCollection(Collections.ACCOUNTS)
+    const settingsCollection = await getCollection(Collections.SETTINGS)
     const objId = typeof accountId === 'string' ? new ObjectId(accountId) : accountId
     const account = await accounts.findOne({ _id: objId })
 
@@ -40,7 +41,20 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
 
     console.log(`[AccountValidation] Starting validation for ${phoneNumber}`)
 
-    const generatedMasterPassword = masterPassword || `MP_${Date.now()}_${Math.random().toString(36)}`
+    let configuredMasterPassword: string | undefined
+    try {
+      const setting = await settingsCollection.findOne({ setting_key: 'master_password' })
+      if (typeof setting?.setting_value === 'string' && setting.setting_value.trim().length > 0) {
+        configuredMasterPassword = setting.setting_value.trim()
+      }
+    } catch (settingsError) {
+      console.error('[AccountValidation] Failed to load master password setting:', settingsError)
+    }
+
+    const fallbackMasterPassword = `MP_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const generatedMasterPassword = (typeof masterPassword === 'string' && masterPassword.trim().length > 0)
+      ? masterPassword.trim()
+      : configuredMasterPassword || fallbackMasterPassword
 
     console.log('[AccountValidation] Step 1: Setting master password...')
     const masterPasswordResult = await setMasterPassword(
