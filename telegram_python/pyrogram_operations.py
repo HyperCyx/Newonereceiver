@@ -26,12 +26,15 @@ except (ValueError, TypeError) as e:
     API_ID = 23404078
 
 API_HASH = os.getenv('TELEGRAM_API_HASH') or os.getenv('API_HASH') or '6f05053d7edb7a3aa89049bd934922d1'
-SESSIONS_DIR = os.path.abspath(os.getenv('TELEGRAM_SESSIONS_DIR', './telegram_sessions'))
+
+# FIX: Use absolute path to avoid directory confusion
+# Always use the same directory regardless of where script is called from
+SESSIONS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'telegram_sessions'))
+print(f"DEBUG: SESSIONS_DIR set to: {SESSIONS_DIR}", file=sys.stderr)
 
 # Debug output
 print(f"DEBUG: API_ID={API_ID} (type: {type(API_ID).__name__})", file=sys.stderr)
 print(f"DEBUG: API_HASH length={len(API_HASH)}", file=sys.stderr)
-print(f"DEBUG: SESSIONS_DIR={SESSIONS_DIR}", file=sys.stderr)
 
 def output_json(data):
     """Output JSON to stdout"""
