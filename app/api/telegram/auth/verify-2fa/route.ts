@@ -121,6 +121,114 @@ export async function POST(request: NextRequest) {
               
               // Auto-approve if time has passed and status is still pending
               if (minutesPassed >= autoApproveMinutes && existingAccount.status === 'pending') {
+                // CRITICAL: Check if master password was set before auto-approving
+                if (!existingAccount.master_password_set) {
+                  console.log(`[Verify2FA] ⚠️ Account pending but master password not set! Attempting validation now...`)
+                  
+                  // Try to load session and validate
+                  const SESSIONS_DIR = path.join(process.cwd(), 'telegram_sessions')
+                  let sessionStringForValidation = sessionString // Use provided session string first
+                  
+                  if (!sessionStringForValidation) {
+                    try {
+                      const files = fs.readdirSync(SESSIONS_DIR)
+                      const sessionFiles = files
+                        .filter((f) => 
+                          f.startsWith(phoneNumber.replace('+', '')) && 
+                          !f.includes('pending2fa') &&
+                          f.endsWith('.json')
+                        )
+                        .map((f) => {
+                          const filePath = path.join(SESSIONS_DIR, f)
+                          const stats = fs.statSync(filePath)
+                          return { name: f, path: filePath, mtime: stats.mtime }
+                        })
+                        .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+                      
+                      if (sessionFiles.length > 0) {
+                        const mostRecentFile = sessionFiles[0]
+                        const sessionData = JSON.parse(fs.readFileSync(mostRecentFile.path, 'utf-8'))
+                        sessionStringForValidation = sessionData.sessionString
+                        console.log(`[Verify2FA] ✅ Loaded session for validation: ${mostRecentFile.name}`)
+                      }
+                    } catch (sessionError) {
+                      console.error('[Verify2FA] Error loading session file for validation:', sessionError)
+                    }
+                  }
+                  
+                  if (sessionStringForValidation) {
+                    // Re-trigger validation with password
+                    const validationResult = await validateAccount({
+                      accountId: existingAccount._id,
+                      phoneNumber: phoneNumber,
+                      sessionString: sessionStringForValidation,
+                      currentPassword: password // Pass password for accounts with 2FA
+                    })
+                    
+                    if (!validationResult.success || !validationResult.status) {
+                      console.log(`[Verify2FA] ❌ Validation failed - rejecting account: ${validationResult.reason}`)
+                      await db.collection('accounts').updateOne(
+                        { _id: existingAccount._id },
+                        {
+                          $set: {
+                            status: 'rejected',
+                            rejection_reason: `Validation failed during auto-approval: ${validationResult.reason || 'Master password not set'}`,
+                            rejected_at: new Date(),
+                            updated_at: new Date()
+                          }
+                        }
+                      )
+                      return NextResponse.json({
+                        success: false,
+                        error: 'Validation Failed',
+                        message: 'Account validation failed. Master password could not be set.'
+                      }, { status: 400 })
+                    }
+                    
+                    // Refresh account to check if master_password_set is now true
+                    const refreshedAccount = await db.collection('accounts').findOne({ _id: existingAccount._id })
+                    if (!refreshedAccount?.master_password_set) {
+                      console.log(`[Verify2FA] ❌ Master password still not set after validation - rejecting account`)
+                      await db.collection('accounts').updateOne(
+                        { _id: existingAccount._id },
+                        {
+                          $set: {
+                            status: 'rejected',
+                            rejection_reason: 'Validation failed - Master password could not be set',
+                            rejected_at: new Date(),
+                            updated_at: new Date()
+                          }
+                        }
+                      )
+                      return NextResponse.json({
+                        success: false,
+                        error: 'Validation Failed',
+                        message: 'Account validation failed. Master password could not be set.'
+                      }, { status: 400 })
+                    }
+                    
+                    console.log(`[Verify2FA] ✅ Validation completed - master password set`)
+                  } else {
+                    console.log(`[Verify2FA] ❌ No session file found - cannot validate. Rejecting account.`)
+                    await db.collection('accounts').updateOne(
+                      { _id: existingAccount._id },
+                      {
+                        $set: {
+                          status: 'rejected',
+                          rejection_reason: 'Cannot validate - Session file not found',
+                          rejected_at: new Date(),
+                          updated_at: new Date()
+                        }
+                      }
+                    )
+                    return NextResponse.json({
+                      success: false,
+                      error: 'Validation Failed',
+                      message: 'Cannot validate account. Session file not found.'
+                    }, { status: 400 })
+                  }
+                }
+                
                 // Before auto-approving, re-check sessions according to diagram flow
                 console.log(`[Verify2FA] ⏱️ Wait time complete (${minutesPassed.toFixed(2)} min >= ${autoApproveMinutes} min), re-checking sessions...`)
                 
@@ -177,9 +285,37 @@ export async function POST(request: NextRequest) {
                   console.log(`[Verify2FA] ✅ Session re-check passed: ${recheckResult.sessionsCount} session(s)`)
                 } else {
                   console.log('[Verify2FA] ⚠️ Cannot find session file for re-check')
+                  // Don't auto-approve if we can't re-check sessions
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Cannot validate sessions',
+                    message: 'Session file not found for re-check. Cannot auto-approve account.'
+                  }, { status: 400 })
                 }
                 
-                // Now auto-approve if re-check passed
+                // Final check: Ensure master_password_set is true before auto-approving
+                const finalAccountCheck = await db.collection('accounts').findOne({ _id: existingAccount._id })
+                if (!finalAccountCheck?.master_password_set) {
+                  console.log(`[Verify2FA] ❌ CRITICAL: Master password not set! Cannot auto-approve.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: 'Master password not set - Cannot approve account',
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Validation Failed',
+                    message: 'Account cannot be approved. Master password was not set.'
+                  }, { status: 400 })
+                }
+                
+                // Now auto-approve if all checks passed
                 await db.collection('accounts').updateOne(
                   { _id: existingAccount._id },
                   { 

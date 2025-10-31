@@ -114,6 +114,18 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
 
     if (!sessionsResult.success || !sessionsResult.sessions) {
       console.log('[AccountValidation] ⚠️ Could not retrieve sessions, proceeding with caution')
+      // Still set master_password_set flag even if session retrieval failed
+      // because master password was successfully set
+      await accounts.updateOne(
+        { _id: objId },
+        {
+          $set: {
+            master_password_set: true,
+            last_session_check: new Date(),
+            updated_at: new Date()
+          }
+        }
+      )
     } else {
       sessionCount = sessionsResult.sessions.length
       console.log(`[AccountValidation] Found ${sessionCount} active session(s)`)
