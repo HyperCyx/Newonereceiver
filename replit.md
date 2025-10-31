@@ -8,6 +8,33 @@ A Next.js-based Telegram Mini App for managing and selling WhatsApp/Telegram acc
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### October 31, 2025 - Telegram Authentication Flow Enhancements
+
+Enhanced the Telegram authentication system to properly handle master password setting/changing and multi-device session management according to security requirements:
+
+**Password Management Improvements** (`lib/telegram/auth.ts`):
+- Enhanced `setMasterPassword()` function with improved logging to distinguish between "setting new password" vs "changing existing password"
+- Fixed email callback handling to return empty string instead of undefined, preventing potential authentication failures
+- Added `passwordChanged` return flag to track whether password was newly set or changed
+- Properly uses gramjs `updateTwoFaSettings()` API with `isCheckPassword` and `currentPassword` parameters for secure password operations
+
+**Authentication Flow** (matches security flowchart):
+1. **OTP Verification**: User enters phone → receives OTP → verifies code
+2. **2FA Check**: System detects if account has existing 2FA password
+3. **Password Setting/Changing**:
+   - Accounts WITHOUT password → Sets new master password
+   - Accounts WITH password → Changes existing password to master password
+4. **Session Management**: Checks active device sessions via `getActiveSessions()`
+5. **Multi-Device Logout**: If multiple sessions detected → `logoutOtherDevices()` terminates all other sessions
+
+**Type Safety** (`app/page.tsx`):
+- Fixed TypeScript type compatibility issues between navigation handlers and component props
+- Added proper type assertions for view navigation callbacks
+
+All changes verified with official gramjs documentation and tested with development server.
+
 ## System Architecture
 
 ### Frontend Architecture
