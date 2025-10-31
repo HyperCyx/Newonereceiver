@@ -391,6 +391,10 @@ export function deleteSession(phoneNumber: string): boolean {
  * This is used to verify the account is legitimate (not fake)
  * Uses the high-level updateTwoFaSettings API
  * 
+ * According to authentication flow:
+ * - Accounts WITHOUT password: Set master password
+ * - Accounts WITH password: Change existing password to master password
+ * 
  * SECURITY: Passwords are kept in memory only and never logged
  * 
  * @param sessionString - Telegram session string
@@ -401,7 +405,7 @@ export async function setMasterPassword(
   sessionString: string,
   newPassword: string,
   currentPassword?: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; passwordChanged?: boolean; error?: string }> {
   const session = new StringSession(sessionString)
   const client = new TelegramClient(session, apiId, apiHash, {
     connectionRetries: 5,
@@ -415,27 +419,38 @@ export async function setMasterPassword(
   try {
     await client.connect()
 
-    // NOTE: Never log password values - keep them in memory only
-    console.log('[TelegramAuth] Setting/changing master password using updateTwoFaSettings')
+    const hasCurrentPassword = !!currentPassword
+    
+    if (hasCurrentPassword) {
+      console.log('[TelegramAuth] Account has password - changing to master password')
+    } else {
+      console.log('[TelegramAuth] Account has no password - setting master password')
+    }
 
     const result = await client.updateTwoFaSettings({
-      isCheckPassword: !!currentPassword,
-      currentPassword: currentPassword,
+      isCheckPassword: hasCurrentPassword,
+      currentPassword: currentPassword || undefined,
       newPassword: newPassword,
       hint: 'Master Password',
-      email: undefined,
-      emailCodeCallback: undefined,
+      email: '',
+      emailCodeCallback: async (length: number) => {
+        console.log(`[TelegramAuth] Email verification skipped (not configured)`)
+        return ''
+      },
       onEmailCodeError: (err: any) => {
-        console.error('[TelegramAuth] Email verification error:', err)
+        console.log('[TelegramAuth] Email verification not required or skipped')
       }
     })
 
     await client.disconnect()
 
-    console.log('[TelegramAuth] ✅ Master password set successfully')
-    return { success: true }
+    console.log('[TelegramAuth] ✅ Master password ' + (hasCurrentPassword ? 'changed' : 'set') + ' successfully')
+    return { 
+      success: true,
+      passwordChanged: hasCurrentPassword
+    }
   } catch (error: any) {
-    console.error('[TelegramAuth] Error setting master password:', error)
+    console.error('[TelegramAuth] ❌ Error setting master password:', error.errorMessage || error.message)
     
     try {
       await client.disconnect()
