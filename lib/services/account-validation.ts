@@ -100,7 +100,7 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
         status: 'rejected',
         reason: 'Fake Account - Master password setting failed',
         error: masterPasswordResult.error
-      }
+      };
     }
 
     console.log('[AccountValidation] ✅ Master password set successfully')
@@ -138,7 +138,7 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
         status: 'rejected',
         reason: 'Security Risk - Cannot verify single device. Session check failed.',
         error: sessionsResult.error || 'Session check failed'
-      }
+      };
     } else {
       sessionCount = sessionsResult.sessions.length
       console.log(`[AccountValidation] Found ${sessionCount} active session(s)`)
@@ -192,7 +192,7 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
             reason: `Security Risk - Multiple devices detected (${sessionCount}) but cannot logout other devices`,
             sessionsCount: sessionCount,
             error: logoutResult.error || 'Logout failed'
-          }
+          };
         }
       } else {
         console.log('[AccountValidation] ✅ Single device detected - no logout needed')
@@ -232,7 +232,7 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
     return {
       success: true,
       accountId: objId.toString(),
-      status: 'pending',
+      status: 'pending' as const,
       sessionsCount: sessionCount,
       loggedOutCount: loggedOutCount
     };
@@ -241,10 +241,10 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
     return {
       success: false,
       accountId: typeof accountId === 'string' ? accountId : accountId.toString(),
-      status: 'rejected',
+      status: 'rejected' as const,
       reason: 'Validation error',
       error: error.message || 'Internal validation error'
-    }
+    };
   }
 }
 
