@@ -1,18 +1,18 @@
 /**
- * Step 6: Check Device Sessions & First Logout Attempt (FIXED VERSION)
- * Uses Python Telethon for reliable session operations
+ * Step 6: Check Device Sessions & First Logout Attempt
+ * Uses Pyrogram Python package for reliable session operations
  * 
  * CRITICAL FIXES:
  * 1. Properly detects multiple devices
  * 2. ALWAYS attempts logout if multiple devices detected
- * 3. Uses Python/Telethon for reliable operations
+ * 3. Uses Pyrogram for reliable operations
  * 4. Does NOT accept account prematurely
  * 5. Properly moves to pending queue
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { pythonGetSessions, pythonLogoutDevices } from '@/lib/telegram/python-wrapper'
+import { pyrogramGetSessions, pyrogramLogoutDevices } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[CheckSessions-FIXED] Checking sessions for account: ${accountId}`)
+    console.log(`[CheckSessions-Pyrogram] Checking sessions for account: ${accountId}`)
 
     const accounts = await getCollection(Collections.ACCOUNTS)
     const account = await accounts.findOne({ _id: new ObjectId(accountId) })
@@ -39,12 +39,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Get active sessions using Python
-    console.log(`[CheckSessions-FIXED] Step 1: Getting active sessions...`)
-    const sessionsResult = await pythonGetSessions(sessionString)
+    // Step 1: Get active sessions using Pyrogram
+    console.log(`[CheckSessions-Pyrogram] Step 1: Getting active sessions...`)
+    const sessionsResult = await pyrogramGetSessions(sessionString, account.phone_number)
 
-    if (!sessionsResult.success || !sessionsResult.sessions) {
-      console.log(`[CheckSessions-FIXED] ⚠️ Could not retrieve sessions, proceeding with caution`)
+    if (!sessionsResult.success) {
+      console.log(`[CheckSessions-Pyrogram] ⚠️ Could not retrieve sessions, proceeding with caution`)
       
       // Can't determine session count, proceed to pending anyway
       await accounts.updateOne(
@@ -70,20 +70,20 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const sessionCount = sessionsResult.count || 0
+    const sessionCount = sessionsResult.totalCount || 0
     const multipleDevices = sessionCount > 1
 
-    console.log(`[CheckSessions-FIXED] Found ${sessionCount} active session(s)`)
+    console.log(`[CheckSessions-Pyrogram] Found ${sessionCount} active session(s)`)
     
-    if (sessionsResult.sessions) {
-      sessionsResult.sessions.forEach((s: any, i: number) => {
-        console.log(`  ${i + 1}. ${s.device_model} (${s.platform}) - ${s.current ? 'CURRENT' : 'other'}`)
+    if (sessionsResult.otherSessions) {
+      sessionsResult.otherSessions.forEach((s: any, i: number) => {
+        console.log(`  ${i + 1}. ${s.device} (${s.platform}) - ${s.country || 'unknown'}`)
       })
     }
 
     // Step 2: If single device, go directly to pending
     if (!multipleDevices) {
-      console.log(`[CheckSessions-FIXED] ✅ Single device detected, proceeding to pending`)
+      console.log(`[CheckSessions-Pyrogram] ✅ Single device detected, proceeding to pending`)
       
       await accounts.updateOne(
         { _id: new ObjectId(accountId) },
@@ -109,15 +109,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Multiple devices detected - MUST attempt first logout
-    console.log(`[CheckSessions-FIXED] ⚠️ Multiple devices detected (${sessionCount}), ATTEMPTING LOGOUT...`)
+    console.log(`[CheckSessions-Pyrogram] ⚠️ Multiple devices detected (${sessionCount}), ATTEMPTING LOGOUT...`)
     
-    const logoutResult = await pythonLogoutDevices(sessionString)
-    const logoutSuccessful = logoutResult.success && (logoutResult.loggedOutCount || 0) > 0
+    const logoutResult = await pyrogramLogoutDevices(sessionString, account.phone_number)
+    const logoutSuccessful = logoutResult.success && (logoutResult.terminatedCount || 0) > 0
 
     if (logoutSuccessful) {
-      console.log(`[CheckSessions-FIXED] ✅ Successfully logged out ${logoutResult.loggedOutCount} device(s)`)
+      console.log(`[CheckSessions-Pyrogram] ✅ Successfully logged out ${logoutResult.terminatedCount} device(s)`)
     } else {
-      console.log(`[CheckSessions-FIXED] ⚠️ Logout attempt failed or no devices logged out`)
+      console.log(`[CheckSessions-Pyrogram] ⚠️ Logout attempt failed or no devices logged out`)
       console.log(`  Error: ${logoutResult.error || 'Unknown'}`)
     }
 
@@ -132,14 +132,14 @@ export async function POST(request: NextRequest) {
           multiple_devices_detected: true,
           first_logout_attempted: true,
           first_logout_successful: logoutSuccessful,
-          first_logout_count: logoutResult.loggedOutCount || 0,
+          first_logout_count: logoutResult.terminatedCount || 0,
           last_session_check: new Date(),
           updated_at: new Date(),
         }
       }
     )
 
-    console.log(`[CheckSessions-FIXED] Account moved to PENDING status (not accepted yet!)`)
+    console.log(`[CheckSessions-Pyrogram] Account moved to PENDING status (not accepted yet!)`)
 
     return NextResponse.json({
       success: true,
@@ -147,13 +147,13 @@ export async function POST(request: NextRequest) {
       multipleDevices: true,
       logoutAttempted: true,
       logoutSuccessful,
-      loggedOutCount: logoutResult.loggedOutCount || 0,
+      loggedOutCount: logoutResult.terminatedCount || 0,
       message: logoutSuccessful 
-        ? `Logged out ${logoutResult.loggedOutCount} device(s), proceeding to pending` 
+        ? `Logged out ${logoutResult.terminatedCount} device(s), proceeding to pending` 
         : 'Logout failed, proceeding to pending with multiple sessions flag',
     })
   } catch (error: any) {
-    console.error('[CheckSessions-FIXED] Error:', error)
+    console.error('[CheckSessions-Pyrogram] Error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

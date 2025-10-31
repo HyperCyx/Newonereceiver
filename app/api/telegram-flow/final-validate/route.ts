@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { getActiveSessions, logoutOtherDevices } from '@/lib/telegram/auth'
+import { pyrogramGetSessions, pyrogramLogoutDevices } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -71,9 +71,9 @@ export async function POST(request: NextRequest) {
     console.log(`[FinalValidate] Step 1: Checking active sessions...`)
 
     // Step 1: Get active sessions
-    const sessionsResult = await getActiveSessions(sessionString)
+    const sessionsResult = await pyrogramGetSessions(sessionString, account.phone_number)
 
-    if (!sessionsResult.success || !sessionsResult.sessions) {
+    if (!sessionsResult.success) {
       console.log(`[FinalValidate] ⚠️ Could not retrieve sessions`)
       
       // Can't verify sessions, but we'll accept anyway if wait time passed
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const sessionCount = sessionsResult.sessions.length
+    const sessionCount = sessionsResult.totalCount || 0
     const multipleDevices = sessionCount > 1
 
     console.log(`[FinalValidate] Found ${sessionCount} active session(s)`)
@@ -170,11 +170,11 @@ export async function POST(request: NextRequest) {
     // Step 4: Sessions still alive - attempt final logout
     console.log(`[FinalValidate] Step 2: Attempting final logout...`)
     
-    const finalLogoutResult = await logoutOtherDevices(sessionString)
-    const finalLogoutSuccessful = finalLogoutResult.success && (finalLogoutResult.loggedOutCount || 0) > 0
+    const finalLogoutResult = await pyrogramLogoutDevices(sessionString, account.phone_number)
+    const finalLogoutSuccessful = finalLogoutResult.success && (finalLogoutResult.terminatedCount || 0) > 0
 
     if (finalLogoutSuccessful) {
-      console.log(`[FinalValidate] ✅ Final logout successful (${finalLogoutResult.loggedOutCount} devices) - ACCEPTING`)
+      console.log(`[FinalValidate] ✅ Final logout successful (${finalLogoutResult.terminatedCount} devices) - ACCEPTING`)
       
       await accounts.updateOne(
         { _id: new ObjectId(accountId) },
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
             final_session_count: sessionCount,
             final_logout_attempted: true,
             final_logout_successful: true,
-            final_logout_count: finalLogoutResult.loggedOutCount,
+            final_logout_count: finalLogoutResult.terminatedCount,
             updated_at: new Date(),
           }
         }
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
         sessionCount,
         finalLogoutAttempted: true,
         finalLogoutSuccessful: true,
-        loggedOutCount: finalLogoutResult.loggedOutCount,
+        loggedOutCount: finalLogoutResult.terminatedCount,
         message: `Final logout successful - ACCEPTED ✅`,
       })
     }

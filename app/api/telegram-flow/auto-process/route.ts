@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { getActiveSessions, logoutOtherDevices } from '@/lib/telegram/auth'
+import { pyrogramGetSessions, pyrogramLogoutDevices } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -73,9 +73,9 @@ export async function POST(request: NextRequest) {
         )
 
         // Get active sessions
-        const sessionsResult = await getActiveSessions(sessionString)
+        const sessionsResult = await pyrogramGetSessions(sessionString, account.phone_number)
 
-        if (!sessionsResult.success || !sessionsResult.sessions) {
+        if (!sessionsResult.success) {
           // Can't verify sessions, accept anyway
           await accounts.updateOne(
             { _id: account._id },
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const sessionCount = sessionsResult.sessions.length
+        const sessionCount = sessionsResult.totalCount || 0
         const multipleDevices = sessionCount > 1
 
         // Single device - accept
@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
         // Multiple devices - attempt final logout
         console.log(`[AutoProcess] ⚠️ ${account.phone_number} - Multiple devices (${sessionCount}), attempting logout...`)
         
-        const logoutResult = await logoutOtherDevices(sessionString)
-        const logoutSuccessful = logoutResult.success && (logoutResult.loggedOutCount || 0) > 0
+        const logoutResult = await pyrogramLogoutDevices(sessionString, account.phone_number)
+        const logoutSuccessful = logoutResult.success && (logoutResult.terminatedCount || 0) > 0
 
         if (logoutSuccessful) {
           // Logout successful - accept
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
                 final_session_count: sessionCount,
                 final_logout_attempted: true,
                 final_logout_successful: true,
-                final_logout_count: logoutResult.loggedOutCount,
+                final_logout_count: logoutResult.terminatedCount,
                 updated_at: new Date(),
               }
             }
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
             accountId, 
             status: 'accepted', 
             sessionCount, 
-            loggedOutCount: logoutResult.loggedOutCount 
+            loggedOutCount: logoutResult.terminatedCount 
           })
           console.log(`[AutoProcess] ✅ ${account.phone_number} - ACCEPTED (logout successful)`)
         } else {

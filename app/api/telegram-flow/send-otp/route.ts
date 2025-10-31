@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { sendOTP } from '@/lib/telegram/auth'
+import { pyrogramSendOTP } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[SendOTP] Sending OTP to: ${phoneNumber}`)
 
-    // Send OTP via Telegram
-    const otpResult = await sendOTP(phoneNumber)
+    // Send OTP via Pyrogram
+    const otpResult = await pyrogramSendOTP(phoneNumber)
 
     if (!otpResult.success) {
       console.log(`[SendOTP] ❌ Failed to send OTP: ${otpResult.error}`)

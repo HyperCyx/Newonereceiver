@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { verify2FA } from '@/lib/telegram/auth'
+import { pyrogramVerify2FA } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify 2FA password via Telegram
-    const verify2FAResult = await verify2FA(phoneNumber, sessionString, password)
+    // Verify 2FA password via Pyrogram
+    const verify2FAResult = await pyrogramVerify2FA(sessionString, phoneNumber, password)
 
     if (!verify2FAResult.success) {
       console.log(`[Verify2FA] ❌ Invalid 2FA password: ${verify2FAResult.error}`)

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { verifyOTP } from '@/lib/telegram/auth'
+import { pyrogramVerifyOTP } from '@/lib/telegram/python-wrapper'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -32,17 +32,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify OTP via Telegram
-    const verifyResult = await verifyOTP(
+    // Verify OTP via Pyrogram
+    const verifyResult = await pyrogramVerifyOTP(
+      sessionString,
       phoneNumber,
-      phoneCodeHash,
       otpCode,
-      sessionString
+      phoneCodeHash
     )
 
     if (!verifyResult.success) {
       // Check if 2FA is required
-      if (verifyResult.requires2FA) {
+      if (verifyResult.needs2FA) {
         console.log(`[VerifyOTP] ⚠️ 2FA required for this account`)
         
         // Update account status
