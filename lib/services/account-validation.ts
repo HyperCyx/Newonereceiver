@@ -139,13 +139,12 @@ export async function validateAccount(params: ValidationParams): Promise<Validat
         reason: 'Security Risk - Cannot verify single device. Session check failed.',
         error: sessionsResult.error || 'Session check failed'
       }
-    }
-    
-    sessionCount = sessionsResult.sessions.length
-    console.log(`[AccountValidation] Found ${sessionCount} active session(s)`)
+    } else {
+      sessionCount = sessionsResult.sessions.length
+      console.log(`[AccountValidation] Found ${sessionCount} active session(s)`)
 
-    // Step 5: If multiple devices, logout all other devices
-    if (sessionCount > 1) {
+      // Step 5: If multiple devices, logout all other devices
+      if (sessionCount > 1) {
         console.log('[AccountValidation] Step 5: Multiple devices detected, logging out others...')
         
         const logoutResult = await logoutOtherDevices(sessionString)
