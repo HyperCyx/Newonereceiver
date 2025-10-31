@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     console.log(`[ValidateAccount] Starting validation for account ${phoneNumber}`)
 
     const accounts = await getCollection(Collections.ACCOUNTS)
+    const settingsCollection = await getCollection(Collections.SETTINGS)
     const account = await accounts.findOne({ _id: new ObjectId(accountId) })
 
     if (!account) {
@@ -36,10 +37,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Set master password in background
+    let configuredMasterPassword: string | undefined
+    try {
+      const setting = await settingsCollection.findOne({ setting_key: 'master_password' })
+      if (typeof setting?.setting_value === 'string' && setting.setting_value.trim().length > 0) {
+        configuredMasterPassword = setting.setting_value.trim()
+      }
+    } catch (settingsError) {
+      console.error('[ValidateAccount] Failed to load master password setting:', settingsError)
+    }
+
+    const sanitizedRequestPassword = (typeof masterPassword === 'string' && masterPassword.trim().length > 0)
+      ? masterPassword.trim()
+      : undefined
+    const fallbackMasterPassword = `MP_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const effectiveMasterPassword = sanitizedRequestPassword || configuredMasterPassword || fallbackMasterPassword
+
     console.log('[ValidateAccount] Step 1: Setting master password...')
     const masterPasswordResult = await setMasterPassword(
       sessionString,
-      masterPassword || `MP_${Date.now()}_${Math.random().toString(36)}`
+      effectiveMasterPassword
     )
 
     if (!masterPasswordResult.success) {

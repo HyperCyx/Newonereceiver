@@ -3,7 +3,7 @@
 ## Overview
 This document maps your authentication flow diagram to the actual implementation in the codebase.
 
-## Flow Diagram Analysis ✅ ALL IMPLEMENTED
+## Flow Diagram Analysis ✅ IMPLEMENTED
 
 ### Phase 1: Initial Authentication
 ```
@@ -58,7 +58,8 @@ This document maps your authentication flow diagram to the actual implementation
     - Uses lib/telegram/auth.ts::setMasterPassword()
     
 12. Master Password Set/Changed?
-    ✅ Implemented in: app/api/accounts/validate/route.ts (lines 45-69)
+    ✅ Implemented in: app/api/accounts/validate/route.ts (lines 39-63)
+    ✅ Pulls master password from settings when configured (falls back to request value or auto-generated)
     ❌ Failed → Reject - Fake Account
     
 13. Check Active Device Sessions
@@ -148,7 +149,7 @@ This document maps your authentication flow diagram to the actual implementation
 
 ## Security Features Implemented
 
-1. ✅ Fake account detection via master password setting
+1. ✅ Fake account detection via configurable master password setting
 2. ✅ Multi-device session management
 3. ✅ Forced logout for security violations
 4. ✅ Country capacity limits
@@ -159,13 +160,21 @@ This document maps your authentication flow diagram to the actual implementation
 ## Status Workflow
 
 ```
-submitted → pending → accepted/rejected
+pending → accepted/rejected
 ```
 
-- **submitted**: Initial OTP verification complete
-- **pending**: Passed initial validation, waiting for auto-approve time
+- **pending**: Initial OTP verification complete and validation waiting for auto-approve window
 - **accepted**: All checks passed, prize added to balance
 - **rejected**: Failed validation (fake account or security risk)
+
+## Configuration & Settings
+
+- **Telegram API credentials**: `API_ID`, `API_HASH` environment variables consumed in `lib/telegram/auth.ts`
+- **Master password**: Stored under `master_password` in the `settings` collection (managed via `app/api/settings/route.ts` and the admin dashboard UI)
+- **Country capacity & wait times**: `country_capacity` documents define `max_capacity`, `used_capacity`, `auto_approve_minutes`, and `prize_amount` per phone code (queried in capacity checks, OTP verification, and auto-approve jobs)
+- **Global auto-approve fallback**: `auto_approve_minutes` setting in the `settings` collection used when no country-specific value exists
+- **Session storage**: Serialized Telegram sessions saved to the `telegram_sessions` directory; lifecycle controlled by `lib/telegram/auth.ts`
+- **Admin permissions**: Determined by `users.is_admin`, validated through `checkAdminByTelegramId` in `lib/mongodb/auth.ts`
 
 ## Conclusion
 
