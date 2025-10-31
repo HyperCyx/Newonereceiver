@@ -1,5 +1,5 @@
 """
-Pyrogram-based Telegram operations for account management
+Pyrogram-based Telegram operations - REBUILT FROM SCRATCH
 All functions output JSON for Node.js integration
 """
 import sys
@@ -17,14 +17,15 @@ from pyrogram.errors import (
     RPCError
 )
 
-# API credentials from environment
-API_ID = os.getenv('TELEGRAM_API_ID')
-API_HASH = os.getenv('TELEGRAM_API_HASH')
-SESSIONS_DIR = os.getenv('TELEGRAM_SESSIONS_DIR', './telegram_sessions')
+# Get API credentials from environment
+API_ID = int(os.getenv('TELEGRAM_API_ID', '0'))
+API_HASH = os.getenv('TELEGRAM_API_HASH', '')
+SESSIONS_DIR = './telegram_sessions'
 
 def output_json(data):
     """Output JSON to stdout"""
     print(json.dumps(data, ensure_ascii=False))
+    sys.stdout.flush()
 
 def output_error(error_message, details=None):
     """Output error as JSON"""
@@ -39,18 +40,22 @@ def output_error(error_message, details=None):
 async def send_otp(phone_number):
     """
     Send OTP to phone number and save session
-    Returns: {success, phone_code_hash, session_string}
     """
     try:
-        session_name = f"session_{phone_number.replace('+', '')}"
-        session_path = os.path.join(SESSIONS_DIR, f"{phone_number.replace('+', '')}.session")
+        # Ensure sessions directory exists
+        os.makedirs(SESSIONS_DIR, exist_ok=True)
         
+        # Create session file path
+        clean_phone = phone_number.replace('+', '')
+        session_file = os.path.join(SESSIONS_DIR, f"{clean_phone}")
+        
+        # Create Pyrogram client
         client = Client(
-            session_name,
+            name=session_file,
             api_id=API_ID,
             api_hash=API_HASH,
             phone_number=phone_number,
-            workdir=SESSIONS_DIR
+            in_memory=False  # Save to file
         )
         
         await client.connect()
@@ -63,37 +68,37 @@ async def send_otp(phone_number):
         
         await client.disconnect()
         
-        # Save session string to file
-        os.makedirs(SESSIONS_DIR, exist_ok=True)
-        with open(session_path, 'w') as f:
+        # Save session string to .session file
+        session_output_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
+        with open(session_output_path, 'w') as f:
             f.write(session_string)
         
         output_json({
             'success': True,
             'phone_code_hash': sent_code.phone_code_hash,
             'session_string': session_string,
-            'session_file': f"{phone_number.replace('+', '')}.session"
+            'session_file': f"{clean_phone}.session"
         })
         
     except FloodWait as e:
-        output_error(f'FLOOD_WAIT', {'wait_seconds': e.value})
+        output_error('FLOOD_WAIT', {'wait_seconds': e.value})
     except Exception as e:
-        output_error(f'SEND_OTP_ERROR', {'message': str(e)})
+        output_error('SEND_OTP_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def verify_otp(session_string, phone_number, code, phone_code_hash):
     """
     Verify OTP code
-    Returns: {success, needs_2fa, user_id, session_string}
     """
     try:
-        session_name = f"temp_verify_{phone_number.replace('+', '')}"
+        clean_phone = phone_number.replace('+', '')
+        session_name = os.path.join(SESSIONS_DIR, f"verify_{clean_phone}")
         
         client = Client(
-            session_name,
+            name=session_name,
             api_id=API_ID,
             api_hash=API_HASH,
             session_string=session_string,
-            workdir=SESSIONS_DIR
+            in_memory=True
         )
         
         await client.connect()
@@ -111,7 +116,7 @@ async def verify_otp(session_string, phone_number, code, phone_code_hash):
             await client.disconnect()
             
             # Save updated session
-            session_path = os.path.join(SESSIONS_DIR, f"{phone_number.replace('+', '')}.session")
+            session_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
             with open(session_path, 'w') as f:
                 f.write(new_session_string)
             
@@ -129,7 +134,7 @@ async def verify_otp(session_string, phone_number, code, phone_code_hash):
             await client.disconnect()
             
             # Save session even though 2FA needed
-            session_path = os.path.join(SESSIONS_DIR, f"{phone_number.replace('+', '')}.session")
+            session_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
             with open(session_path, 'w') as f:
                 f.write(new_session_string)
             
@@ -144,22 +149,22 @@ async def verify_otp(session_string, phone_number, code, phone_code_hash):
     except PhoneCodeExpired:
         output_error('PHONE_CODE_EXPIRED')
     except Exception as e:
-        output_error('VERIFY_OTP_ERROR', {'message': str(e)})
+        output_error('VERIFY_OTP_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def verify_2fa(session_string, phone_number, password):
     """
     Verify 2FA password
-    Returns: {success, user_id, session_string}
     """
     try:
-        session_name = f"temp_2fa_{phone_number.replace('+', '')}"
+        clean_phone = phone_number.replace('+', '')
+        session_name = os.path.join(SESSIONS_DIR, f"2fa_{clean_phone}")
         
         client = Client(
-            session_name,
+            name=session_name,
             api_id=API_ID,
             api_hash=API_HASH,
             session_string=session_string,
-            workdir=SESSIONS_DIR
+            in_memory=True
         )
         
         await client.connect()
@@ -176,7 +181,7 @@ async def verify_2fa(session_string, phone_number, password):
         await client.disconnect()
         
         # Save updated session
-        session_path = os.path.join(SESSIONS_DIR, f"{phone_number.replace('+', '')}.session")
+        session_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
         with open(session_path, 'w') as f:
             f.write(new_session_string)
         
@@ -189,45 +194,35 @@ async def verify_2fa(session_string, phone_number, password):
     except PasswordHashInvalid:
         output_error('PASSWORD_HASH_INVALID')
     except Exception as e:
-        output_error('VERIFY_2FA_ERROR', {'message': str(e)})
+        output_error('VERIFY_2FA_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def set_password(session_string, phone_number, new_password, current_password=None):
     """
     Set or change cloud password (2FA)
-    Returns: {success, has_password}
     """
     try:
-        session_name = f"temp_setpass_{phone_number.replace('+', '')}"
+        clean_phone = phone_number.replace('+', '')
+        session_name = os.path.join(SESSIONS_DIR, f"setpass_{clean_phone}")
         
         client = Client(
-            session_name,
+            name=session_name,
             api_id=API_ID,
             api_hash=API_HASH,
             session_string=session_string,
-            workdir=SESSIONS_DIR
+            in_memory=True
         )
         
         await client.connect()
         
-        # Try to determine if password exists by attempting to get password state
-        has_existing_password = False
-        try:
-            # If current_password is provided, assume password exists
-            if current_password:
-                has_existing_password = True
-        except Exception as e:
-            pass
+        # Determine if password exists
+        has_existing_password = bool(current_password)
         
-        if has_existing_password and current_password:
+        if has_existing_password:
             # Change existing password
             await client.change_cloud_password(current_password, new_password)
-        elif not has_existing_password:
+        else:
             # Enable new password
             await client.enable_cloud_password(new_password, hint="Master Password")
-        else:
-            output_error('CURRENT_PASSWORD_REQUIRED')
-            await client.disconnect()
-            return
         
         # Export updated session
         new_session_string = await client.export_session_string()
@@ -235,7 +230,7 @@ async def set_password(session_string, phone_number, new_password, current_passw
         await client.disconnect()
         
         # Save updated session
-        session_path = os.path.join(SESSIONS_DIR, f"{phone_number.replace('+', '')}.session")
+        session_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
         with open(session_path, 'w') as f:
             f.write(new_session_string)
         
@@ -248,22 +243,22 @@ async def set_password(session_string, phone_number, new_password, current_passw
     except PasswordHashInvalid:
         output_error('PASSWORD_HASH_INVALID')
     except Exception as e:
-        output_error('SET_PASSWORD_ERROR', {'message': str(e)})
+        output_error('SET_PASSWORD_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def get_sessions(session_string, phone_number):
     """
     Get active sessions
-    Returns: {success, current_session, other_sessions, total_count}
     """
     try:
-        session_name = f"temp_sessions_{phone_number.replace('+', '')}"
+        clean_phone = phone_number.replace('+', '')
+        session_name = os.path.join(SESSIONS_DIR, f"sessions_{clean_phone}")
         
         client = Client(
-            session_name,
+            name=session_name,
             api_id=API_ID,
             api_hash=API_HASH,
             session_string=session_string,
-            workdir=SESSIONS_DIR
+            in_memory=True
         )
         
         await client.connect()
@@ -276,14 +271,14 @@ async def get_sessions(session_string, phone_number):
         
         for auth in authorizations:
             session_info = {
-                'hash': auth.hash,
+                'hash': str(auth.hash),
                 'device': auth.device_model,
                 'platform': auth.platform,
                 'api_id': auth.api_id,
                 'app_name': auth.app_name,
                 'app_version': auth.app_version,
-                'date_created': auth.date_created.isoformat() if hasattr(auth.date_created, 'isoformat') else str(auth.date_created),
-                'date_active': auth.date_active.isoformat() if hasattr(auth.date_active, 'isoformat') else str(auth.date_active),
+                'date_created': str(auth.date_created),
+                'date_active': str(auth.date_active),
                 'ip': auth.ip,
                 'country': auth.country,
                 'region': auth.region
@@ -304,22 +299,22 @@ async def get_sessions(session_string, phone_number):
         })
         
     except Exception as e:
-        output_error('GET_SESSIONS_ERROR', {'message': str(e)})
+        output_error('GET_SESSIONS_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def logout_devices(session_string, phone_number):
     """
     Logout all other devices
-    Returns: {success, terminated_count}
     """
     try:
-        session_name = f"temp_logout_{phone_number.replace('+', '')}"
+        clean_phone = phone_number.replace('+', '')
+        session_name = os.path.join(SESSIONS_DIR, f"logout_{clean_phone}")
         
         client = Client(
-            session_name,
+            name=session_name,
             api_id=API_ID,
             api_hash=API_HASH,
             session_string=session_string,
-            workdir=SESSIONS_DIR
+            in_memory=True
         )
         
         await client.connect()
@@ -348,7 +343,7 @@ async def logout_devices(session_string, phone_number):
         })
         
     except Exception as e:
-        output_error('LOGOUT_DEVICES_ERROR', {'message': str(e)})
+        output_error('LOGOUT_DEVICES_ERROR', {'message': str(e), 'type': type(e).__name__})
 
 async def main():
     """Main entry point"""
@@ -357,6 +352,15 @@ async def main():
         return
     
     operation = sys.argv[1]
+    
+    # Validate API credentials
+    if not API_ID or API_ID == 0:
+        output_error('MISSING_API_ID', {'message': 'TELEGRAM_API_ID environment variable not set'})
+        return
+    
+    if not API_HASH:
+        output_error('MISSING_API_HASH', {'message': 'TELEGRAM_API_HASH environment variable not set'})
+        return
     
     try:
         if operation == 'send_otp':
@@ -415,7 +419,7 @@ async def main():
             output_error('UNKNOWN_OPERATION', {'message': f'Unknown operation: {operation}'})
             
     except Exception as e:
-        output_error('OPERATION_ERROR', {'message': str(e), 'operation': operation})
+        output_error('OPERATION_ERROR', {'message': str(e), 'operation': operation, 'type': type(e).__name__})
 
 if __name__ == '__main__':
     asyncio.run(main())
