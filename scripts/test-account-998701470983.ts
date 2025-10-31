@@ -39,23 +39,20 @@ async function testAccount() {
     console.log('\n2️⃣  Loading Telegram session from file...')
     const sessionDir = path.join(process.cwd(), 'telegram_sessions')
     const files = fs.readdirSync(sessionDir)
-    const sessionFile = files.find(f => f.startsWith('998701470983'))
+    const sessionFile = files.find(f => f.startsWith('998701470983') && f.endsWith('.session'))
     
     if (!sessionFile) {
       console.log('❌ No session file found')
       return
     }
 
-    const sessionData = JSON.parse(
-      fs.readFileSync(path.join(sessionDir, sessionFile), 'utf-8')
-    )
+    const sessionString = fs.readFileSync(path.join(sessionDir, sessionFile), 'utf-8')
     console.log('✅ Session file found:', sessionFile)
-    console.log('   - User ID:', sessionData.userId)
-    console.log('   - Created:', sessionData.createdAt)
+    console.log('   - Session string length:', sessionString.length)
 
     // 3. Test getting active sessions
     console.log('\n3️⃣  Testing getActiveSessions()...')
-    const sessionsResult = await getActiveSessions(sessionData.sessionString)
+    const sessionsResult = await getActiveSessions(sessionString)
     
     if (sessionsResult.success) {
       console.log('✅ Sessions retrieved:', sessionsResult.sessions?.length || 0)
@@ -87,7 +84,7 @@ async function testAccount() {
     // Since account already has password, we need current password
     // But we can test without it to see what error we get
     const passwordResult = await setMasterPassword(
-      sessionData.sessionString,
+      sessionString,
       testPassword,
       undefined // No current password provided
     )

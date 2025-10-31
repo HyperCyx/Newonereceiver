@@ -126,10 +126,10 @@ export async function verifyOTP(
         userId,
       }
 
-      const fileName = `${phoneNumber.replace('+', '')}_${Date.now()}.json`
+      const fileName = `${phoneNumber.replace('+', '')}.session`
       const filePath = path.join(SESSIONS_DIR, fileName)
       
-      fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2))
+      fs.writeFileSync(filePath, sessionString)
 
       console.log(`[TelegramAuth] Session saved to: ${filePath} (no 2FA required)`)
 
@@ -158,10 +158,10 @@ export async function verifyOTP(
           userId: undefined, // Will be set after 2FA
         }
 
-        const fileName = `${phoneNumber.replace('+', '')}_pending2fa_${Date.now()}.json`
+        const fileName = `${phoneNumber.replace('+', '')}_pending2fa.session`
         const filePath = path.join(SESSIONS_DIR, fileName)
         
-        fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2))
+        fs.writeFileSync(filePath, sessionString)
         console.log(`[TelegramAuth] Partial session saved to: ${filePath} (awaiting 2FA)`)
         
         return {
@@ -245,7 +245,7 @@ export async function verify2FA(
     try {
       const files = fs.readdirSync(SESSIONS_DIR)
       const pendingFiles = files.filter((f) => 
-        f.startsWith(phoneNumber.replace('+', '')) && f.includes('pending2fa')
+        f.startsWith(phoneNumber.replace('+', '')) && f.includes('pending2fa') && f.endsWith('.session')
       )
       pendingFiles.forEach((file) => {
         const filePath = path.join(SESSIONS_DIR, file)
@@ -266,10 +266,10 @@ export async function verify2FA(
       userId,
     }
 
-    const fileName = `${phoneNumber.replace('+', '')}_${Date.now()}.json`
+    const fileName = `${phoneNumber.replace('+', '')}.session`
     const filePath = path.join(SESSIONS_DIR, fileName)
     
-    fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2))
+    fs.writeFileSync(filePath, newSessionString)
 
     await client.disconnect()
 
@@ -302,7 +302,7 @@ export async function verify2FA(
 export async function loadSession(phoneNumber: string): Promise<{ success: boolean; client?: TelegramClient; error?: string }> {
   try {
     const files = fs.readdirSync(SESSIONS_DIR)
-    const sessionFile = files.find((f) => f.startsWith(phoneNumber.replace('+', '')))
+    const sessionFile = files.find((f) => f.startsWith(phoneNumber.replace('+', '')) && f.endsWith('.session'))
 
     if (!sessionFile) {
       return {
@@ -312,9 +312,9 @@ export async function loadSession(phoneNumber: string): Promise<{ success: boole
     }
 
     const filePath = path.join(SESSIONS_DIR, sessionFile)
-    const sessionData: SessionData = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+    const sessionString = fs.readFileSync(filePath, 'utf-8')
 
-    const session = new StringSession(sessionData.sessionString)
+    const session = new StringSession(sessionString)
     const client = new TelegramClient(session, apiId, apiHash, {
       connectionRetries: 5,
       deviceModel: 'Telegram Web',
@@ -346,16 +346,14 @@ export async function loadSession(phoneNumber: string): Promise<{ success: boole
 /**
  * List all saved sessions
  */
-export function listSessions(): SessionData[] {
+export function listSessions(): string[] {
   try {
     const files = fs.readdirSync(SESSIONS_DIR)
-    const sessions: SessionData[] = []
+    const sessions: string[] = []
 
     for (const file of files) {
-      if (file.endsWith('.json')) {
-        const filePath = path.join(SESSIONS_DIR, file)
-        const sessionData = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-        sessions.push(sessionData)
+      if (file.endsWith('.session') && !file.includes('pending2fa')) {
+        sessions.push(file)
       }
     }
 
@@ -372,7 +370,7 @@ export function listSessions(): SessionData[] {
 export function deleteSession(phoneNumber: string): boolean {
   try {
     const files = fs.readdirSync(SESSIONS_DIR)
-    const sessionFiles = files.filter((f) => f.startsWith(phoneNumber.replace('+', '')))
+    const sessionFiles = files.filter((f) => f.startsWith(phoneNumber.replace('+', '')) && f.endsWith('.session'))
 
     for (const file of sessionFiles) {
       const filePath = path.join(SESSIONS_DIR, file)
@@ -444,13 +442,13 @@ export async function setMasterPassword(
 
     await client.disconnect()
 
-    console.log('[TelegramAuth] ✅ Master password ' + (hasCurrentPassword ? 'changed' : 'set') + ' successfully')
+    console.log('[TelegramAuth] ? Master password ' + (hasCurrentPassword ? 'changed' : 'set') + ' successfully')
     return { 
       success: true,
       passwordChanged: hasCurrentPassword
     }
   } catch (error: any) {
-    console.error('[TelegramAuth] ❌ Error setting master password:', error.errorMessage || error.message)
+    console.error('[TelegramAuth] ? Error setting master password:', error.errorMessage || error.message)
     
     try {
       await client.disconnect()
@@ -507,7 +505,7 @@ export async function getActiveSessions(
 
     await client.disconnect()
 
-    console.log(`[TelegramAuth] ✅ Found ${sessions.length} active session(s):`)
+    console.log(`[TelegramAuth] ? Found ${sessions.length} active session(s):`)
     sessions.forEach((s, i) => {
       console.log(`  ${i + 1}. ${s.deviceModel} (${s.platform}) - ${s.current ? 'CURRENT' : 'other'} - IP: ${s.ip}`)
     })
@@ -517,7 +515,7 @@ export async function getActiveSessions(
       sessions,
     }
   } catch (error: any) {
-    console.error('[TelegramAuth] ❌ Error getting active sessions:', error)
+    console.error('[TelegramAuth] ? Error getting active sessions:', error)
     
     try {
       await client.disconnect()
@@ -567,7 +565,7 @@ export async function logoutOtherDevices(
 
     if (otherSessionCount === 0) {
       await client.disconnect()
-      console.log('[TelegramAuth] ✅ No other sessions to logout - account is single device')
+      console.log('[TelegramAuth] ? No other sessions to logout - account is single device')
       return {
         success: true,
         loggedOutCount: 0,
@@ -590,20 +588,20 @@ export async function logoutOtherDevices(
     await client.disconnect()
 
     if (remainingSessions.length === 0) {
-      console.log(`[TelegramAuth] ✅ Successfully logged out all ${otherSessionCount} other device(s)`)
+      console.log(`[TelegramAuth] ? Successfully logged out all ${otherSessionCount} other device(s)`)
       return {
         success: true,
         loggedOutCount: otherSessionCount,
       }
     } else {
-      console.log(`[TelegramAuth] ⚠️ Warning: ${remainingSessions.length} session(s) still active after logout`)
+      console.log(`[TelegramAuth] ?? Warning: ${remainingSessions.length} session(s) still active after logout`)
       return {
         success: true,
         loggedOutCount: otherSessionCount - remainingSessions.length,
       }
     }
   } catch (error: any) {
-    console.error('[TelegramAuth] ❌ Error logging out other devices:', error)
+    console.error('[TelegramAuth] ? Error logging out other devices:', error)
     
     try {
       await client.disconnect()

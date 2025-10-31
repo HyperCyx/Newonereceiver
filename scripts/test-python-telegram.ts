@@ -13,17 +13,14 @@ async function testPythonOperations() {
     // Load session
     const sessionDir = path.join(process.cwd(), 'telegram_sessions')
     const files = fs.readdirSync(sessionDir)
-    const sessionFile = files.find(f => f.startsWith('998701470983'))
+    const sessionFile = files.find(f => f.startsWith('998701470983') && f.endsWith('.session'))
     
     if (!sessionFile) {
       console.log('❌ No session file found')
       return
     }
 
-    const sessionData = JSON.parse(
-      fs.readFileSync(path.join(sessionDir, sessionFile), 'utf-8')
-    )
-    const sessionString = sessionData.sessionString
+    const sessionString = fs.readFileSync(path.join(sessionDir, sessionFile), 'utf-8')
 
     console.log(`✅ Session loaded: ${sessionFile}\n`)
 
