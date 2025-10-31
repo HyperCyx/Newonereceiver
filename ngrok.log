@@ -1,19 +1,52 @@
-t=2025-10-29T06:18:10+0000 lvl=info msg="no configuration paths supplied"
-t=2025-10-29T06:18:10+0000 lvl=info msg="using configuration at default config path" path=/home/ubuntu/.config/ngrok/ngrok.yml
-t=2025-10-29T06:18:10+0000 lvl=info msg="open config file" path=/home/ubuntu/.config/ngrok/ngrok.yml err=nil
-t=2025-10-29T06:18:10+0000 lvl=warn msg="can't bind default web address, trying alternatives" obj=web addr=127.0.0.1:4040
-t=2025-10-29T06:18:10+0000 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4041 allow_hosts=[]
-t=2025-10-29T06:18:10+0000 lvl=info msg="client session established" obj=tunnels.session
-t=2025-10-29T06:18:10+0000 lvl=info msg="tunnel session started" obj=tunnels.session
-t=2025-10-29T06:18:10+0000 lvl=eror msg="session closing" obj=tunnels.session err="failed to start tunnel: The endpoint 'https://villiform-parker-perfunctorily.ngrok-free.dev' is already online. Either\n1. stop your existing endpoint first, or\n2. start both endpoints with `--pooling-enabled` to load balance between them.\r\n\r\nERR_NGROK_334\r\n"
-t=2025-10-29T06:18:10+0000 lvl=info msg="received stop request" obj=app stopReq="{err:{Inner:{Inner:0xc00027cc90}} restart:false}"
-t=2025-10-29T06:18:10+0000 lvl=eror msg="terminating with error" obj=app err="failed to start tunnel: The endpoint 'https://villiform-parker-perfunctorily.ngrok-free.dev' is already online. Either\n1. stop your existing endpoint first, or\n2. start both endpoints with `--pooling-enabled` to load balance between them.\r\n\r\nERR_NGROK_334\r\n"
-t=2025-10-29T06:18:10+0000 lvl=info msg="accept failed" obj=tunnels.session obj=csess id=ac074b541fcf err="reconnecting session closed"
-t=2025-10-29T06:18:10+0000 lvl=crit msg="command failed" err="failed to start tunnel: The endpoint 'https://villiform-parker-perfunctorily.ngrok-free.dev' is already online. Either\n1. stop your existing endpoint first, or\n2. start both endpoints with `--pooling-enabled` to load balance between them.\r\n\r\nERR_NGROK_334\r\n"
-ERROR:  failed to start tunnel: The endpoint 'https://villiform-parker-perfunctorily.ngrok-free.dev' is already online. Either
-ERROR:  1. stop your existing endpoint first, or
-ERROR:  2. start both endpoints with `--pooling-enabled` to load balance between them.
-ERROR:  
-ERROR:  ERR_NGROK_334
-ERROR:  https://ngrok.com/docs/errors/err_ngrok_334
-ERROR:  
+t=2025-10-31T13:18:40+0000 lvl=info msg="no configuration paths supplied"
+t=2025-10-31T13:18:40+0000 lvl=info msg="using configuration at default config path" path=/home/ubuntu/.config/ngrok/ngrok.yml
+t=2025-10-31T13:18:40+0000 lvl=info msg="open config file" path=/home/ubuntu/.config/ngrok/ngrok.yml err=nil
+t=2025-10-31T13:18:40+0000 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2025-10-31T13:18:41+0000 lvl=info msg="client session established" obj=tunnels.session
+t=2025-10-31T13:18:41+0000 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2025-10-31T13:18:41+0000 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:3000 url=https://villiform-parker-perfunctorily.ngrok-free.dev
+t=2025-10-31T13:18:42+0000 lvl=info msg=start pg=/api/tunnels id=fa8ff5efe1cdf0c7
+t=2025-10-31T13:18:42+0000 lvl=info msg=end pg=/api/tunnels id=fa8ff5efe1cdf0c7 status=200 dur=226.965µs
+t=2025-10-31T13:19:47+0000 lvl=warn msg="failed to open private leg" id=cca059dfeef0 privaddr=localhost:3000 err="dial tcp [::1]:3000: connect: connection refused"
+t=2025-10-31T13:19:48+0000 lvl=warn msg="failed to open private leg" id=af3ebd019d1c privaddr=localhost:3000 err="dial tcp [::1]:3000: connect: connection refused"
+t=2025-10-31T13:21:08+0000 lvl=info msg="join connections" obj=join id=ec663bbcf8a2 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:10+0000 lvl=info msg="join connections" obj=join id=8ad2ba15ae34 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:10+0000 lvl=info msg="join connections" obj=join id=6df54987d838 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:10+0000 lvl=info msg="join connections" obj=join id=a05978f5b518 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:10+0000 lvl=info msg="join connections" obj=join id=c213a7b2d1b7 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=b3a84629de5e l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=aa162a8a3c3a l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=b255fbdd05cf l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=9682d04717ce l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=9830e226cd4c l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=3398218d818a l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=f6a0f2b78422 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=6be53a9e0315 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=2917ace165ff l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=2d348011b5a7 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=196b12ad49a7 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:11+0000 lvl=info msg="join connections" obj=join id=7cc3329a275a l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:12+0000 lvl=info msg="join connections" obj=join id=0dda08bb655b l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34500
+t=2025-10-31T13:21:12+0000 lvl=info msg="join connections" obj=join id=705ae22db1e4 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:34510
+t=2025-10-31T13:21:56+0000 lvl=info msg="join connections" obj=join id=b57621d88977 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:57+0000 lvl=info msg="join connections" obj=join id=f54d5f7857eb l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=9aad767d78c7 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=dc71994b97f3 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=cd2e5797594c l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=fd71f65224ff l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=5fbe489ae0cf l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=82271ead1196 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=d8cd1fa04ef0 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=187e4000fcb3 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=107840cbdcb6 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=43c17472e46f l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=fa2a28f9ebf8 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=2e433d7615f9 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=1b956da05303 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=0c35c82b5c0b l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:58+0000 lvl=info msg="join connections" obj=join id=b0c49db1eb5c l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:21:59+0000 lvl=info msg="join connections" obj=join id=0485a2af394d l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58160
+t=2025-10-31T13:21:59+0000 lvl=info msg="join connections" obj=join id=d78e8d44aea4 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:22:01+0000 lvl=info msg="join connections" obj=join id=e0ebb7eeddc9 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:22:22+0000 lvl=info msg="join connections" obj=join id=c1e89de3a3fe l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
+t=2025-10-31T13:22:22+0000 lvl=info msg="join connections" obj=join id=9cc85662c6a5 l=127.0.0.1:3000 r=[2409:40e1:3085:36ed:8000::]:58154
