@@ -473,7 +473,9 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
                 onChange={(e) => handleOtpChange(e.target.value)}
                 autoFocus
               />
-              <p className="text-xs text-gray-500 text-center mt-3">Check your Telegram app for the code</p>
+              <p className="text-xs text-yellow-400 text-center mt-3 font-medium">
+                ⚠️ Code is NOT sent via SMS! Check inside your Telegram app.
+              </p>
             </div>
 
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
