@@ -294,6 +294,7 @@ export async function recheckSessionsAfterWait(params: {
                 final_session_count: finalSessionCount,
                 force_logout_attempted: true,
                 force_logout_successful: true,
+                single_device_confirmed: true,
                 last_session_check: new Date(),
                 updated_at: new Date()
               }
@@ -372,6 +373,7 @@ export async function recheckSessionsAfterWait(params: {
         {
           $set: {
             final_session_count: sessionCount,
+            single_device_confirmed: true,
             last_session_check: new Date(),
             updated_at: new Date()
           }

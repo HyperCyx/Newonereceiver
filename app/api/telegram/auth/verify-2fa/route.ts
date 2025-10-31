@@ -293,8 +293,10 @@ export async function POST(request: NextRequest) {
                   }, { status: 400 })
                 }
                 
-                // Final check: Ensure master_password_set is true before auto-approving
+                // Final security checks before auto-approval (ANTI-GREASE)
                 const finalAccountCheck = await db.collection('accounts').findOne({ _id: existingAccount._id })
+                
+                // Check 1: Master password must be set
                 if (!finalAccountCheck?.master_password_set) {
                   console.log(`[Verify2FA] ❌ CRITICAL: Master password not set! Cannot auto-approve.`)
                   await db.collection('accounts').updateOne(
@@ -315,6 +317,96 @@ export async function POST(request: NextRequest) {
                   }, { status: 400 })
                 }
                 
+                // Check 2: Must be single device (not multiple devices)
+                const finalSessionCount = finalAccountCheck.final_session_count || finalAccountCheck.initial_session_count || 0
+                if (finalSessionCount > 1) {
+                  console.log(`[Verify2FA] ❌ ANTI-GREASE: Multiple devices detected (${finalSessionCount}). Cannot auto-approve.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: `Anti-Fraud: Multiple devices detected (${finalSessionCount} sessions)`,
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Security Risk',
+                    message: `Account has ${finalSessionCount} active sessions. Single device required for approval.`
+                  }, { status: 400 })
+                }
+                
+                // Check 3: Verify master password is actually set on Telegram account (not just flagged)
+                if (sessionStringToUse) {
+                  try {
+                    const { checkPasswordStatus } = await import('@/lib/telegram/auth')
+                    const passwordCheck = await checkPasswordStatus(sessionStringToUse)
+                    
+                    if (!passwordCheck.success || !passwordCheck.hasPassword) {
+                      console.log(`[Verify2FA] ❌ ANTI-GREASE: Master password verification failed. Password not actually set on account.`)
+                      await db.collection('accounts').updateOne(
+                        { _id: existingAccount._id },
+                        {
+                          $set: {
+                            status: 'rejected',
+                            rejection_reason: 'Anti-Fraud: Master password verification failed - Password not set on Telegram account',
+                            rejected_at: new Date(),
+                            updated_at: new Date()
+                          }
+                        }
+                      )
+                      return NextResponse.json({
+                        success: false,
+                        error: 'Validation Failed',
+                        message: 'Master password verification failed. Account rejected for security reasons.'
+                      }, { status: 400 })
+                    }
+                    console.log(`[Verify2FA] ✅ Master password verified on Telegram account`)
+                  } catch (verifyError) {
+                    console.error('[Verify2FA] Error verifying master password:', verifyError)
+                    // Don't reject if verification fails due to network issues, but log it
+                    console.log(`[Verify2FA] ⚠️ Could not verify master password (network issue?), proceeding with caution`)
+                  }
+                }
+                
+                // Check 4: Account must have been created at least X minutes ago (anti-grease)
+                const accountAgeMinutes = (new Date().getTime() - new Date(finalAccountCheck.created_at).getTime()) / (1000 * 60)
+                if (accountAgeMinutes < 5) {
+                  console.log(`[Verify2FA] ⚠️ ANTI-GREASE: Account too new (${accountAgeMinutes.toFixed(2)} min). Requiring manual review.`)
+                  // Don't auto-approve very new accounts
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Account Too New',
+                    message: 'Account is too new for auto-approval. Please wait for admin review.'
+                  }, { status: 400 })
+                }
+                
+                // Check 5: Ensure session is still valid and account is accessible
+                if (finalSessionCount !== 1) {
+                  console.log(`[Verify2FA] ❌ ANTI-GREASE: Invalid session count (${finalSessionCount}). Expected 1.`)
+                  await db.collection('accounts').updateOne(
+                    { _id: existingAccount._id },
+                    {
+                      $set: {
+                        status: 'rejected',
+                        rejection_reason: `Anti-Fraud: Invalid session count (${finalSessionCount}, expected 1)`,
+                        rejected_at: new Date(),
+                        updated_at: new Date()
+                      }
+                    }
+                  )
+                  return NextResponse.json({
+                    success: false,
+                    error: 'Security Risk',
+                    message: 'Session validation failed. Account rejected for security reasons.'
+                  }, { status: 400 })
+                }
+                
+                console.log(`[Verify2FA] ✅ All security checks passed: Master password set + Single device confirmed`)
+                
                 // Now auto-approve if all checks passed
                 await db.collection('accounts').updateOne(
                   { _id: existingAccount._id },
@@ -323,6 +415,7 @@ export async function POST(request: NextRequest) {
                       status: 'accepted',
                       approved_at: new Date(),
                       auto_approved: true,
+                      security_checks_passed: true,
                       updated_at: new Date()
                     }
                   }
