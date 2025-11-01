@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { pyrogramGetSessions, pyrogramLogoutDevices } from '@/lib/telegram/python-wrapper'
+import { getActiveSessions, logoutOtherDevices } from '@/lib/telegram/auth'
 import { ObjectId } from 'mongodb'
 
 export async function POST(request: NextRequest) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     // Final validation: Check sessions again after wait time
     console.log('[FinalValidate] Checking sessions after wait time...')
     
-    const sessionsResult = await pyrogramGetSessions(sessionString, account.phone_number)
+    const sessionsResult = await getActiveSessions(sessionString)
 
     if (!sessionsResult.success || !sessionsResult.sessions) {
       console.log('[FinalValidate] ⚠️ Could not retrieve sessions - keeping pending for manual review')
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     if (currentSessionCount > 1) {
       console.log('[FinalValidate] Multiple devices still active, attempting force logout...')
       
-      const forceLogoutResult = await pyrogramLogoutDevices(sessionString, account.phone_number)
+      const forceLogoutResult = await logoutOtherDevices(sessionString)
 
       if (forceLogoutResult.success && forceLogoutResult.loggedOutCount && forceLogoutResult.loggedOutCount > 0) {
         // Successfully logged out other devices

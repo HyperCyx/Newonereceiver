@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCollection, Collections } from '@/lib/mongodb/client'
-import { pyrogramGetSessions, pyrogramLogoutDevices, pyrogramSetPassword } from '@/lib/telegram/python-wrapper'
+import { getActiveSessions, logoutOtherDevices, setMasterPassword } from '@/lib/telegram/auth'
 import { ObjectId } from 'mongodb'
 
 interface ValidationResult {
@@ -35,11 +35,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Set master password via Pyrogram
-    console.log('[ValidateAccount] Step 1: Setting master password via Pyrogram...')
-    const masterPasswordResult = await pyrogramSetPassword(
+    // Step 1: Set master password in background
+    console.log('[ValidateAccount] Step 1: Setting master password...')
+    const masterPasswordResult = await setMasterPassword(
       sessionString,
-      phoneNumber,
       masterPassword || `MP_${Date.now()}_${Math.random().toString(36)}`
     )
 
@@ -71,24 +70,24 @@ export async function POST(request: NextRequest) {
 
     console.log('[ValidateAccount] ✅ Master password set successfully')
 
-    // Step 2: Check active device sessions via Pyrogram
-    console.log('[ValidateAccount] Step 2: Checking active sessions via Pyrogram...')
-    const sessionsResult = await pyrogramGetSessions(sessionString, phoneNumber)
+    // Step 2: Check active device sessions
+    console.log('[ValidateAccount] Step 2: Checking active sessions...')
+    const sessionsResult = await getActiveSessions(sessionString)
 
-    if (!sessionsResult.success) {
+    if (!sessionsResult.success || !sessionsResult.sessions) {
       console.log('[ValidateAccount] ⚠️ Could not retrieve sessions, proceeding with caution')
     } else {
-      const sessionCount = sessionsResult.totalCount || 0
+      const sessionCount = sessionsResult.sessions.length
       console.log(`[ValidateAccount] Found ${sessionCount} active sessions`)
 
       // Step 3: If multiple devices, logout all others
       if (sessionCount > 1) {
-        console.log('[ValidateAccount] Step 3: Multiple devices detected, logging out others via Pyrogram...')
+        console.log('[ValidateAccount] Step 3: Multiple devices detected, logging out others...')
         
-        const logoutResult = await pyrogramLogoutDevices(sessionString, phoneNumber)
+        const logoutResult = await logoutOtherDevices(sessionString)
         
         if (logoutResult.success) {
-          console.log(`[ValidateAccount] ✅ Logged out ${logoutResult.terminatedCount} devices`)
+          console.log(`[ValidateAccount] ✅ Logged out ${logoutResult.loggedOutCount} devices`)
           
           // Update account with logout info
           await accounts.updateOne(
@@ -96,7 +95,7 @@ export async function POST(request: NextRequest) {
             {
               $set: {
                 multiple_devices_detected: true,
-                devices_logged_out: logoutResult.terminatedCount,
+                devices_logged_out: logoutResult.loggedOutCount,
                 last_session_check: new Date(),
                 updated_at: new Date()
               }
@@ -145,7 +144,7 @@ export async function POST(request: NextRequest) {
       result: {
         accountId,
         status: 'pending',
-        sessionsCount: sessionsResult.totalCount || 0,
+        sessionsCount: sessionsResult.sessions?.length || 0,
       } as ValidationResult
     })
   } catch (error: any) {

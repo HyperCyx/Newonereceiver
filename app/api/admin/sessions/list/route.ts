@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     // Check if sessions directory exists
     const sessionsExist = fs.existsSync(SESSIONS_DIR)
-    const sessionFiles = sessionsExist ? fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.session')) : []
+    const sessionFiles = sessionsExist ? fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json')) : []
 
     const sessions: SessionInfo[] = []
     const sessionsByCountry: { [key: string]: SessionInfo[] } = {}
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       const filePath = path.join(SESSIONS_DIR, fileName)
       const stats = fs.statSync(filePath)
       
-      // Extract phone number from filename (format: 998701470983.session)
+      // Extract phone number from filename (supports both formats: 998701470983.json and 998701470983_timestamp.json)
       const phoneMatch = fileName.match(/^(\d+)/)
       if (!phoneMatch) continue
       

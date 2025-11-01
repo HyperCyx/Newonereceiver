@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pyrogramSendOTP } from '@/lib/telegram/python-wrapper'
+import { sendOTP } from '@/lib/telegram/auth'
 import { connectToDatabase } from '@/lib/mongodb/client'
 
 /**
  * POST /api/telegram/auth/send-otp
- * Send OTP to phone number via Pyrogram
+ * Send OTP to phone number
  */
 export async function POST(request: NextRequest) {
   try {
@@ -120,28 +120,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[SendOTP] Sending OTP via Pyrogram to: ${phoneNumber} (Country: ${countryCode})`)
+    console.log(`[SendOTP] Sending OTP to: ${phoneNumber} (Country: ${countryCode})`)
 
-    // Send OTP via Pyrogram
-    const result = await pyrogramSendOTP(phoneNumber)
+    const result = await sendOTP(phoneNumber)
 
     if (result.success) {
-      console.log(`[SendOTP] ✅ OTP sent successfully via Pyrogram`)
       return NextResponse.json({
         success: true,
         phoneCodeHash: result.phoneCodeHash,
-        sessionString: result.sessionString,
-        sessionFile: result.sessionFile,
+        sessionString: result.sessionString, // Return session for continuity
         message: 'OTP sent successfully. Check your Telegram app.',
       })
     } else {
-      console.log(`[SendOTP] ❌ Failed to send OTP: ${result.error}`)
       return NextResponse.json(
-        { 
-          success: false, 
-          error: result.error || 'Failed to send OTP',
-          details: result.details
-        },
+        { success: false, error: result.error || 'Failed to send OTP' },
         { status: 400 }
       )
     }
