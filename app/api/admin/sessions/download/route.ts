@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const filesToInclude: string[] = []
 
     // Get all session files
-    const allSessionFiles = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'))
+    const allSessionFiles = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.session'))
 
     if (filter === 'latest') {
       // Get latest N sessions based on file modification time
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       
       return new NextResponse(fileContent, {
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'text/plain',
           'Content-Disposition': `attachment; filename="${fileName}"`,
           'Content-Length': fileContent.length.toString(),
         },

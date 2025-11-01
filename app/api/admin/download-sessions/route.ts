@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check admin
-    const isAdmin = await checkAdminByTelegramId(telegramId)
+    const isAdmin = await checkAdminByTelegramId(Number(telegramId))
     if (!isAdmin) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all session files
-    const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'))
+    const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.session'))
 
     if (files.length === 0) {
       return NextResponse.json(

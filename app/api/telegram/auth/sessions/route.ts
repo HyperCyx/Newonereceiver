@@ -1,62 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listSessions, deleteSession } from '@/lib/telegram/auth'
+import { pyrogramGetSessions, pyrogramLogoutDevices } from '@/lib/telegram/python-wrapper'
 
 /**
- * GET /api/telegram/auth/sessions
- * List all saved sessions
+ * Get active sessions via Pyrogram
  */
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const sessions = listSessions()
-    return NextResponse.json({
-      success: true,
-      sessions: sessions.map((s) => ({
-        phoneNumber: s.phoneNumber,
-        userId: s.userId,
-        createdAt: s.createdAt,
-      })),
-    })
-  } catch (error: any) {
-    console.error('[Sessions] Error:', error)
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
+    const { sessionString, phoneNumber, action } = await request.json()
 
-/**
- * DELETE /api/telegram/auth/sessions
- * Delete a session
- */
-export async function DELETE(request: NextRequest) {
-  try {
-    const { phoneNumber } = await request.json()
-
-    if (!phoneNumber) {
+    if (!sessionString || !phoneNumber) {
       return NextResponse.json(
-        { success: false, error: 'Phone number is required' },
+        { error: 'Missing required fields' },
         { status: 400 }
       )
     }
 
-    const success = deleteSession(phoneNumber)
+    if (action === 'logout') {
+      console.log(`[Sessions API] Logging out other devices for: ${phoneNumber}`)
+      
+      const result = await pyrogramLogoutDevices(sessionString, phoneNumber)
+      
+      if (!result.success) {
+        console.log(`[Sessions API] ? Logout failed: ${result.error}`)
+        return NextResponse.json(
+          {
+            success: false,
+            error: result.error,
+            details: result.details
+          },
+          { status: 400 }
+        )
+      }
 
-    if (success) {
+      console.log(`[Sessions API] ? Logged out ${result.terminatedCount} device(s)`)
+
       return NextResponse.json({
         success: true,
-        message: 'Session deleted successfully',
+        terminatedCount: result.terminatedCount,
+        sessionsBefore: result.sessionsBefore,
+        sessionsAfter: result.sessionsAfter,
       })
-    } else {
+    }
+
+    // Default: Get sessions
+    console.log(`[Sessions API] Getting sessions for: ${phoneNumber}`)
+    
+    const result = await pyrogramGetSessions(sessionString, phoneNumber)
+
+    if (!result.success) {
+      console.log(`[Sessions API] ? Failed: ${result.error}`)
       return NextResponse.json(
-        { success: false, error: 'Failed to delete session' },
-        { status: 500 }
+        {
+          success: false,
+          error: result.error,
+          details: result.details
+        },
+        { status: 400 }
       )
     }
+
+    console.log(`[Sessions API] ? Found ${result.totalCount} session(s)`)
+
+    return NextResponse.json({
+      success: true,
+      currentSession: result.currentSession,
+      otherSessions: result.otherSessions,
+      totalCount: result.totalCount,
+    })
   } catch (error: any) {
-    console.error('[Sessions] Error:', error)
+    console.error('[Sessions API] Error:', error)
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     )
   }
