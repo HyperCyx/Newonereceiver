@@ -21,10 +21,6 @@ export function parseApiError(text: string, statusCode: number): string {
           return `ℹ️ This phone number has already been ${errorData.status || 'processed'}. You can view it in your account list.`
         case 'CAPACITY_FULL':
           return errorData.message || '❌ Sorry! The capacity for this country is full. No more accounts can be submitted right now.'
-        case 'PHONE_CODE_EXPIRED':
-          return '⏰ The OTP code has expired. Please request a new code by clicking "Resend OTP".'
-        case 'PHONE_CODE_INVALID':
-          return '❌ Invalid OTP code. Please check the code and try again.'
         default:
           return errorData.error
       }
