@@ -160,12 +160,35 @@ async def verify_otp(session_string, phone_number, code, phone_code_hash):
         )
         
         print(f"INFO: Connecting with saved session...", file=sys.stderr)
+        
+        # Check session file exists before connecting
+        session_file_path = os.path.join(SESSIONS_DIR, f"{clean_phone}.session")
+        print(f"INFO: Checking session file: {session_file_path}", file=sys.stderr)
+        if os.path.exists(session_file_path):
+            stat = os.stat(session_file_path)
+            print(f"INFO: ? Session file exists: {stat.st_size} bytes", file=sys.stderr)
+        else:
+            print(f"ERROR: ? Session file NOT FOUND!", file=sys.stderr)
+            output_error('SESSION_FILE_NOT_FOUND', {
+                'message': 'Session file does not exist',
+                'expected_path': session_file_path
+            })
+            return
+        
         await client.connect()
-        print(f"INFO: Connected! Attempting sign in...", file=sys.stderr)
+        print(f"INFO: ? Connected! Attempting sign in...", file=sys.stderr)
+        
+        # Log the exact parameters being used
+        print(f"INFO: sign_in parameters:", file=sys.stderr)
+        print(f"INFO:   phone_number: {phone_number}", file=sys.stderr)
+        print(f"INFO:   phone_code_hash: {phone_code_hash}", file=sys.stderr)
+        print(f"INFO:   code: {code}", file=sys.stderr)
         
         try:
             # Try to sign in with code
+            print(f"INFO: Calling client.sign_in()...", file=sys.stderr)
             signed_in = await client.sign_in(phone_number, phone_code_hash, code)
+            print(f"INFO: ? client.sign_in() returned successfully", file=sys.stderr)
             
             print(f"INFO: ? Sign in successful!", file=sys.stderr)
             
